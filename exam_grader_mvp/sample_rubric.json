@@ -1,0 +1,55 @@
+{
+  "exam_title": "STEM Physics & Circuits Assessment",
+  "questions": [
+    {
+      "question_id": "Q1",
+      "question_text": "State Newton's Second Law of Motion, write its mathematical expression, and define the SI unit of force.",
+      "model_answer": "Newton's Second Law of Motion states that the rate of change of linear momentum of a body is directly proportional to the applied unbalanced external force and acts in the direction of the force. Mathematically, force equals mass times acceleration, F = m * a. The SI unit of force is the Newton (N), defined as the force that accelerates a 1 kilogram mass by 1 meter per second squared.",
+      "key_points": [
+        {
+          "point_id": "KP1",
+          "description": "Rate of change of momentum is directly proportional to applied force and takes place in the direction of the force.",
+          "weight": 0.4
+        },
+        {
+          "point_id": "KP2",
+          "description": "Mathematical expression F = m * a where F is force, m is mass, and a is acceleration.",
+          "weight": 0.35
+        },
+        {
+          "point_id": "KP3",
+          "description": "SI unit of force is the Newton (N), defined as 1 kg * m/s^2.",
+          "weight": 0.25
+        }
+      ],
+      "requires_diagram": false,
+      "diagram_criteria": "",
+      "max_marks": 5.0
+    },
+    {
+      "question_id": "Q2",
+      "question_text": "Draw a neat labeled diagram of a simple series electric circuit to verify Ohm's Law, and explain the role of the resistor and ammeter.",
+      "model_answer": "A simple series electric circuit contains a battery, a switch, a resistor, and an ammeter connected in a closed series loop. The battery provides voltage across the circuit. The resistor opposes electric current according to Ohm's Law V = I * R. The ammeter is connected in series to measure the electric current flowing through the circuit.",
+      "key_points": [
+        {
+          "point_id": "KP1",
+          "description": "Battery provides potential difference or voltage in a closed series loop.",
+          "weight": 0.35
+        },
+        {
+          "point_id": "KP2",
+          "description": "Resistor opposes current flow and follows Ohm's Law V = I * R.",
+          "weight": 0.35
+        },
+        {
+          "point_id": "KP3",
+          "description": "Ammeter is connected in series to measure electric current.",
+          "weight": 0.3
+        }
+      ],
+      "requires_diagram": true,
+      "diagram_criteria": "Must depict a closed rectangular series loop with clearly labeled Battery, Switch, Resistor (zig-zag or box), and Ammeter (circle with A), plus connecting wires and current direction.",
+      "max_marks": 5.0
+    }
+  ]
+}

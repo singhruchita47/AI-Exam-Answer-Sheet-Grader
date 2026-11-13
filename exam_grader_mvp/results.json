@@ -1,0 +1,188 @@
+{
+  "segmentation": [
+    {
+      "page_number": 1,
+      "source_path": "sample_page1.jpg",
+      "skew_angle_deg": -1.78,
+      "text_lines_detected": 7,
+      "diagrams_detected": 0,
+      "layout_image_path": "debug_crops\\page_1_layout.png",
+      "line_transcripts": [
+        {
+          "region_id": "line_001",
+          "text": "Q1 Newton's Second Law of Motion states that",
+          "crop": "debug_crops\\page_1\\line_001.png"
+        },
+        {
+          "region_id": "line_002",
+          "text": "the rate of change of momentum of a body is",
+          "crop": "debug_crops\\page_1\\line_002.png"
+        },
+        {
+          "region_id": "line_003",
+          "text": "directly proportional to the applied unbalanced",
+          "crop": "debug_crops\\page_1\\line_003.png"
+        },
+        {
+          "region_id": "line_004",
+          "text": "force and acts in the direction of the force .",
+          "crop": "debug_crops\\page_1\\line_004.png"
+        },
+        {
+          "region_id": "line_005",
+          "text": "Mathematically , F. m. a , where in is mass",
+          "crop": "debug_crops\\page_1\\line_005.png"
+        },
+        {
+          "region_id": "line_006",
+          "text": "and a is acceleration . The S1 unit of force",
+          "crop": "debug_crops\\page_1\\line_006.png"
+        },
+        {
+          "region_id": "line_007",
+          "text": "is the Newton ( ND. equal to 1 kg m.s.2 .",
+          "crop": "debug_crops\\page_1\\line_007.png"
+        }
+      ],
+      "diagram_crops": []
+    },
+    {
+      "page_number": 2,
+      "source_path": "sample_page2.jpg",
+      "skew_angle_deg": 1.47,
+      "text_lines_detected": 5,
+      "diagrams_detected": 1,
+      "layout_image_path": "debug_crops\\page_2_layout.png",
+      "line_transcripts": [
+        {
+          "region_id": "line_001",
+          "text": "Q2 . In a simple series electric circuit , the",
+          "crop": "debug_crops\\page_2\\line_001.png"
+        },
+        {
+          "region_id": "line_002",
+          "text": "battery provides voltage across the closed loop",
+          "crop": "debug_crops\\page_2\\line_002.png"
+        },
+        {
+          "region_id": "line_003",
+          "text": "The resistor opposes electric current following",
+          "crop": "debug_crops\\page_2\\line_003.png"
+        },
+        {
+          "region_id": "line_004",
+          "text": "Ohm's Law V.I.R. and the armeter is",
+          "crop": "debug_crops\\page_2\\line_004.png"
+        },
+        {
+          "region_id": "line_005",
+          "text": "connected in series to measure current",
+          "crop": "debug_crops\\page_2\\line_005.png"
+        }
+      ],
+      "diagram_crops": [
+        {
+          "region_id": "diagram_001",
+          "crop": "debug_crops\\page_2\\diagram_001.png"
+        }
+      ]
+    }
+  ],
+  "grading_report": {
+    "exam_title": "STEM Physics & Circuits Assessment",
+    "mode": "offline_local",
+    "total_marks_awarded": 10.0,
+    "total_max_marks": 10.0,
+    "mapped_answers": {
+      "Q1": "Newton's Second Law of Motion states that the rate of change of momentum of a body is directly proportional to the applied unbalanced force and acts in the direction of the force . Mathematically , F. m. a , where in is mass and a is acceleration . The S1 unit of force is the Newton ( ND. equal to 1 kg m.s.2 .",
+      "Q2": "In a simple series electric circuit , the battery provides voltage across the closed loop The resistor opposes electric current following Ohm's Law V.I.R. and the armeter is connected in series to measure current"
+    },
+    "question_results": [
+      {
+        "question_id": "Q1",
+        "student_answer": "Newton's Second Law of Motion states that the rate of change of momentum of a body is directly proportional to the applied unbalanced force and acts in the direction of the force . Mathematically , F. m. a , where in is mass and a is acceleration . The S1 unit of force is the Newton ( ND. equal to 1 kg m.s.2 .",
+        "semantic_similarity": 0.8949,
+        "diagram_path": null,
+        "diagram_evaluation": null,
+        "step_wise_breakdown": [
+          {
+            "point_id": "KP1",
+            "description": "Rate of change of momentum is directly proportional to applied force and takes place in the direction of the force.",
+            "max_point_marks": 2.0,
+            "awarded_point_marks": 2.0,
+            "status": "Hit",
+            "similarity_score": 0.8046,
+            "notes": "Key concept matched (similarity 0.80)."
+          },
+          {
+            "point_id": "KP2",
+            "description": "Mathematical expression F = m * a where F is force, m is mass, and a is acceleration.",
+            "max_point_marks": 1.75,
+            "awarded_point_marks": 1.75,
+            "status": "Hit",
+            "similarity_score": 0.7041,
+            "notes": "Key concept matched (similarity 0.70)."
+          },
+          {
+            "point_id": "KP3",
+            "description": "SI unit of force is the Newton (N), defined as 1 kg * m/s^2.",
+            "max_point_marks": 1.25,
+            "awarded_point_marks": 1.25,
+            "status": "Hit",
+            "similarity_score": 0.7694,
+            "notes": "Key concept matched (similarity 0.77)."
+          }
+        ],
+        "missing_key_points": [],
+        "marks_awarded": 5.0,
+        "max_marks": 5.0,
+        "student_feedback": "Covered 3/3 rubric key points clearly (semantic similarity: 0.89)."
+      },
+      {
+        "question_id": "Q2",
+        "student_answer": "In a simple series electric circuit , the battery provides voltage across the closed loop The resistor opposes electric current following Ohm's Law V.I.R. and the armeter is connected in series to measure current",
+        "semantic_similarity": 0.8253,
+        "diagram_path": "debug_crops\\page_2\\diagram_001.png",
+        "diagram_evaluation": {
+          "is_relevant": true,
+          "labels_accurate": true,
+          "structure_score": 1.0,
+          "critique": "Offline structural check (961x516px, 55 stroke components, 52 label-sized elements). Enable Gemini API or uncomment Qwen/Qwen2.5-VL-7B-Instruct for semantic label verification."
+        },
+        "step_wise_breakdown": [
+          {
+            "point_id": "KP1",
+            "description": "Battery provides potential difference or voltage in a closed series loop.",
+            "max_point_marks": 1.22,
+            "awarded_point_marks": 1.22,
+            "status": "Hit",
+            "similarity_score": 0.6707,
+            "notes": "Key concept matched (similarity 0.67)."
+          },
+          {
+            "point_id": "KP2",
+            "description": "Resistor opposes current flow and follows Ohm's Law V = I * R.",
+            "max_point_marks": 1.22,
+            "awarded_point_marks": 1.22,
+            "status": "Hit",
+            "similarity_score": 0.6622,
+            "notes": "Key concept matched (similarity 0.66)."
+          },
+          {
+            "point_id": "KP3",
+            "description": "Ammeter is connected in series to measure electric current.",
+            "max_point_marks": 1.05,
+            "awarded_point_marks": 1.05,
+            "status": "Hit",
+            "similarity_score": 0.7309,
+            "notes": "Key concept matched (similarity 0.73)."
+          }
+        ],
+        "missing_key_points": [],
+        "marks_awarded": 5.0,
+        "max_marks": 5.0,
+        "student_feedback": "Covered 3/3 rubric key points clearly (semantic similarity: 0.83). Diagram score: 1.00/1.00."
+      }
+    ]
+  }
+}
