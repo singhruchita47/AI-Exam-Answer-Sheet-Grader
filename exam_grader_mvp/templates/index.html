@@ -247,9 +247,12 @@
             <!-- Big Friendly Grade Banner -->
             <div class="bg-gradient-to-r from-emerald-600 to-teal-700 text-white rounded-2xl p-6 shadow-xs flex items-center justify-between">
               <div>
-                <span class="inline-block px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-white/20 text-white uppercase tracking-wider" id="resExamTitle">Class 10 Biology</span>
+                <div class="flex items-center gap-2">
+                  <span class="inline-block px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-white/20 text-white uppercase tracking-wider" id="resExamTitle">Class 10 Biology</span>
+                  <span id="teacherEditedBadge" class="hidden inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-400 text-amber-950">✏️ Teacher Overridden</span>
+                </div>
                 <h2 class="text-3xl sm:text-4xl font-extrabold mt-1 tracking-tight" id="resTotalMarks">5.00 / 5.00</h2>
-                <p class="text-xs text-emerald-100 mt-1" id="resEngineMode">Evaluation Mode: Offline Local</p>
+                <p class="text-xs text-emerald-100 mt-1" id="resEngineMode">Evaluation Mode: AI Grader</p>
               </div>
               <div class="text-right">
                 <div class="text-3xl sm:text-5xl font-black text-white" id="resGradeBadge">A+</div>
@@ -283,11 +286,18 @@
 
             <!-- Step-by-Step Marks Breakdown -->
             <div class="bg-white rounded-2xl shadow-xs border border-slate-200 p-5 sm:p-6 space-y-3">
-              <div class="flex items-center justify-between border-b border-slate-100 pb-2.5">
-                <h3 class="text-sm font-bold text-slate-900 flex items-center gap-2">
-                  <span>🎯</span> Step-by-Step Teacher Grading Checklist
-                </h3>
-                <span class="text-[11px] text-slate-400">Step Marks Breakdown</span>
+              <div class="flex flex-wrap items-center justify-between border-b border-slate-100 pb-2.5 gap-2">
+                <div class="flex items-center gap-2">
+                  <h3 class="text-sm font-bold text-slate-900 flex items-center gap-2">
+                    <span>🎯</span> Step-by-Step Teacher Grading Checklist
+                  </h3>
+                  <span class="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">✏️ Marks Editable</span>
+                </div>
+                <div class="flex items-center gap-2">
+                  <button type="button" onclick="resetToAiMarks()" class="text-[11px] font-bold text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 px-2.5 py-1 rounded-lg transition cursor-pointer flex items-center gap-1">
+                    <span>🔄</span> <span>Reset to AI Marks</span>
+                  </button>
+                </div>
               </div>
               <div id="resGradingBreakdown" class="space-y-4"></div>
             </div>
@@ -665,27 +675,24 @@
       }
     }
 
+    let originalGradingReport = null;
+    let currentGradingReport = null;
+
     function renderGradingResults(data) {
-      const report = data.grading_report;
+      originalGradingReport = JSON.parse(JSON.stringify(data.grading_report));
+      currentGradingReport = JSON.parse(JSON.stringify(data.grading_report));
       
       // 1. Header Banner
-      document.getElementById('resExamTitle').textContent = report.exam_title || 'Class Exam Assessment';
-      document.getElementById('resTotalMarks').textContent = `${report.total_marks_awarded.toFixed(2)} / ${report.total_max_marks.toFixed(2)} Marks`;
-      const pct = report.total_max_marks > 0 ? (report.total_marks_awarded / report.total_max_marks) * 100 : 0;
-      document.getElementById('resPercent').textContent = `${pct.toFixed(1)}% Score`;
-      
-      let grade = 'A+';
-      if (pct < 50) grade = 'D';
-      else if (pct < 65) grade = 'C';
-      else if (pct < 80) grade = 'B';
-      else if (pct < 90) grade = 'A';
-      document.getElementById('resGradeBadge').textContent = grade;
-      document.getElementById('resEngineMode').textContent = `AI Mode: ${report.mode === 'online_gemini' ? 'Gemini 2.5 Flash VLM (Online)' : 'Local TrOCR + MiniLM (Offline)'}`;
+      document.getElementById('resExamTitle').textContent = currentGradingReport.exam_title || 'Class Exam Assessment';
+      const teacherBadge = document.getElementById('teacherEditedBadge');
+      if (teacherBadge) teacherBadge.classList.add('hidden');
+      recalculateGrandTotal(false);
+      document.getElementById('resEngineMode').textContent = `AI Mode: ${currentGradingReport.mode === 'online_gemini' ? 'Gemini 3.5 Flash VLM (Online)' : 'Local TrOCR + MiniLM (Offline)'}`;
 
       // 2. OCR Answers (Student handwriting text)
       const answersList = document.getElementById('resOcrAnswers');
       answersList.innerHTML = '';
-      for (const [qid, text] of Object.entries(report.mapped_answers)) {
+      for (const [qid, text] of Object.entries(currentGradingReport.mapped_answers)) {
         const item = document.createElement('div');
         item.className = 'p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-2';
         item.innerHTML = `
@@ -706,7 +713,7 @@
       diagContent.innerHTML = '';
       let hasDiagram = false;
 
-      for (const res of report.question_results) {
+      for (const res of currentGradingReport.question_results) {
         if (res.diagram_evaluation || res.diagram_path) {
           hasDiagram = true;
           const score = res.diagram_evaluation ? (res.diagram_evaluation.structure_score * 100).toFixed(0) : 100;
@@ -742,58 +749,8 @@
         diagCard.classList.add('hidden');
       }
 
-      // 4. Step-by-Step Breakdown
-      const breakdownList = document.getElementById('resGradingBreakdown');
-      breakdownList.innerHTML = '';
-      for (const res of report.question_results) {
-        const card = document.createElement('div');
-        card.className = 'border border-slate-200 rounded-xl p-4 sm:p-5 space-y-3.5 bg-slate-50/50';
-
-        const stepRows = res.step_wise_breakdown.map(step => {
-          let badge = `<span class="badge-hit px-2.5 py-1 rounded-lg text-xs font-bold flex items-center gap-1 shrink-0">✓ Full Marks (+${step.awarded_point_marks.toFixed(2)})</span>`;
-          if (step.status === 'Partial') {
-            badge = `<span class="badge-partial px-2.5 py-1 rounded-lg text-xs font-bold flex items-center gap-1 shrink-0">⚠️ Partial (+${step.awarded_point_marks.toFixed(2)})</span>`;
-          } else if (step.status === 'Missed') {
-            badge = `<span class="badge-missed px-2.5 py-1 rounded-lg text-xs font-bold flex items-center gap-1 shrink-0">❌ Missed (0.00)</span>`;
-          }
-
-          return `
-            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 bg-white rounded-xl border border-slate-100">
-              <div class="flex items-start gap-2.5">
-                <span class="text-emerald-600 font-bold text-sm shrink-0 mt-0.5">•</span>
-                <div>
-                  <p class="text-xs font-medium text-slate-800">${step.description}</p>
-                  <p class="text-[11px] text-slate-400 mt-0.5">${step.notes || ''}</p>
-                </div>
-              </div>
-              <div class="shrink-0 sm:text-right">
-                ${badge}
-              </div>
-            </div>
-          `;
-        }).join('');
-
-        card.innerHTML = `
-          <div class="flex items-center justify-between border-b border-slate-200 pb-2.5">
-            <div class="flex items-center gap-2">
-              <span class="font-bold text-sm text-slate-900">${res.question_id} Marks Breakdown</span>
-            </div>
-            <div class="text-sm font-extrabold text-emerald-700 font-mono bg-emerald-50 px-3 py-1 rounded-lg border border-emerald-200">
-              ${res.marks_awarded.toFixed(2)} / ${res.max_marks.toFixed(2)} Marks
-            </div>
-          </div>
-
-          <div class="space-y-2">
-            ${stepRows}
-          </div>
-
-          <div class="bg-indigo-50/60 p-3.5 rounded-xl border border-indigo-100 text-xs text-slate-700 space-y-1">
-            <span class="font-bold text-indigo-900 block text-[11px] uppercase tracking-wider">Teacher Feedback:</span>
-            <p class="leading-relaxed font-medium">${res.student_feedback}</p>
-          </div>
-        `;
-        breakdownList.appendChild(card);
-      }
+      // 4. Render Editable Step-by-Step Breakdown Cards
+      renderGradingBreakdownCards();
 
       // 5. Visual Layout Gallery
       const layoutGallery = document.getElementById('resLayoutGallery');
@@ -818,6 +775,172 @@
       }
 
       document.getElementById('gradingResultsCard').classList.remove('hidden');
+    }
+
+    function renderGradingBreakdownCards() {
+      if (!currentGradingReport || !currentGradingReport.question_results) return;
+      const breakdownList = document.getElementById('resGradingBreakdown');
+      breakdownList.innerHTML = '';
+
+      currentGradingReport.question_results.forEach((res, qIdx) => {
+        const card = document.createElement('div');
+        card.className = 'border border-slate-200 rounded-xl p-4 sm:p-5 space-y-3.5 bg-slate-50/50';
+
+        const stepRows = res.step_wise_breakdown.map((step, sIdx) => {
+          return `
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 p-3 bg-white rounded-xl border border-slate-100 hover:border-slate-200 transition">
+              <div class="flex items-start gap-2.5 flex-1">
+                <span class="text-emerald-600 font-bold text-sm shrink-0 mt-0.5">•</span>
+                <div>
+                  <p class="text-xs font-medium text-slate-800">${step.description}</p>
+                  <p class="text-[11px] text-slate-400 mt-0.5">${step.notes || ''}</p>
+                </div>
+              </div>
+              <div class="flex items-center gap-2 shrink-0 self-end sm:self-center">
+                <div class="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-lg px-2 py-1">
+                  <span class="text-[11px] font-semibold text-slate-500">Marks:</span>
+                  <input type="number" min="0" max="${step.max_point_marks}" step="0.25"
+                         id="stepInput_${qIdx}_${sIdx}"
+                         value="${Number(step.awarded_point_marks).toFixed(2)}"
+                         onchange="onStepMarksChanged(${qIdx}, ${sIdx}, this.value)"
+                         class="w-16 text-center font-bold text-slate-800 bg-white border border-slate-300 rounded text-xs py-0.5 focus:ring-2 focus:ring-indigo-500" />
+                  <span class="text-[11px] font-bold text-slate-400">/ ${Number(step.max_point_marks).toFixed(2)}</span>
+                </div>
+                <div class="flex items-center gap-1">
+                  <button type="button" title="Give Full Marks for this step"
+                          onclick="setStepMarksQuick(${qIdx}, ${sIdx}, ${step.max_point_marks})"
+                          class="px-2 py-1 text-[10px] font-bold bg-emerald-50 text-emerald-700 hover:bg-emerald-100 rounded border border-emerald-200 cursor-pointer">
+                    Full
+                  </button>
+                  <button type="button" title="Give Half Marks for this step"
+                          onclick="setStepMarksQuick(${qIdx}, ${sIdx}, ${(step.max_point_marks / 2).toFixed(2)})"
+                          class="px-2 py-1 text-[10px] font-bold bg-amber-50 text-amber-700 hover:bg-amber-100 rounded border border-amber-200 cursor-pointer">
+                    Half
+                  </button>
+                  <button type="button" title="Give Zero Marks for this step"
+                          onclick="setStepMarksQuick(${qIdx}, ${sIdx}, 0)"
+                          class="px-2 py-1 text-[10px] font-bold bg-rose-50 text-rose-700 hover:bg-rose-100 rounded border border-rose-200 cursor-pointer">
+                    Zero
+                  </button>
+                </div>
+              </div>
+            </div>
+          `;
+        }).join('');
+
+        card.innerHTML = `
+          <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-2.5">
+            <div class="flex items-center gap-2">
+              <span class="font-bold text-sm text-slate-900">${res.question_id} Marks Breakdown</span>
+              <span id="qEditBadge_${qIdx}" class="hidden text-[10px] font-bold bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full border border-amber-200">Edited by Teacher</span>
+            </div>
+            <div class="flex items-center gap-2 bg-white px-3 py-1.5 rounded-xl border border-slate-300 shadow-2xs">
+              <span class="text-xs font-bold text-slate-600">Teacher Score:</span>
+              <input type="number" id="qMarksInput_${qIdx}" min="0" max="${res.max_marks}" step="0.25"
+                     value="${Number(res.marks_awarded).toFixed(2)}"
+                     onchange="onQuestionMarksChanged(${qIdx}, this.value)"
+                     class="w-20 text-center font-black text-emerald-700 bg-emerald-50 border border-emerald-300 rounded-lg py-1 text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-hidden" />
+              <span class="text-xs font-bold text-slate-400">/ ${Number(res.max_marks).toFixed(2)} Marks</span>
+            </div>
+          </div>
+
+          <div class="space-y-2">
+            ${stepRows}
+          </div>
+
+          <div class="bg-indigo-50/60 p-3.5 rounded-xl border border-indigo-100 text-xs text-slate-700 space-y-1.5">
+            <div class="flex items-center justify-between">
+              <span class="font-bold text-indigo-900 block text-[11px] uppercase tracking-wider">Teacher Feedback:</span>
+              <span class="text-[10px] text-indigo-500 font-medium">✏️ Editable</span>
+            </div>
+            <textarea rows="2"
+                      onchange="currentGradingReport.question_results[${qIdx}].student_feedback = this.value"
+                      class="w-full text-xs p-2.5 bg-white rounded-lg border border-indigo-200 text-slate-800 font-medium leading-relaxed focus:ring-2 focus:ring-indigo-500">${res.student_feedback || ''}</textarea>
+          </div>
+        `;
+        breakdownList.appendChild(card);
+      });
+    }
+
+    function onStepMarksChanged(qIdx, sIdx, val) {
+      if (!currentGradingReport) return;
+      const step = currentGradingReport.question_results[qIdx].step_wise_breakdown[sIdx];
+      let num = parseFloat(val);
+      if (isNaN(num)) num = 0.0;
+      num = Math.max(0, Math.min(step.max_point_marks, num));
+      step.awarded_point_marks = num;
+
+      const inputEl = document.getElementById(`stepInput_${qIdx}_${sIdx}`);
+      if (inputEl) inputEl.value = num.toFixed(2);
+
+      const q = currentGradingReport.question_results[qIdx];
+      const sumSteps = q.step_wise_breakdown.reduce((acc, s) => acc + s.awarded_point_marks, 0);
+      q.marks_awarded = Math.min(q.max_marks, sumSteps);
+
+      const qInput = document.getElementById(`qMarksInput_${qIdx}`);
+      if (qInput) qInput.value = q.marks_awarded.toFixed(2);
+
+      const editBadge = document.getElementById(`qEditBadge_${qIdx}`);
+      if (editBadge) editBadge.classList.remove('hidden');
+
+      recalculateGrandTotal(true);
+    }
+
+    function setStepMarksQuick(qIdx, sIdx, val) {
+      onStepMarksChanged(qIdx, sIdx, val);
+    }
+
+    function onQuestionMarksChanged(qIdx, val) {
+      if (!currentGradingReport) return;
+      const q = currentGradingReport.question_results[qIdx];
+      let num = parseFloat(val);
+      if (isNaN(num)) num = 0.0;
+      num = Math.max(0, Math.min(q.max_marks, num));
+      q.marks_awarded = num;
+
+      const qInput = document.getElementById(`qMarksInput_${qIdx}`);
+      if (qInput) qInput.value = num.toFixed(2);
+
+      const editBadge = document.getElementById(`qEditBadge_${qIdx}`);
+      if (editBadge) editBadge.classList.remove('hidden');
+
+      recalculateGrandTotal(true);
+    }
+
+    function recalculateGrandTotal(isEdited = false) {
+      if (!currentGradingReport) return;
+      let totalAwarded = 0;
+      let totalMax = 0;
+      for (const q of currentGradingReport.question_results) {
+        totalAwarded += q.marks_awarded;
+        totalMax += q.max_marks;
+      }
+      currentGradingReport.total_marks_awarded = totalAwarded;
+      currentGradingReport.total_max_marks = totalMax;
+
+      document.getElementById('resTotalMarks').textContent = `${totalAwarded.toFixed(2)} / ${totalMax.toFixed(2)} Marks`;
+      const pct = totalMax > 0 ? (totalAwarded / totalMax) * 100 : 0;
+      document.getElementById('resPercent').textContent = `${pct.toFixed(1)}% Score`;
+
+      let grade = 'A+';
+      if (pct < 50) grade = 'D';
+      else if (pct < 65) grade = 'C';
+      else if (pct < 80) grade = 'B';
+      else if (pct < 90) grade = 'A';
+      document.getElementById('resGradeBadge').textContent = grade;
+
+      const bannerBadge = document.getElementById('teacherEditedBadge');
+      if (bannerBadge) {
+        if (isEdited) bannerBadge.classList.remove('hidden');
+        else bannerBadge.classList.add('hidden');
+      }
+    }
+
+    function resetToAiMarks() {
+      if (!originalGradingReport) return;
+      currentGradingReport = JSON.parse(JSON.stringify(originalGradingReport));
+      renderGradingBreakdownCards();
+      recalculateGrandTotal(false);
     }
 
     window.addEventListener('DOMContentLoaded', init);
