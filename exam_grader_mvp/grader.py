@@ -37,7 +37,7 @@ class KeyPoint(BaseModel):
 
     point_id: str
     description: str
-    weight: float = Field(gt=0.0)
+    weight: float = Field(default=1.0, ge=0.0)
 
 
 class RubricQuestion(BaseModel):
@@ -49,7 +49,7 @@ class RubricQuestion(BaseModel):
     key_points: list[KeyPoint]
     requires_diagram: bool = False
     diagram_criteria: str = ""
-    max_marks: float = Field(gt=0.0)
+    max_marks: float = Field(default=5.0, ge=0.0)
 
 
 class ExamRubric(BaseModel):

@@ -20,7 +20,7 @@ TROCR_MODEL_NAME: str = os.getenv(
     "TROCR_MODEL_NAME", "microsoft/trocr-base-handwritten"
 )
 EMBEDDING_MODEL_NAME: str = os.getenv("EMBEDDING_MODEL_NAME", "all-MiniLM-L6-v2")
-GEMINI_MODEL_NAME: str = os.getenv("GEMINI_MODEL_NAME", "gemini-2.5-flash")
+GEMINI_MODEL_NAME: str = os.getenv("GEMINI_MODEL_NAME", "gemini-3.5-flash")
 LOCAL_VLM_MODEL_NAME: str = os.getenv(
     "LOCAL_VLM_MODEL_NAME", "Qwen/Qwen2.5-VL-7B-Instruct"
 )

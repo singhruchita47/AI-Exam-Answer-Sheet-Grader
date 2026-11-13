@@ -270,18 +270,18 @@ class RubricGenerator:
                 key_points = [
                     KeyPoint(
                         point_id="KP1",
-                        description=f"State definition and core principles related to: {clean_q[:65]}...",
-                        weight=0.4 if needs_diagram else 0.5,
+                        description=f"Definition and core scientific concept of {clean_q[:60]}",
+                        weight=0.4 if needs_diagram else 0.4,
                     ),
                     KeyPoint(
                         point_id="KP2",
-                        description="Accurate scientific explanation, mathematical formula, or step derivation.",
-                        weight=0.35,
+                        description="Detailed explanation of the process, key inputs, mechanism, and outcomes.",
+                        weight=0.35 if needs_diagram else 0.4,
                     ),
                     KeyPoint(
                         point_id="KP3",
-                        description="Correct technical terminology, units, and clear conclusions.",
-                        weight=0.25 if needs_diagram else 0.15,
+                        description="Accurate scientific terminology, facts, and conclusions.",
+                        weight=0.25 if needs_diagram else 0.2,
                     ),
                 ]
             else:
