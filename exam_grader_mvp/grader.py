@@ -119,21 +119,39 @@ class ExamGradingReport(BaseModel):
 # Regex Question Boundary Segmentation
 # ---------------------------------------------------------------------------
 _QUESTION_MARKER_PATTERNS: tuple[re.Pattern[str], ...] = (
-    # Matches: Q1, Q.1, Q 1:, Q1), Q. 2 -, Question 1:
+    # Matches: Q1, Q.1, Q 1:, Q1), Q. 2 -, Question 1:, Q!
     re.compile(
-        r"^\s*(?:Q(?:uestion)?\s*[\.\-:#]?\s*(\d{1,2})\s*[\)\.\-:]?)(?:\s+(.*))?$",
+        r"^\s*(?:Q(?:uestion)?\s*[\.\-:#]?\s*([0-9!lI|]{1,2})\s*[\)\.\-:]?)(?:\s+(.*))?$",
         re.IGNORECASE,
     ),
-    # Matches: Ans 1:, Ans. 1, Answer 2), Ans1., s1., s 1., A1., A.1
+    # Matches: Ans 1:, Ans. 1, Answer 2), Ans1., Ans !..., A1., A.1
     re.compile(
-        r"^\s*(?:Ans(?:wer)?|[Aa]ns|[Ss]1?|[Aa])\s*[\.\-:#]?\s*(\d{1,2})\s*[\)\.\-:]?(?:\s+(.*))?$",
+        r"^\s*(?:Ans(?:wer)?|[Aa]ns|[Ss]1?|[Aa])\s*[\.\-:#]?\s*([0-9!lI|]{1,2})\s*[\)\.\-:]?(?:\s+(.*))?$",
+        re.IGNORECASE,
+    ),
+    # Matches: Ans!Word or Ans !Word (e.g. Ans !IDhm's)
+    re.compile(
+        r"^\s*(?:Ans(?:wer)?|[Aa]ns)\s*([!lI|1-9])\s*([A-Za-z].*)$",
         re.IGNORECASE,
     ),
     # Matches: 1), 2:, 1 )
-    re.compile(r"^\s*(\d{1,2})\s*[\)\:]\s*(.*)$"),
+    re.compile(r"^\s*([0-9!lI|]{1,2})\s*[\)\:]\s*(.*)$"),
     # Matches: 1. Text... (requires space + letter after dot to avoid decimals like 1.5)
-    re.compile(r"^\s*(\d{1,2})\.\s+(?=[A-Za-z])(.*)$"),
+    re.compile(r"^\s*([0-9!lI|]{1,2})\.\s+(?=[A-Za-z])(.*)$"),
 )
+
+
+def _clean_ocr_handwriting_text(text: str) -> str:
+    """Fix common OCR misrecognitions in student handwriting."""
+    # Fix IDhm's -> Ohm's
+    text = re.sub(r"\bI?Dhm(?:'s)?\b", "Ohm's", text, flags=re.IGNORECASE)
+    # Fix appropriational -> proportional
+    text = re.sub(r"\bappropriational\b", "proportional", text, flags=re.IGNORECASE)
+    # Fix following -> flowing
+    text = re.sub(r"\bfollowing through\b", "flowing through", text, flags=re.IGNORECASE)
+    # Fix jenergy -> energy
+    text = re.sub(r"\bjenergy\b", "energy", text, flags=re.IGNORECASE)
+    return text
 
 
 def _match_question_marker(line: str) -> tuple[str, str] | None:
@@ -144,9 +162,17 @@ def _match_question_marker(line: str) -> tuple[str, str] | None:
     for pattern in _QUESTION_MARKER_PATTERNS:
         match = pattern.match(stripped)
         if match:
-            q_num = int(match.group(1))
+            raw_num = match.group(1).strip()
+            if raw_num in ("!", "l", "I", "|"):
+                q_num = 1
+            else:
+                try:
+                    q_num = int(raw_num)
+                except ValueError:
+                    continue
             if 1 <= q_num <= 50:
                 remainder = (match.group(2) or "").strip()
+                remainder = _clean_ocr_handwriting_text(remainder)
                 return f"Q{q_num}", remainder
     return None
 
@@ -154,7 +180,7 @@ def _match_question_marker(line: str) -> tuple[str, str] | None:
 def parse_questions(full_text: str) -> dict[str, str]:
     """Split continuous reconstructed OCR text into a {question_id: answer_text} map."""
     mapped: dict[str, list[str]] = {}
-    current_qid: str | None = None
+    current_qid: str = "Q1"  # Default start to Q1 so top text is never discarded
 
     for raw_line in full_text.splitlines():
         line = raw_line.strip()
@@ -166,12 +192,12 @@ def parse_questions(full_text: str) -> dict[str, str]:
             mapped.setdefault(current_qid, [])
             if remainder:
                 mapped[current_qid].append(remainder)
-        elif current_qid is not None:
-            mapped[current_qid].append(line)
+        else:
+            cleaned_line = _clean_ocr_handwriting_text(line)
+            mapped.setdefault(current_qid, []).append(cleaned_line)
 
     if not mapped and full_text.strip():
-        # Fallback: single answer with direct start
-        return {"Q1": " ".join([l.strip() for l in full_text.splitlines() if l.strip()])}
+        return {"Q1": _clean_ocr_handwriting_text(" ".join([l.strip() for l in full_text.splitlines() if l.strip()]))}
 
     return {qid: " ".join(parts).strip() for qid, parts in mapped.items()}
 
@@ -182,7 +208,7 @@ def parse_questions_with_pages(
     """Parse questions across ordered pages while tracking page numbers per question."""
     mapped: dict[str, list[str]] = {}
     question_pages: dict[str, list[int]] = {}
-    current_qid: str | None = None
+    current_qid: str = "Q1"  # Default start to Q1 so opening text is NEVER lost
 
     for page in pages:
         for raw_line in page.transcript.splitlines():
@@ -198,25 +224,16 @@ def parse_questions_with_pages(
                     question_pages[current_qid].append(page.page_number)
                 if remainder:
                     mapped[current_qid].append(remainder)
-            elif current_qid is not None:
-                mapped[current_qid].append(line)
+            else:
+                cleaned_line = _clean_ocr_handwriting_text(line)
+                mapped.setdefault(current_qid, [])
+                question_pages.setdefault(current_qid, [])
                 if page.page_number not in question_pages[current_qid]:
                     question_pages[current_qid].append(page.page_number)
+                mapped[current_qid].append(cleaned_line)
 
-    # Fallback: if no question marker was detected, assign page 1 text to Q1
-    if not mapped:
-        all_lines: list[str] = []
-        p_nums: list[int] = []
-        for p in pages:
-            p_lines = [l.strip() for l in p.transcript.splitlines() if l.strip()]
-            if p_lines:
-                all_lines.extend(p_lines)
-                p_nums.append(p.page_number)
-        if all_lines:
-            mapped["Q1"] = all_lines
-            question_pages["Q1"] = p_nums
-
-    clean_answers = {qid: " ".join(parts).strip() for qid, parts in mapped.items()}
+    # Clean empty strings
+    clean_answers = {qid: " ".join(parts).strip() for qid, parts in mapped.items() if " ".join(parts).strip()}
     return clean_answers, question_pages
 
 

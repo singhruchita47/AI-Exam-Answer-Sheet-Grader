@@ -784,110 +784,64 @@
 
       currentGradingReport.question_results.forEach((res, qIdx) => {
         const card = document.createElement('div');
-        card.className = 'border border-slate-200 rounded-xl p-4 sm:p-5 space-y-3.5 bg-slate-50/50';
+        card.className = 'border border-slate-200 rounded-2xl p-5 space-y-4 bg-white shadow-2xs';
 
-        const stepRows = res.step_wise_breakdown.map((step, sIdx) => {
+        const stepRows = res.step_wise_breakdown.map((step) => {
+          let badge = `<span class="badge-hit px-2.5 py-0.5 rounded-full text-[11px] font-bold flex items-center gap-1 shrink-0">✓ Covered (+${Number(step.awarded_point_marks).toFixed(2)})</span>`;
+          if (step.status === 'Partial') {
+            badge = `<span class="badge-partial px-2.5 py-0.5 rounded-full text-[11px] font-bold flex items-center gap-1 shrink-0">⚠️ Partial (+${Number(step.awarded_point_marks).toFixed(2)})</span>`;
+          } else if (step.status === 'Missed') {
+            badge = `<span class="badge-missed px-2.5 py-0.5 rounded-full text-[11px] font-bold flex items-center gap-1 shrink-0">❌ Missed (0.00)</span>`;
+          }
+
           return `
-            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 p-3 bg-white rounded-xl border border-slate-100 hover:border-slate-200 transition">
-              <div class="flex items-start gap-2.5 flex-1">
-                <span class="text-emerald-600 font-bold text-sm shrink-0 mt-0.5">•</span>
+            <div class="flex items-center justify-between gap-3 p-2.5 bg-slate-50/80 rounded-xl border border-slate-100 text-xs">
+              <div class="flex items-start gap-2 flex-1">
+                <span class="text-slate-400 font-bold">•</span>
                 <div>
-                  <p class="text-xs font-medium text-slate-800">${step.description}</p>
-                  <p class="text-[11px] text-slate-400 mt-0.5">${step.notes || ''}</p>
+                  <span class="font-medium text-slate-800">${step.description}</span>
+                  ${step.notes ? `<p class="text-[11px] text-slate-400 mt-0.5">${step.notes}</p>` : ''}
                 </div>
               </div>
-              <div class="flex items-center gap-2 shrink-0 self-end sm:self-center">
-                <div class="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-lg px-2 py-1">
-                  <span class="text-[11px] font-semibold text-slate-500">Marks:</span>
-                  <input type="number" min="0" max="${step.max_point_marks}" step="0.25"
-                         id="stepInput_${qIdx}_${sIdx}"
-                         value="${Number(step.awarded_point_marks).toFixed(2)}"
-                         onchange="onStepMarksChanged(${qIdx}, ${sIdx}, this.value)"
-                         class="w-16 text-center font-bold text-slate-800 bg-white border border-slate-300 rounded text-xs py-0.5 focus:ring-2 focus:ring-indigo-500" />
-                  <span class="text-[11px] font-bold text-slate-400">/ ${Number(step.max_point_marks).toFixed(2)}</span>
-                </div>
-                <div class="flex items-center gap-1">
-                  <button type="button" title="Give Full Marks for this step"
-                          onclick="setStepMarksQuick(${qIdx}, ${sIdx}, ${step.max_point_marks})"
-                          class="px-2 py-1 text-[10px] font-bold bg-emerald-50 text-emerald-700 hover:bg-emerald-100 rounded border border-emerald-200 cursor-pointer">
-                    Full
-                  </button>
-                  <button type="button" title="Give Half Marks for this step"
-                          onclick="setStepMarksQuick(${qIdx}, ${sIdx}, ${(step.max_point_marks / 2).toFixed(2)})"
-                          class="px-2 py-1 text-[10px] font-bold bg-amber-50 text-amber-700 hover:bg-amber-100 rounded border border-amber-200 cursor-pointer">
-                    Half
-                  </button>
-                  <button type="button" title="Give Zero Marks for this step"
-                          onclick="setStepMarksQuick(${qIdx}, ${sIdx}, 0)"
-                          class="px-2 py-1 text-[10px] font-bold bg-rose-50 text-rose-700 hover:bg-rose-100 rounded border border-rose-200 cursor-pointer">
-                    Zero
-                  </button>
-                </div>
-              </div>
+              ${badge}
             </div>
           `;
         }).join('');
 
         card.innerHTML = `
-          <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-2.5">
-            <div class="flex items-center gap-2">
-              <span class="font-bold text-sm text-slate-900">${res.question_id} Marks Breakdown</span>
-              <span id="qEditBadge_${qIdx}" class="hidden text-[10px] font-bold bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full border border-amber-200">Edited by Teacher</span>
+          <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-3">
+            <div class="flex items-center gap-2.5">
+              <span class="font-extrabold text-sm px-2.5 py-1 bg-indigo-50 text-indigo-700 rounded-lg border border-indigo-200">${res.question_id}</span>
+              <h4 class="font-bold text-sm text-slate-800">Answer Evaluation</h4>
+              <span id="qEditBadge_${qIdx}" class="hidden text-[10px] font-bold bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full border border-amber-200">✏️ Teacher Overridden</span>
             </div>
-            <div class="flex items-center gap-2 bg-white px-3 py-1.5 rounded-xl border border-slate-300 shadow-2xs">
-              <span class="text-xs font-bold text-slate-600">Teacher Score:</span>
+            <div class="flex items-center gap-2 bg-slate-50 hover:bg-slate-100/80 px-3 py-1.5 rounded-xl border border-slate-200 transition">
+              <label for="qMarksInput_${qIdx}" class="text-xs font-bold text-slate-600">Teacher Score:</label>
               <input type="number" id="qMarksInput_${qIdx}" min="0" max="${res.max_marks}" step="0.25"
                      value="${Number(res.marks_awarded).toFixed(2)}"
                      onchange="onQuestionMarksChanged(${qIdx}, this.value)"
-                     class="w-20 text-center font-black text-emerald-700 bg-emerald-50 border border-emerald-300 rounded-lg py-1 text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-hidden" />
+                     class="w-20 text-center font-black text-emerald-700 bg-white border border-emerald-300 rounded-lg py-1 text-sm focus:ring-2 focus:ring-emerald-500 shadow-2xs" />
               <span class="text-xs font-bold text-slate-400">/ ${Number(res.max_marks).toFixed(2)} Marks</span>
             </div>
           </div>
 
           <div class="space-y-2">
+            <span class="text-[11px] font-bold uppercase tracking-wider text-slate-400 block">AI Evaluation Points:</span>
             ${stepRows}
           </div>
 
-          <div class="bg-indigo-50/60 p-3.5 rounded-xl border border-indigo-100 text-xs text-slate-700 space-y-1.5">
+          <div class="bg-indigo-50/50 p-3.5 rounded-xl border border-indigo-100 text-xs text-slate-700 space-y-1.5">
             <div class="flex items-center justify-between">
-              <span class="font-bold text-indigo-900 block text-[11px] uppercase tracking-wider">Teacher Feedback:</span>
+              <span class="font-bold text-indigo-900 block text-[11px] uppercase tracking-wider">Teacher Remarks:</span>
               <span class="text-[10px] text-indigo-500 font-medium">✏️ Editable</span>
             </div>
             <textarea rows="2"
                       onchange="currentGradingReport.question_results[${qIdx}].student_feedback = this.value"
-                      class="w-full text-xs p-2.5 bg-white rounded-lg border border-indigo-200 text-slate-800 font-medium leading-relaxed focus:ring-2 focus:ring-indigo-500">${res.student_feedback || ''}</textarea>
+                      class="w-full text-xs p-2 bg-white rounded-lg border border-indigo-200 text-slate-800 font-medium leading-relaxed focus:ring-2 focus:ring-indigo-500">${res.student_feedback || ''}</textarea>
           </div>
         `;
         breakdownList.appendChild(card);
       });
-    }
-
-    function onStepMarksChanged(qIdx, sIdx, val) {
-      if (!currentGradingReport) return;
-      const step = currentGradingReport.question_results[qIdx].step_wise_breakdown[sIdx];
-      let num = parseFloat(val);
-      if (isNaN(num)) num = 0.0;
-      num = Math.max(0, Math.min(step.max_point_marks, num));
-      step.awarded_point_marks = num;
-
-      const inputEl = document.getElementById(`stepInput_${qIdx}_${sIdx}`);
-      if (inputEl) inputEl.value = num.toFixed(2);
-
-      const q = currentGradingReport.question_results[qIdx];
-      const sumSteps = q.step_wise_breakdown.reduce((acc, s) => acc + s.awarded_point_marks, 0);
-      q.marks_awarded = Math.min(q.max_marks, sumSteps);
-
-      const qInput = document.getElementById(`qMarksInput_${qIdx}`);
-      if (qInput) qInput.value = q.marks_awarded.toFixed(2);
-
-      const editBadge = document.getElementById(`qEditBadge_${qIdx}`);
-      if (editBadge) editBadge.classList.remove('hidden');
-
-      recalculateGrandTotal(true);
-    }
-
-    function setStepMarksQuick(qIdx, sIdx, val) {
-      onStepMarksChanged(qIdx, sIdx, val);
     }
 
     function onQuestionMarksChanged(qIdx, val) {
