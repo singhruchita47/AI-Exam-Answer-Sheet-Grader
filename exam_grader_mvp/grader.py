@@ -124,32 +124,34 @@ class ExamGradingReport(BaseModel):
 # Regex Question Boundary Segmentation
 # ---------------------------------------------------------------------------
 _QUESTION_MARKER_PATTERNS: tuple[re.Pattern[str], ...] = (
-    # Matches: Q1, Q.1, Q 1:, Q1), Q. 2 -, Question 1:, Q!
+    # Matches: Q1, Q.1, Q 1:, Q1), Q. 2 -, Question 1:, Q!, Question 1.
     re.compile(
-        r"^\s*(?:Q(?:uestion)?\s*[\.\-:#]?\s*([0-9!lI|]{1,2})\s*[\)\.\-:]?)(?:\s+(.*))?$",
+        r"^\s*Q(?:uestion)?\s*[\.\-:#]?\s*([0-9]{1,2}|[!lI|])\s*[\)\.\-:#]*(?:\s+(.*))?$",
         re.IGNORECASE,
     ),
-    # Matches: Ans 1:, Ans. 1, Answer 2), Ans1., Ans !..., A1., A.1
+    # Matches: Ans 1, Ans. 1, Answer 2, Ans1., ns 1, ins 2, as 1, ms 1, s 1, A1, A.1
     re.compile(
-        r"^\s*(?:Ans(?:wer)?|[Aa]ns|[Ss]1?|[Aa])\s*[\.\-:#]?\s*([0-9!lI|]{1,2})\s*[\)\.\-:]?(?:\s+(.*))?$",
+        r"^\s*(?:ans(?:wer)?|[a-z]{0,2}[ns]|[a-z]?s|[Aa])\s*[\.\-:#\s]\s*([0-9]{1,2}|[!lI|])\s*(?:[\.\-:#]\s*(?:[0-9]{1,2}\b)?)?\s*[\)\.\-:#]*(?:\s*(.*))?$",
         re.IGNORECASE,
     ),
-    # Matches: Ans!Word or Ans !Word (e.g. Ans !IDhm's)
+    # Also matches Ans1, Ans2 (no space) with digits
     re.compile(
-        r"^\s*(?:Ans(?:wer)?|[Aa]ns)\s*([!lI|1-9])\s*([A-Za-z].*)$",
+        r"^\s*(?:ans(?:wer)?|[a-z]{0,2}[ns]|[a-z]?s|[Aa])([0-9]{1,2})\s*(?:[\.\-:#]\s*(?:[0-9]{1,2}\b)?)?\s*[\)\.\-:#]*(?:\s*(.*))?$",
         re.IGNORECASE,
     ),
     # Matches: (1), (2), (10)
-    re.compile(r"^\s*\(([0-9!lI|]{1,2})\)\s*(.*)$"),
+    re.compile(r"^\s*\(([0-9]{1,2}|[!lI|])\)\s*(.*)$"),
     # Matches: 1), 2:, 1 ) or 1 - Text
-    re.compile(r"^\s*([0-9!lI|]{1,2})\s*[\)\:\-–]\s*(.*)$"),
+    re.compile(r"^\s*([0-9]{1,2})\s*[\)\:\-–]\s*(.*)$"),
     # Matches: 1. Text... (requires dot + space to avoid decimals like 1.5)
-    re.compile(r"^\s*([0-9!lI|]{1,2})\.\s+(.*)$"),
+    re.compile(r"^\s*([0-9]{1,2})\.\s+(.*)$"),
 )
 
 
 def _clean_ocr_handwriting_text(text: str) -> str:
-    """Fix common OCR misrecognitions in student handwriting."""
+    """Fix common OCR misrecognitions and strip Devanagari/Hindi characters."""
+    # Strip any Hindi / Devanagari characters
+    text = re.sub(r"[\u0900-\u097F]+", "", text)
     # Fix IDhm's -> Ohm's
     text = re.sub(r"\bI?Dhm(?:'s)?\b", "Ohm's", text, flags=re.IGNORECASE)
     # Fix appropriational -> proportional
@@ -158,6 +160,7 @@ def _clean_ocr_handwriting_text(text: str) -> str:
     text = re.sub(r"\bfollowing through\b", "flowing through", text, flags=re.IGNORECASE)
     # Fix jenergy -> energy
     text = re.sub(r"\bjenergy\b", "energy", text, flags=re.IGNORECASE)
+    text = re.sub(r"\s{2,}", " ", text).strip()
     return text
 
 
@@ -179,6 +182,7 @@ def _match_question_marker(line: str) -> tuple[str, str] | None:
                     continue
             if 1 <= q_num <= 50:
                 remainder = (match.group(2) or "").strip()
+                remainder = re.sub(r"^[\.\(\)\-–!|:\s]+(?:\d{1,2}\s*[\.\)]\s*)?", "", remainder).strip()
                 remainder = _clean_ocr_handwriting_text(remainder)
                 return f"Q{q_num}", remainder
     return None
@@ -839,6 +843,21 @@ class ExamGrader:
                 )
 
             if diagram_path is not None:
+                # Extract text/labels/formulas inside diagram crop using RapidOCR
+                try:
+                    from rapidocr_onnxruntime import RapidOCR
+
+                    fast_ocr = RapidOCR()
+                    d_res, _ = fast_ocr(str(diagram_path))
+                    if d_res:
+                        diag_text = " ".join(r[1].strip() for r in d_res if r[1].strip())
+                        if diag_text:
+                            diag_clean = _clean_ocr_handwriting_text(diag_text)
+                            student_answer = f"{student_answer} {diag_clean}".strip()
+                            mapped_answers[qid] = student_answer
+                except Exception as exc:
+                    logger.debug("RapidOCR diagram text extraction skipped for %s: %s", qid, exc)
+
                 if not self.offline and self.api_key:
                     try:
                         diagram_eval = _evaluate_diagram_gemini(

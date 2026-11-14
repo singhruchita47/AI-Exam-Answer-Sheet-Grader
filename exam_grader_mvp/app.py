@@ -155,7 +155,9 @@ async def api_generate_rubric(
             doc.close()
 
             if not question_text and extracted_chunks:
-                question_text = "\n\n".join(extracted_chunks)
+                from rubric_generator import filter_hindi_keep_english
+
+                question_text = filter_hindi_keep_english("\n\n".join(extracted_chunks))
         else:
             image_path = q_dir / f"question{file_ext}"
             with image_path.open("wb") as f:

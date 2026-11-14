@@ -32,6 +32,46 @@ DIAGRAM_KEYWORDS: tuple[str, ...] = (
 )
 
 
+def filter_hindi_keep_english(text: str) -> str:
+    """Filter out Hindi / Devanagari lines from bilingual exam papers, keeping only English with numbering."""
+    marker_pattern = re.compile(
+        r"^\s*(\(?\s*(?:\d{1,2}|[ivxIVX]{1,4})\s*[\)\.\-:]|\(\s*(?:\d{1,2}|[ivxIVX]{1,4})\s*\))\s+"
+    )
+    cleaned_lines: list[str] = []
+    pending_marker = ""
+
+    for raw_line in text.splitlines():
+        line = raw_line.strip()
+        if not line:
+            continue
+        dev_count = len(re.findall(r"[\u0900-\u097F]", line))
+        latin_count = len(re.findall(r"[A-Za-z]", line))
+
+        m = marker_pattern.match(line)
+        marker = m.group(1).strip() if m else ""
+
+        # Pure or predominantly Hindi line
+        if dev_count > 0 and latin_count < 4:
+            if marker:
+                pending_marker = marker
+            continue
+
+        # English or mixed line: strip out any Devanagari characters
+        clean_en = re.sub(r"[\u0900-\u097F]+", "", line).strip()
+        clean_en = re.sub(r"\s{2,}", " ", clean_en)
+
+        if pending_marker and not marker_pattern.match(clean_en):
+            clean_en = f"{pending_marker} {clean_en}"
+            pending_marker = ""
+        elif marker_pattern.match(clean_en):
+            pending_marker = ""
+
+        if clean_en:
+            cleaned_lines.append(clean_en)
+
+    return "\n".join(cleaned_lines)
+
+
 class RubricGenerator:
     """Generates structured exam grading rubrics from question images or text."""
 
@@ -93,8 +133,9 @@ class RubricGenerator:
             f"Target Total Marks: {total_marks}",
         ]
 
-        if question_text and question_text.strip():
-            prompt_parts.append(f"\nTeacher Provided Question Text:\n\"\"\"{question_text.strip()}\"\"\"")
+        cleaned_q_text = filter_hindi_keep_english(question_text.strip()) if question_text else ""
+        if cleaned_q_text:
+            prompt_parts.append(f"\nTeacher Provided Question Text (English Only):\n\"\"\"{cleaned_q_text}\"\"\"")
 
         if teacher_hints and teacher_hints.strip():
             prompt_parts.append(f"\nTeacher Solution / Grading Hints:\n\"\"\"{teacher_hints.strip()}\"\"\"")
@@ -102,7 +143,8 @@ class RubricGenerator:
         prompt_parts.extend(
             [
                 "\nINSTRUCTIONS FOR RUBRIC GENERATION:",
-                "1. Accurately transcribe or extract each question from the image or text.",
+                "CRITICAL BILINGUAL RULE: The exam paper contains both Hindi and English. COMPLETELY IGNORE all Hindi (Devanagari) text. Formulate, transcribe, and generate all questions and model answers EXCLUSIVELY in English.",
+                "1. Accurately transcribe or extract each question from the English portions of the image or text.",
                 "2. Assign question_id sequentially: Q1, Q2, etc.",
                 "3. Classify and set the question_type for EACH question accurately:",
                 "   - 'mcq' : For Multiple Choice Questions with options (a), (b), (c), (d). Set model_answer to include the correct option letter & text e.g. '(B) Mitochondria', with 1 key point (weight 1.0).",
@@ -196,6 +238,7 @@ class RubricGenerator:
                 except Exception as exc:
                     logger.warning("RapidOCR failed on question image: %s", exc)
 
+        raw_text = filter_hindi_keep_english(raw_text)
         if not raw_text:
             raw_text = f"Explain key principles of {subject}."
 
