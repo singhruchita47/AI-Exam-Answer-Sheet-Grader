@@ -182,45 +182,53 @@ class RubricGenerator:
         """Deterministic offline fallback rubric generator using heuristics and OCR text."""
         raw_text = (question_text or "").strip()
 
-        # If question text wasn't provided directly, attempt OCR on the image
+        # If question text wasn't provided directly, attempt fast printed OCR using RapidOCR
         if not raw_text and question_image_path:
             p = Path(question_image_path)
             if p.exists():
                 try:
-                    from ocr_engine import OCREngine
+                    from rapidocr_onnxruntime import RapidOCR
 
-                    engine = OCREngine()
-                    ocr_res = engine.process_pages([p], debug_dir=p.parent / "debug_question_crops")
-                    raw_text = ocr_res.full_transcript.strip()
+                    engine = RapidOCR()
+                    res, _ = engine(str(p))
+                    if res:
+                        raw_text = "\n".join([line[1].strip() for line in res if line[1].strip()])
                 except Exception as exc:
-                    logger.warning("Local OCR failed on question image: %s", exc)
+                    logger.warning("RapidOCR failed on question image: %s", exc)
 
         if not raw_text:
             raw_text = f"Explain key principles of {subject}."
 
-        # Detect questions formatted like Q1, Q.1, 1), 1., etc.
+        # Detect questions formatted like Q1, Q.1, 1), 1., (1), (i), etc.
         q_lines = [ln.strip() for ln in raw_text.splitlines() if ln.strip()]
         detected_questions: list[str] = []
         curr: list[str] = []
 
         q_marker_re = re.compile(
-            r"^\s*(?:Q(?:uestion)?\s*[\.\-:#]?\s*\d{1,2}|Ans(?:wer)?|\d{1,2}[\)\.])\s*",
+            r"^\s*(?:Q(?:uestion)?\s*[\.\-:#]?\s*\d{1,2}|Ans(?:wer)?|\d{1,2}[\)\.]|\(\s*(?:\d{1,2}|[ivxIVX]{1,4})\s*\))\s*",
             re.IGNORECASE,
         )
         has_any_marker = any(q_marker_re.match(ln) for ln in q_lines)
 
+        # Common exam cover page terms to skip
+        skip_terms = (
+            "roll no", "serial number", "total printed pages", "maximum marks",
+            "time :", "high school", "instructions", "निर्देश", "http", ".com",
+            "p.t.o", "set /"
+        )
+
         for line in q_lines:
+            lower_line = line.lower()
+            if any(term in lower_line for term in skip_terms):
+                continue
+
             if q_marker_re.match(line):
                 if curr:
                     detected_questions.append(" ".join(curr))
                 curr = [line]
             elif curr:
-                # Discard non-question instructions like "Instructions to Candidates:"
-                if "instruction" in line.lower() or "candidate" in line.lower():
-                    continue
                 curr.append(line)
             elif not has_any_marker:
-                # If no Q1/Q2 markers on the page, keep all text as single question
                 curr.append(line)
 
         if curr:

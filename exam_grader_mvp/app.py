@@ -119,28 +119,43 @@ async def api_generate_rubric(
         q_dir.mkdir(parents=True, exist_ok=True)
         file_ext = Path(question_image.filename).suffix.lower() or ".jpg"
         if file_ext == ".pdf":
+            import numpy as np
             import pypdfium2 as pdfium
-            from PIL import Image as PILImage
+            from rapidocr_onnxruntime import RapidOCR
+
             pdf_path = q_dir / f"question{file_ext}"
             with pdf_path.open("wb") as f:
                 shutil.copyfileobj(question_image.file, f)
             doc = pdfium.PdfDocument(pdf_path)
-            if len(doc) == 1:
-                first_page = doc[0].render(scale=2.0).to_pil()
+
+            extracted_chunks: list[str] = []
+            rapid_ocr: RapidOCR | None = None
+
+            # Scan up to 10 question pages
+            max_p = min(len(doc), 10)
+            for p_idx in range(max_p):
+                page = doc[p_idx]
+                tp = page.get_textpage()
+                p_text = tp.get_text_range().strip()
+                if len(p_text) > 40:
+                    extracted_chunks.append(p_text)
+                else:
+                    if rapid_ocr is None:
+                        rapid_ocr = RapidOCR()
+                    pil_img = page.render(scale=1.5).to_pil()
+                    res, _ = rapid_ocr(np.array(pil_img))
+                    if res:
+                        lines = [r[1].strip() for r in res if r[1].strip()]
+                        extracted_chunks.append("\n".join(lines))
+
+            if len(doc) > 0:
+                first_page = doc[0].render(scale=1.5).to_pil()
                 image_path = q_dir / "question_page_1.jpg"
-                first_page.save(image_path, "JPEG", quality=95)
-            else:
-                page_imgs = [doc[i].render(scale=2.0).to_pil() for i in range(min(len(doc), 4))]
-                total_height = sum(img.height for img in page_imgs)
-                max_width = max(img.width for img in page_imgs)
-                stitched = PILImage.new("RGB", (max_width, total_height), (255, 255, 255))
-                y_offset = 0
-                for img in page_imgs:
-                    stitched.paste(img, (0, y_offset))
-                    y_offset += img.height
-                image_path = q_dir / "question_stitched.jpg"
-                stitched.save(image_path, "JPEG", quality=95)
+                first_page.save(image_path, "JPEG", quality=90)
             doc.close()
+
+            if not question_text and extracted_chunks:
+                question_text = "\n\n".join(extracted_chunks)
         else:
             image_path = q_dir / f"question{file_ext}"
             with image_path.open("wb") as f:

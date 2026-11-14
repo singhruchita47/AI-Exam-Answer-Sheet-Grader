@@ -9,3 +9,5 @@ python-dotenv>=1.0.1
 pillow>=10.4.0
 numpy>=1.26.0
 pypdfium2>=4.30.0
+rapidocr-onnxruntime>=1.2.3
+ultralytics>=8.4.0

@@ -798,7 +798,19 @@ class OCREngine:
                     max_new_tokens=self.cfg.trocr_max_new_tokens,
                 )
             decoded = processor.batch_decode(generated_ids, skip_special_tokens=True)
-            transcripts.extend(text.strip() for text in decoded)
+            for d_idx, text in enumerate(decoded):
+                cleaned = text.strip()
+                if not cleaned:
+                    try:
+                        from rapidocr_onnxruntime import RapidOCR
+
+                        fast_ocr = RapidOCR()
+                        res, _ = fast_ocr(str(batch_paths[d_idx]))
+                        if res:
+                            cleaned = " ".join(r[1].strip() for r in res if r[1].strip())
+                    except Exception:
+                        pass
+                transcripts.append(cleaned)
 
         return transcripts
 
