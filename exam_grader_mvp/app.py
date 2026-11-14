@@ -131,8 +131,8 @@ async def api_generate_rubric(
             extracted_chunks: list[str] = []
             rapid_ocr: RapidOCR | None = None
 
-            # Scan up to 10 question pages
-            max_p = min(len(doc), 10)
+            # Scan up to 30 question pages (handles full board booklets)
+            max_p = min(len(doc), 30)
             for p_idx in range(max_p):
                 page = doc[p_idx]
                 tp = page.get_textpage()
