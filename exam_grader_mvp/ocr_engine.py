@@ -778,39 +778,56 @@ class OCREngine:
         )
 
     def transcribe_lines(self, crop_paths: list[Path]) -> list[str]:
-        """Batch-transcribe cropped single text-line images using TrOCR."""
+        """Fast hybrid line transcription: RapidOCR (C++ ONNX, ~10ms/line) with TrOCR fallback."""
         if not crop_paths:
             return []
 
-        processor, model = self._ensure_model_loaded()
-        transcripts: list[str] = []
-        batch_size = self.cfg.trocr_batch_size
+        try:
+            from rapidocr_onnxruntime import RapidOCR
 
-        for start in range(0, len(crop_paths), batch_size):
-            batch_paths = crop_paths[start : start + batch_size]
-            pil_images = [Image.open(p).convert("RGB") for p in batch_paths]
-            inputs = processor(images=pil_images, return_tensors="pt")
-            pixel_values = inputs.pixel_values.to(device=self.device, dtype=self.dtype)
+            fast_ocr = RapidOCR()
+        except Exception:
+            fast_ocr = None
 
-            with torch.no_grad():
-                generated_ids = model.generate(
-                    pixel_values,
-                    max_new_tokens=self.cfg.trocr_max_new_tokens,
-                )
-            decoded = processor.batch_decode(generated_ids, skip_special_tokens=True)
-            for d_idx, text in enumerate(decoded):
-                cleaned = text.strip()
-                if not cleaned:
-                    try:
-                        from rapidocr_onnxruntime import RapidOCR
+        transcripts: list[str] = [""] * len(crop_paths)
+        needs_trocr_indices: list[int] = []
 
-                        fast_ocr = RapidOCR()
-                        res, _ = fast_ocr(str(batch_paths[d_idx]))
-                        if res:
-                            cleaned = " ".join(r[1].strip() for r in res if r[1].strip())
-                    except Exception:
-                        pass
-                transcripts.append(cleaned)
+        for idx, path in enumerate(crop_paths):
+            if fast_ocr is not None:
+                try:
+                    res, _ = fast_ocr(str(path))
+                    if res:
+                        txt = " ".join(r[1].strip() for r in res if r[1].strip())
+                        if len(txt) >= 2:
+                            transcripts[idx] = txt
+                            continue
+                except Exception:
+                    pass
+            needs_trocr_indices.append(idx)
+
+        # If any lines were missed by RapidOCR, run TrOCR on those remaining lines
+        if needs_trocr_indices:
+            try:
+                processor, model = self._ensure_model_loaded()
+                batch_size = self.cfg.trocr_batch_size
+                for start in range(0, len(needs_trocr_indices), batch_size):
+                    batch_target_indices = needs_trocr_indices[start : start + batch_size]
+                    batch_paths = [crop_paths[i] for i in batch_target_indices]
+                    pil_images = [Image.open(p).convert("RGB") for p in batch_paths]
+                    inputs = processor(images=pil_images, return_tensors="pt")
+                    pixel_values = inputs.pixel_values.to(device=self.device, dtype=self.dtype)
+
+                    with torch.no_grad():
+                        generated_ids = model.generate(
+                            pixel_values,
+                            max_new_tokens=min(64, self.cfg.trocr_max_new_tokens),
+                        )
+                    decoded = processor.batch_decode(generated_ids, skip_special_tokens=True)
+                    for d_idx, text in enumerate(decoded):
+                        target_pos = batch_target_indices[d_idx]
+                        transcripts[target_pos] = text.strip()
+            except Exception as exc:
+                logger.warning("TrOCR fallback failed: %s", exc)
 
         return transcripts
 
