@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+from difflib import SequenceMatcher
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal
 
@@ -45,6 +46,9 @@ class RubricQuestion(BaseModel):
 
     question_id: str
     question_text: str
+    question_type: Literal[
+        "mcq", "fill_blank", "one_word", "short_answer", "long_answer"
+    ] = "short_answer"
     model_answer: str
     key_points: list[KeyPoint]
     requires_diagram: bool = False
@@ -93,6 +97,7 @@ class QuestionGradeResult(BaseModel):
     """Complete grading output for one question."""
 
     question_id: str
+    question_type: str = "short_answer"
     student_answer: str
     semantic_similarity: float = Field(ge=0.0, le=1.0)
     diagram_path: str | None = None
@@ -134,10 +139,12 @@ _QUESTION_MARKER_PATTERNS: tuple[re.Pattern[str], ...] = (
         r"^\s*(?:Ans(?:wer)?|[Aa]ns)\s*([!lI|1-9])\s*([A-Za-z].*)$",
         re.IGNORECASE,
     ),
-    # Matches: 1), 2:, 1 )
-    re.compile(r"^\s*([0-9!lI|]{1,2})\s*[\)\:]\s*(.*)$"),
-    # Matches: 1. Text... (requires space + letter after dot to avoid decimals like 1.5)
-    re.compile(r"^\s*([0-9!lI|]{1,2})\.\s+(?=[A-Za-z])(.*)$"),
+    # Matches: (1), (2), (10)
+    re.compile(r"^\s*\(([0-9!lI|]{1,2})\)\s*(.*)$"),
+    # Matches: 1), 2:, 1 ) or 1 - Text
+    re.compile(r"^\s*([0-9!lI|]{1,2})\s*[\)\:\-–]\s*(.*)$"),
+    # Matches: 1. Text... (requires dot + space to avoid decimals like 1.5)
+    re.compile(r"^\s*([0-9!lI|]{1,2})\.\s+(.*)$"),
 )
 
 
@@ -447,6 +454,111 @@ def _round_quarter(value: float) -> float:
     return round(value * 4.0) / 4.0
 
 
+def _grade_objective_answer(
+    question: RubricQuestion,
+    student_answer: str,
+) -> LLMGradeOutput:
+    """Fast, accurate direct evaluation for objective questions (MCQ, Fill in blanks, One word)."""
+    st_clean = student_answer.strip().lower()
+    mod_clean = question.model_answer.strip().lower()
+    q_type = question.question_type
+    max_marks = question.max_marks
+
+    if not st_clean:
+        return LLMGradeOutput(
+            step_wise_breakdown=[
+                StepBreakdownItem(
+                    point_id="KP1",
+                    description=question.model_answer,
+                    max_point_marks=max_marks,
+                    awarded_point_marks=0.0,
+                    status="Missed",
+                    similarity_score=0.0,
+                    notes="No answer detected for this question.",
+                )
+            ],
+            missing_key_points=[question.model_answer],
+            marks_awarded=0.0,
+            student_feedback=f"No answer provided. Expected: {question.model_answer}",
+        )
+
+    matched = False
+    match_note = ""
+
+    if q_type == "mcq":
+        # Extract option letter e.g. (b) or b from model answer
+        opt_match = re.search(r"\(?([a-d])\)?", mod_clean)
+        expected_opt = opt_match.group(1) if opt_match else None
+        expected_text = re.sub(r"^\(?[a-d]\)?[\.\s:\-]*", "", mod_clean).strip()
+
+        # Check student option letter e.g. (b), b, b), [b]
+        st_opt_match = re.search(r"\(?([a-d])\)?", st_clean)
+        st_opt = st_opt_match.group(1) if st_opt_match else None
+
+        opt_matched = bool(expected_opt and st_opt and expected_opt == st_opt)
+        text_matched = False
+        if expected_text and len(expected_text) > 2:
+            if expected_text in st_clean:
+                text_matched = True
+            else:
+                sim = SequenceMatcher(None, expected_text, st_clean).ratio()
+                if sim >= 0.75:
+                    text_matched = True
+
+        if opt_matched or text_matched:
+            matched = True
+            match_note = f"Correct option selected ({student_answer.strip()})."
+        else:
+            match_note = f"Incorrect option. Expected: {question.model_answer.strip()}."
+
+    else:
+        # fill_blank or one_word
+        target_words = re.findall(r"\w+", mod_clean)
+        st_words = re.findall(r"\w+", st_clean)
+
+        if mod_clean in st_clean:
+            matched = True
+        elif any(w in st_words for w in target_words if len(w) > 3):
+            matched = True
+        else:
+            for tw in target_words:
+                if len(tw) > 3:
+                    for sw in st_words:
+                        if SequenceMatcher(None, tw, sw).ratio() >= 0.78:
+                            matched = True
+                            break
+        if matched:
+            match_note = f"Correct target word/term identified ({student_answer.strip()})."
+        else:
+            match_note = f"Incorrect term. Expected: {question.model_answer.strip()}."
+
+    awarded = max_marks if matched else 0.0
+    status: Literal["Hit", "Partial", "Missed"] = "Hit" if matched else "Missed"
+    missing = [] if matched else [question.model_answer]
+    feedback = (
+        f"Correct! Full marks awarded ({awarded:.2f}/{max_marks:.2f})."
+        if matched
+        else f"Incorrect. Correct answer is: {question.model_answer}"
+    )
+
+    return LLMGradeOutput(
+        step_wise_breakdown=[
+            StepBreakdownItem(
+                point_id="KP1",
+                description=question.model_answer,
+                max_point_marks=max_marks,
+                awarded_point_marks=awarded,
+                status=status,
+                similarity_score=1.0 if matched else 0.0,
+                notes=match_note,
+            )
+        ],
+        missing_key_points=missing,
+        marks_awarded=awarded,
+        student_feedback=feedback,
+    )
+
+
 def load_rubric(rubric_path: str | Path) -> ExamRubric:
     """Load and validate an exam rubric JSON file."""
     path = Path(rubric_path)
@@ -495,6 +607,9 @@ class ExamGrader:
         diagram_eval: DiagramEvaluation | None,
     ) -> LLMGradeOutput:
         """Deterministic local heuristic rubric scorer using MiniLM + diagram structure."""
+        if question.question_type in ("mcq", "fill_blank", "one_word"):
+            return _grade_objective_answer(question, student_answer)
+
         text_budget = (
             question.max_marks * (1.0 - self.cfg.diagram_weight_when_required)
             if question.requires_diagram
@@ -507,6 +622,11 @@ class ExamGrader:
         missing: list[str] = []
         text_awarded = 0.0
 
+        # Strict thresholds for subjective Short & Long answers
+        hit_threshold = max(0.65, self.cfg.keypoint_hit_threshold)
+        partial_threshold = max(0.42, self.cfg.keypoint_partial_threshold)
+        word_count = len(student_answer.split())
+
         for kp in question.key_points:
             kp_max = round((kp.weight / total_weight) * text_budget, 2)
             sim = kp_sims.get(kp.point_id, 0.0)
@@ -514,13 +634,17 @@ class ExamGrader:
                 self.cfg.semantic_blend_weight * overall_sim
             )
 
-            if blended_sim >= self.cfg.keypoint_hit_threshold:
+            # Strict penalty if answer is too short for a multi-mark question
+            if question.max_marks >= 3.0 and word_count < 6:
+                blended_sim *= 0.5
+
+            if blended_sim >= hit_threshold:
                 status: Literal["Hit", "Partial", "Missed"] = "Hit"
                 awarded = kp_max
                 note = f"Key concept matched (similarity {sim:.2f})."
-            elif blended_sim >= self.cfg.keypoint_partial_threshold:
+            elif blended_sim >= partial_threshold:
                 status = "Partial"
-                awarded = _round_quarter(kp_max * 0.55)
+                awarded = _round_quarter(kp_max * 0.50)
                 note = f"Partially addressed (similarity {sim:.2f})."
                 missing.append(f"Elaborate further on: {kp.description}")
             else:
@@ -557,7 +681,7 @@ class ExamGrader:
         else:
             hit_count = sum(1 for item in breakdown if item.status == "Hit")
             feedback_parts = [
-                f"Covered {hit_count}/{len(breakdown)} rubric key points clearly "
+                f"Covered {hit_count}/{len(breakdown)} rubric key points "
                 f"(semantic similarity: {overall_sim:.2f})."
             ]
             if missing:
@@ -585,6 +709,9 @@ class ExamGrader:
         diagram_eval: DiagramEvaluation | None,
     ) -> LLMGradeOutput:
         """Use Gemini 2.5 Flash with Pydantic structured output for step-wise grading."""
+        if question.question_type in ("mcq", "fill_blank", "one_word"):
+            return _grade_objective_answer(question, student_answer)
+
         from google import genai
         from google.genai import types
 
@@ -614,8 +741,17 @@ class ExamGrader:
         )
 
         prompt = (
-            "You are a fair, rigorous STEM examiner grading a student's OCR-transcribed handwritten answer.\n"
-            "Note: minor OCR typos (e.g., punctuation or slight character confusion from handwriting) should NOT be penalized if the physics/scientific meaning is clear.\n\n"
+            "You are a strict and rigorous STEM examiner grading a student's OCR-transcribed handwritten answer.\n"
+            "CRITICAL GRADING RULES BY QUESTION TYPE:\n"
+            "1. OBJECTIVE QUESTIONS (MCQ, Fill in blanks, One word):\n"
+            "   - Grade directly based on correctness of the selected option letter or target keyword.\n"
+            "   - If correct, award FULL marks. If incorrect or missing, award 0 marks.\n"
+            "2. SUBJECTIVE QUESTIONS (Short Answer, Long Answer):\n"
+            "   - GRADE WITH HIGH ACADEMIC RIGOR AND STRICTNESS.\n"
+            "   - Award marks ONLY when the student explicitly demonstrates clear conceptual understanding and mentions required technical terms/principles.\n"
+            "   - Do NOT give generous marks for vague, circular, or superficial answers.\n"
+            "   - For Long Answers, check that all necessary sub-points, mechanisms, formulas, or diagrams are present. Deduct marks for omitted steps.\n\n"
+            f"Question Type: {question.question_type.upper()}\n"
             f"Question ({question.question_id}, Max Marks = {question.max_marks}):\n{question.question_text}\n\n"
             f"Model Answer:\n{question.model_answer}\n\n"
             f"Rubric Key Points (Text budget = {round(text_budget, 2)} marks):\n"
@@ -748,6 +884,7 @@ class ExamGrader:
             results.append(
                 QuestionGradeResult(
                     question_id=qid,
+                    question_type=question.question_type,
                     student_answer=student_answer,
                     semantic_similarity=overall_sim,
                     diagram_path=str(diagram_path) if diagram_path else None,

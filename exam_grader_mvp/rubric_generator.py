@@ -104,9 +104,13 @@ class RubricGenerator:
                 "\nINSTRUCTIONS FOR RUBRIC GENERATION:",
                 "1. Accurately transcribe or extract each question from the image or text.",
                 "2. Assign question_id sequentially: Q1, Q2, etc.",
-                "3. Write a comprehensive, gold-standard model_answer for each question.",
-                "4. Break down the model answer into 2 to 5 clear, distinct, objective key_points with IDs (KP1, KP2, etc.).",
-                "   - Assign relative weights to key points reflecting their academic importance.",
+                "3. Classify and set the question_type for EACH question accurately:",
+                "   - 'mcq' : For Multiple Choice Questions with options (a), (b), (c), (d). Set model_answer to include the correct option letter & text e.g. '(B) Mitochondria', with 1 key point (weight 1.0).",
+                "   - 'fill_blank' : For Fill in the Blanks questions (with '_____'). Set model_answer to the missing target word/phrase, with 1 key point (weight 1.0).",
+                "   - 'one_word' : For One Word / Very Short Questions. Set model_answer to the concise target term, with 1 key point (weight 1.0).",
+                "   - 'short_answer' : For Short conceptual questions (2-3 marks). Provide 2-3 detailed key points.",
+                "   - 'long_answer' : For Long descriptive/analytical questions (4-5+ marks). Provide 3-5 comprehensive key points.",
+                "4. Write a comprehensive, gold-standard model_answer for each question.",
                 "5. Detect whether the question asks the student to draw/sketch/construct any visual element (diagram, circuit, graph, chart, labeled anatomy, etc.):",
                 "   - Set requires_diagram = true if drawing is requested or essential.",
                 "   - If true, specify precise diagram_criteria detailing required components, standard symbols, and expected labels.",
@@ -260,51 +264,71 @@ class RubricGenerator:
                 else ""
             )
 
-            # Heuristic key-point extraction
-            sentences = [
-                s.strip()
-                for s in re.split(r"[.!?;\n]+", clean_q)
-                if len(s.strip()) > 8
-            ]
-            if len(sentences) < 2:
-                key_points = [
-                    KeyPoint(
-                        point_id="KP1",
-                        description=f"Definition and core scientific concept of {clean_q[:60]}",
-                        weight=0.4 if needs_diagram else 0.4,
-                    ),
-                    KeyPoint(
-                        point_id="KP2",
-                        description="Detailed explanation of the process, key inputs, mechanism, and outcomes.",
-                        weight=0.35 if needs_diagram else 0.4,
-                    ),
-                    KeyPoint(
-                        point_id="KP3",
-                        description="Accurate scientific terminology, facts, and conclusions.",
-                        weight=0.25 if needs_diagram else 0.2,
-                    ),
-                ]
+            # Detect question type
+            if any(opt in lower_q for opt in ["(a)", "(b)", "choose the correct", "multiple choice", "mcq"]):
+                q_type = "mcq"
+                model_ans = teacher_hints.strip() if teacher_hints.strip() else "Correct option selected from given alternatives."
+                key_points = [KeyPoint(point_id="KP1", description="Correct option selected", weight=1.0)]
+            elif "____" in clean_q or "fill in" in lower_q or "blank" in lower_q:
+                q_type = "fill_blank"
+                model_ans = teacher_hints.strip() if teacher_hints.strip() else "Accurate missing scientific term or value."
+                key_points = [KeyPoint(point_id="KP1", description="Accurate missing term", weight=1.0)]
+            elif "one word" in lower_q or "name the" in lower_q or detected_q_marks <= 1.0:
+                q_type = "one_word"
+                model_ans = teacher_hints.strip() if teacher_hints.strip() else "Precise technical term or name."
+                key_points = [KeyPoint(point_id="KP1", description="Precise technical term", weight=1.0)]
+            elif detected_q_marks >= 4.0:
+                q_type = "long_answer"
             else:
-                total_s = len(sentences)
-                key_points = [
-                    KeyPoint(
-                        point_id=f"KP{s_idx}",
-                        description=f"Address concept: {sent}",
-                        weight=round(1.0 / total_s, 2),
-                    )
-                    for s_idx, sent in enumerate(sentences, start=1)
-                ]
+                q_type = "short_answer"
 
-            model_ans = (
-                teacher_hints.strip()
-                if teacher_hints.strip()
-                else f"Comprehensive model answer explaining {clean_q} with standard {subject} conventions."
-            )
+            if q_type in ("short_answer", "long_answer"):
+                # Heuristic key-point extraction for subjective questions
+                sentences = [
+                    s.strip()
+                    for s in re.split(r"[.!?;\n]+", clean_q)
+                    if len(s.strip()) > 8
+                ]
+                if len(sentences) < 2:
+                    key_points = [
+                        KeyPoint(
+                            point_id="KP1",
+                            description=f"Definition and core scientific concept of {clean_q[:60]}",
+                            weight=0.4 if needs_diagram else 0.4,
+                        ),
+                        KeyPoint(
+                            point_id="KP2",
+                            description="Detailed explanation of the process, key inputs, mechanism, and outcomes.",
+                            weight=0.35 if needs_diagram else 0.4,
+                        ),
+                        KeyPoint(
+                            point_id="KP3",
+                            description="Accurate scientific terminology, facts, and conclusions.",
+                            weight=0.25 if needs_diagram else 0.2,
+                        ),
+                    ]
+                else:
+                    total_s = len(sentences)
+                    key_points = [
+                        KeyPoint(
+                            point_id=f"KP{s_idx}",
+                            description=f"Address concept: {sent}",
+                            weight=round(1.0 / total_s, 2),
+                        )
+                        for s_idx, sent in enumerate(sentences, start=1)
+                    ]
+
+                model_ans = (
+                    teacher_hints.strip()
+                    if teacher_hints.strip()
+                    else f"Comprehensive model answer explaining {clean_q} with standard {subject} conventions."
+                )
 
             questions.append(
                 RubricQuestion(
                     question_id=qid,
                     question_text=clean_q,
+                    question_type=q_type,
                     model_answer=model_ans,
                     key_points=key_points,
                     requires_diagram=needs_diagram,

@@ -117,10 +117,34 @@ async def api_generate_rubric(
         session_id = uuid.uuid4().hex[:8]
         q_dir = UPLOADS_DIR / f"q_{session_id}"
         q_dir.mkdir(parents=True, exist_ok=True)
-        file_ext = Path(question_image.filename).suffix or ".jpg"
-        image_path = q_dir / f"question{file_ext}"
-        with image_path.open("wb") as f:
-            shutil.copyfileobj(question_image.file, f)
+        file_ext = Path(question_image.filename).suffix.lower() or ".jpg"
+        if file_ext == ".pdf":
+            import pypdfium2 as pdfium
+            from PIL import Image as PILImage
+            pdf_path = q_dir / f"question{file_ext}"
+            with pdf_path.open("wb") as f:
+                shutil.copyfileobj(question_image.file, f)
+            doc = pdfium.PdfDocument(pdf_path)
+            if len(doc) == 1:
+                first_page = doc[0].render(scale=2.0).to_pil()
+                image_path = q_dir / "question_page_1.jpg"
+                first_page.save(image_path, "JPEG", quality=95)
+            else:
+                page_imgs = [doc[i].render(scale=2.0).to_pil() for i in range(min(len(doc), 4))]
+                total_height = sum(img.height for img in page_imgs)
+                max_width = max(img.width for img in page_imgs)
+                stitched = PILImage.new("RGB", (max_width, total_height), (255, 255, 255))
+                y_offset = 0
+                for img in page_imgs:
+                    stitched.paste(img, (0, y_offset))
+                    y_offset += img.height
+                image_path = q_dir / "question_stitched.jpg"
+                stitched.save(image_path, "JPEG", quality=95)
+            doc.close()
+        else:
+            image_path = q_dir / f"question{file_ext}"
+            with image_path.open("wb") as f:
+                shutil.copyfileobj(question_image.file, f)
 
     try:
         generator = RubricGenerator(api_key=GEMINI_API_KEY)
@@ -179,14 +203,37 @@ async def api_grade(
     else:
         if not pages:
             raise HTTPException(
-                status_code=400, detail="No exam sheet images provided."
+                status_code=400, detail="No exam sheet images or PDF provided."
             )
-        for idx, upload in enumerate(pages, start=1):
-            file_ext = Path(upload.filename or "page.jpg").suffix or ".jpg"
-            dest = session_upload_dir / f"page_{idx}{file_ext}"
-            with dest.open("wb") as f:
-                shutil.copyfileobj(upload.file, f)
-            page_paths.append(dest)
+        import pypdfium2 as pdfium
+        page_counter = 1
+        for upload in pages:
+            file_ext = Path(upload.filename or "page.jpg").suffix.lower()
+            if file_ext == ".pdf":
+                pdf_dest = session_upload_dir / f"uploaded_{upload.filename}"
+                with pdf_dest.open("wb") as f:
+                    shutil.copyfileobj(upload.file, f)
+                try:
+                    doc = pdfium.PdfDocument(pdf_dest)
+                    for page_idx in range(len(doc)):
+                        page_img = doc[page_idx].render(scale=2.0).to_pil()
+                        img_path = session_upload_dir / f"page_{page_counter}.jpg"
+                        page_img.save(img_path, "JPEG", quality=95)
+                        page_paths.append(img_path)
+                        page_counter += 1
+                    doc.close()
+                except Exception as pdf_err:
+                    logger.exception("Failed to render PDF: %s", pdf_err)
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Failed to process PDF file: {pdf_err}",
+                    )
+            else:
+                dest = session_upload_dir / f"page_{page_counter}{file_ext or '.jpg'}"
+                with dest.open("wb") as f:
+                    shutil.copyfileobj(upload.file, f)
+                page_paths.append(dest)
+                page_counter += 1
 
     try:
         engine = get_ocr_engine()
