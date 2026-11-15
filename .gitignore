@@ -14,10 +14,11 @@ __pycache__/
 .env
 *.env
 
-# Temporary uploads & debug crops
+# Temporary uploads, saved reports & debug crops
 **/debug_crops/
 **/debug_question_crops/
 **/ui_uploads/
+**/saved_reports/
 **/test_debug/
 **/test_debug_new/
 **/test_debug_user/

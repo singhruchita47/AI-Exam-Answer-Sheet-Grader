@@ -14,12 +14,18 @@ from typing import Any
 
 from fastapi import Body, FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, StreamingResponse
+from fastapi.responses import HTMLResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
 from config import GEMINI_API_KEY, TROCR_MODEL_NAME, get_gemini_api_key
 from grader import ExamGrader, ExamRubric, RubricQuestion, SemanticScorer
 from ocr_engine import OCREngine
+from report_exporter import (
+    build_report_csv_text,
+    build_report_pdf_bytes,
+    list_saved_reports,
+    save_report_bundle,
+)
 from rubric_generator import RubricGenerator, filter_hindi_keep_english
 
 logging.basicConfig(level=logging.INFO)
@@ -29,10 +35,12 @@ BASE_DIR = Path(__file__).resolve().parent
 TEMPLATES_DIR = BASE_DIR / "templates"
 UPLOADS_DIR = BASE_DIR / "ui_uploads"
 DEBUG_CROPS_DIR = BASE_DIR / "debug_crops"
+SAVED_REPORTS_DIR = BASE_DIR / "saved_reports"
 
 TEMPLATES_DIR.mkdir(parents=True, exist_ok=True)
 UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
 DEBUG_CROPS_DIR.mkdir(parents=True, exist_ok=True)
+SAVED_REPORTS_DIR.mkdir(parents=True, exist_ok=True)
 
 app = FastAPI(title="Exam Grader Testing UI")
 app.add_middleware(
@@ -47,6 +55,9 @@ app.mount(
     "/debug_crops", StaticFiles(directory=str(DEBUG_CROPS_DIR)), name="debug_crops"
 )
 app.mount("/ui_uploads", StaticFiles(directory=str(UPLOADS_DIR)), name="ui_uploads")
+app.mount(
+    "/saved_reports", StaticFiles(directory=str(SAVED_REPORTS_DIR)), name="saved_reports"
+)
 
 _ocr_engine: OCREngine | None = None
 _semantic_scorer: SemanticScorer | None = None
@@ -434,7 +445,7 @@ async def api_grade_stream(
                 }
             )
             engine = get_ocr_engine()
-            online_fast = not offline and bool(GEMINI_API_KEY)
+            online_fast = not offline and bool(get_gemini_api_key())
             ocr_result = engine.process_pages(
                 page_paths,
                 debug_dir=session_crops_dir,
@@ -536,6 +547,93 @@ async def api_finalize_marks(payload: dict[str, Any] = Body(...)) -> dict[str, A
         "total_marks_awarded": grading_report.get("total_marks_awarded", 0.0),
         "total_max_marks": grading_report.get("total_max_marks", 0.0),
     }
+
+
+@app.post("/api/save_report")
+async def api_save_report(payload: dict[str, Any] = Body(...)) -> dict[str, Any]:
+    """Generate and persist multi-format final report (PDF, HTML, CSV, JSON) to saved_reports/."""
+    try:
+        saved_meta = save_report_bundle(SAVED_REPORTS_DIR, payload)
+        # Also mirror into session directory
+        session_id = str(payload.get("session_id") or "verified")
+        target_dir = UPLOADS_DIR / session_id
+        target_dir.mkdir(parents=True, exist_ok=True)
+        (target_dir / "verified_report.json").write_text(
+            json.dumps(
+                {
+                    "session_id": session_id,
+                    "finalized_at": saved_meta["saved_at"],
+                    "student_name": saved_meta["student_name"],
+                    "roll_no": saved_meta["roll_no"],
+                    "grading_report": payload.get("grading_report") or {},
+                },
+                indent=2,
+            ),
+            encoding="utf-8",
+        )
+        return {"status": "saved", **saved_meta}
+    except Exception as exc:
+        logger.exception("Failed to save final evaluation report")
+        raise HTTPException(status_code=500, detail=f"Failed to save report: {exc}")
+
+
+@app.post("/api/export_report_pdf")
+async def api_export_report_pdf(payload: dict[str, Any] = Body(...)) -> Response:
+    """Generate and return a downloadable A4 PDF report for the verified grading result."""
+    try:
+        pdf_bytes = build_report_pdf_bytes(payload)
+        raw_name = (
+            payload.get("roll_no")
+            or payload.get("student_name")
+            or "Exam_Evaluation"
+        )
+        safe_name = "".join(c if c.isalnum() or c in ("-", "_") else "_" for c in str(raw_name)).strip("_") or "Exam_Evaluation"
+        return Response(
+            content=pdf_bytes,
+            media_type="application/pdf",
+            headers={"Content-Disposition": f'attachment; filename="{safe_name}_Report.pdf"'},
+        )
+    except Exception as exc:
+        logger.exception("Failed to export PDF report")
+        raise HTTPException(status_code=500, detail=f"Failed to export PDF: {exc}")
+
+
+@app.post("/api/export_report_csv")
+async def api_export_report_csv(payload: dict[str, Any] = Body(...)) -> Response:
+    """Generate and return a downloadable Excel-compatible CSV marks sheet."""
+    try:
+        csv_text = build_report_csv_text(payload)
+        raw_name = (
+            payload.get("roll_no")
+            or payload.get("student_name")
+            or "Exam_Marks"
+        )
+        safe_name = "".join(c if c.isalnum() or c in ("-", "_") else "_" for c in str(raw_name)).strip("_") or "Exam_Marks"
+        return Response(
+            content=csv_text.encode("utf-8-sig"),
+            media_type="text/csv; charset=utf-8",
+            headers={"Content-Disposition": f'attachment; filename="{safe_name}_Marks.csv"'},
+        )
+    except Exception as exc:
+        logger.exception("Failed to export CSV marks sheet")
+        raise HTTPException(status_code=500, detail=f"Failed to export CSV: {exc}")
+
+
+@app.get("/api/saved_reports")
+async def api_list_saved_reports() -> dict[str, Any]:
+    """Return all saved evaluation reports persisted on disk across sessions."""
+    return {"reports": list_saved_reports(SAVED_REPORTS_DIR)}
+
+
+@app.delete("/api/saved_reports/{report_id}")
+async def api_delete_saved_report(report_id: str) -> dict[str, str]:
+    """Delete a saved report folder safely."""
+    safe_id = Path(report_id).name
+    target = SAVED_REPORTS_DIR / safe_id
+    if not target.exists() or not target.is_dir():
+        raise HTTPException(status_code=404, detail="Saved report not found")
+    shutil.rmtree(target)
+    return {"status": "deleted", "report_id": safe_id}
 
 
 if __name__ == "__main__":
