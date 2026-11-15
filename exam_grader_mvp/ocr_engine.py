@@ -218,15 +218,23 @@ def _suppress_ruled_lines(
     """Remove horizontal ruled notebook lines and margin lines while preserving handwriting."""
     h, w = deskewed_gray.shape[:2]
 
-    # Compute pen-adapted threshold (notebook ruled lines are lighter than pen ink)
+    # Compute pen-adapted threshold (rejects faint reverse-side bleed-through and light ruled lines)
     otsu_val, _ = cv2.threshold(
         deskewed_gray, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU
     )
-    # Pen ink is significantly darker than ruled notebook paper lines
-    pen_thresh = int(max(40, min(220, otsu_val * 0.90)))
-    _, pen_bin = cv2.threshold(
+    pen_thresh = int(max(45, min(178, otsu_val * 0.83)))
+    _, global_bin = cv2.threshold(
         deskewed_gray, pen_thresh, 255, cv2.THRESH_BINARY_INV
     )
+    adapt_bin = cv2.adaptiveThreshold(
+        deskewed_gray,
+        255,
+        cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+        cv2.THRESH_BINARY_INV,
+        35,
+        15,
+    )
+    pen_bin = cv2.bitwise_and(global_bin, adapt_bin)
 
     # Zero out outer 1.5% edge frame
     pad_y = max(8, int(h * 0.015))
@@ -236,21 +244,29 @@ def _suppress_ruled_lines(
     pen_bin[:, :pad_x] = 0
     pen_bin[:, w - pad_x :] = 0
 
-    # 1. Detect straight horizontal ruled lines
-    hk = cv2.getStructuringElement(cv2.MORPH_RECT, (38, 1))
-    h_lines = cv2.morphologyEx(pen_bin, cv2.MORPH_OPEN, hk)
-
-    # 2. Detect straight vertical margin lines
-    vk = cv2.getStructuringElement(cv2.MORPH_RECT, (1, 38))
-    v_lines = cv2.morphologyEx(pen_bin, cv2.MORPH_OPEN, vk)
-
-    # Preserve natural handwriting stroke intersections and crossings
-    crossings = cv2.bitwise_and(
-        cv2.dilate(h_lines, np.ones((3, 3), np.uint8)),
-        cv2.dilate(v_lines, np.ones((3, 3), np.uint8)),
+    # 1. Detect straight horizontal ruled lines (bridge tiny 3px gaps first so broken scan lines are caught)
+    h_closed = cv2.morphologyEx(
+        pen_bin, cv2.MORPH_CLOSE, cv2.getStructuringElement(cv2.MORPH_RECT, (5, 1))
     )
+    hk = cv2.getStructuringElement(cv2.MORPH_RECT, (42, 1))
+    h_lines = cv2.morphologyEx(h_closed, cv2.MORPH_OPEN, hk)
+    h_lines = cv2.dilate(h_lines, np.ones((3, 1), np.uint8), iterations=1)
+
+    # 2. Detect straight vertical margin/table lines
+    v_closed = cv2.morphologyEx(
+        pen_bin, cv2.MORPH_CLOSE, cv2.getStructuringElement(cv2.MORPH_RECT, (1, 5))
+    )
+    vk = cv2.getStructuringElement(cv2.MORPH_RECT, (1, 42))
+    v_lines = cv2.morphologyEx(v_closed, cv2.MORPH_OPEN, vk)
+    v_lines = cv2.dilate(v_lines, np.ones((1, 3), np.uint8), iterations=1)
+
+    # Preserve handwriting strokes that are thicker than a thin ruled line (vertical thickness >= 6px)
+    vert_stroke = cv2.morphologyEx(
+        pen_bin, cv2.MORPH_OPEN, cv2.getStructuringElement(cv2.MORPH_RECT, (1, 5))
+    )
+    vert_stroke = cv2.dilate(vert_stroke, np.ones((3, 3), np.uint8), iterations=1)
     lines_mask = cv2.bitwise_or(h_lines, v_lines)
-    lines_to_remove = cv2.subtract(lines_mask, crossings)
+    lines_to_remove = cv2.subtract(lines_mask, vert_stroke)
 
     clean_binary = cv2.subtract(pen_bin, lines_to_remove)
 
@@ -369,44 +385,91 @@ def _segment_regions(
     """
     page_h, page_w = clean_binary.shape[:2]
 
-    # Mask outer 2.5% frame to avoid scanner/border artifacts
+    # Mask top printed header zone (~15.5% height) and outer frame to avoid printed header/border boxes
+    top_header_y = max(25, int(page_h * 0.155))
     pad_y = max(15, int(page_h * 0.025))
     pad_x = max(15, int(page_w * 0.025))
     masked_bin = clean_binary.copy()
-    masked_bin[:pad_y, :] = 0
+    masked_bin[:top_header_y, :] = 0
     masked_bin[page_h - pad_y :, :] = 0
     masked_bin[:, :pad_x] = 0
     masked_bin[:, page_w - pad_x :] = 0
 
     import scipy.signal
 
-    # Project ink across page body (columns 50 to w - 50)
-    body_bin = masked_bin[:, 50 : page_w - 50]
+    # Exclude left notebook margin column (~11.5% width) and right edge border when detecting text lines
+    x_left_body = max(70, int(page_w * 0.115))
+    x_right_body = page_w - max(35, int(page_w * 0.035))
+    body_bin = masked_bin[:, x_left_body:x_right_body]
+
     row_ink = np.sum(body_bin > 0, axis=1).astype(np.float32)
-    sm = np.convolve(row_ink, np.ones(15, dtype=np.float32) / 15.0, mode="same")
+    sm = np.convolve(row_ink, np.ones(13, dtype=np.float32) / 13.0, mode="same")
     peaks, _ = scipy.signal.find_peaks(
-        sm, distance=int(page_h * 0.015), prominence=15
+        sm, distance=int(page_h * 0.014), prominence=5.5
     )
 
     row_boxes: list[tuple[int, int, int, int, int, float]] = []
     for pk in peaks:
-        if sm[pk] < 18:
+        if sm[pk] < 7.0:
             continue
         y1 = pk
-        while y1 > 0 and sm[y1] > max(10.0, sm[pk] * 0.15) and pk - y1 < int(page_h * 0.025):
+        while y1 > top_header_y and sm[y1] > max(3.5, sm[pk] * 0.16) and pk - y1 < int(page_h * 0.016):
             y1 -= 1
         y2 = pk
-        while y2 < page_h - 1 and sm[y2] > max(10.0, sm[pk] * 0.15) and y2 - pk < int(page_h * 0.025):
+        while y2 < page_h - 1 and sm[y2] > max(3.5, sm[pk] * 0.16) and y2 - pk < int(page_h * 0.016):
             y2 += 1
 
-        line_strip = masked_bin[y1:y2, 50 : page_w - 50]
-        nz_cols = np.where(np.sum(line_strip > 0, axis=0) > 0)[0]
-        if len(nz_cols) >= 25:
-            lx = 50 + int(nz_cols[0])
-            lw = int(nz_cols[-1] - nz_cols[0])
-            lh = y2 - y1
-            ink = int(np.count_nonzero(line_strip))
-            row_boxes.append((lx, y1, lw, lh, ink, float(sm[pk])))
+        line_strip = masked_bin[y1:y2, x_left_body:x_right_body]
+        strip_h, strip_w = line_strip.shape[:2]
+        if strip_h < 8 or strip_w < 40:
+            continue
+
+        # Remove any residual thin horizontal underline tails inside the strip using vertical column span
+        h_dil = cv2.dilate(line_strip, np.ones((3, 5), np.uint8), iterations=1)
+        h_line = cv2.morphologyEx(
+            h_dil, cv2.MORPH_OPEN, cv2.getStructuringElement(cv2.MORPH_RECT, (40, 1))
+        )
+        h_line = cv2.dilate(h_line, np.ones((5, 5), np.uint8), iterations=1)
+        has_ink = line_strip > 0
+        col_any = np.any(has_ink, axis=0)
+        col_min_y = np.where(col_any, np.argmax(has_ink, axis=0), 0)
+        col_max_y = np.where(col_any, strip_h - 1 - np.argmax(has_ink[::-1, :], axis=0), 0)
+        col_span = np.where(col_any, col_max_y - col_min_y + 1, 0)
+        thin_cols = (col_span <= 8)[np.newaxis, :]
+        clean_strip = np.where((h_line > 0) & thin_cols, 0, line_strip).astype(np.uint8)
+
+        # Also keep only columns where vertical character span >= 9 (excluding full-strip vertical table rules)
+        v_rule_col = col_span >= max(24, strip_h - 2)
+        char_col_bool = (col_span >= 9) & (~v_rule_col)
+        if int(np.sum(char_col_bool)) < 20:
+            continue
+        char_cols_mask = char_col_bool.astype(np.float32)
+        char_cols_sm = np.convolve(char_cols_mask, np.ones(15, dtype=np.float32), mode="same")
+        col_ink = np.sum(clean_strip > 0, axis=0).astype(np.float32)
+        col_sm = np.convolve(col_ink, np.ones(9, dtype=np.float32), mode="same")
+        nz_cols = np.where((col_sm >= 5.0) & (char_cols_sm >= 3.0))[0]
+
+        if len(nz_cols) >= 18:
+            active_spans = col_span[nz_cols]
+            p85_span = float(np.percentile(active_spans, 85)) if len(active_spans) > 0 else 0.0
+            raw_w = int(nz_cols[-1] - nz_cols[0])
+            # Reject flat horizontal underline strips that have no character height
+            if p85_span <= 9.0 and raw_w >= int(page_w * 0.25):
+                continue
+
+            pad_left = 12
+            pad_right = 24
+            pad_top = 10
+            pad_bottom = 6
+            lx = max(x_left_body - 8, x_left_body + int(nz_cols[0]) - pad_left)
+            rx = min(page_w - 15, x_left_body + int(nz_cols[-1]) + pad_right)
+            by1 = max(top_header_y - 6, y1 - pad_top)
+            by2 = min(page_h - pad_y, y2 + pad_bottom)
+            lw = max(25, rx - lx)
+            lh = max(12, by2 - by1)
+            ink = int(np.count_nonzero(clean_strip[:, nz_cols[0] : nz_cols[-1] + 1]))
+            if ink >= 45:
+                row_boxes.append((lx, by1, lw, lh, ink, float(sm[pk])))
 
     text_candidates: list[BoundingBox] = []
     diagram_strips: list[BoundingBox] = []
@@ -876,7 +939,7 @@ class OCREngine:
         from pydantic import BaseModel
         from google import genai
         from google.genai import types
-        from config import GEMINI_MODEL_NAME, get_gemini_api_key
+        from config import GEMINI_FALLBACK_MODELS, GEMINI_MODEL_NAME, get_gemini_api_key
 
         active_key = get_gemini_api_key()
         if not active_key:
@@ -890,27 +953,28 @@ class OCREngine:
             pages: list[PageItem]
 
         client = genai.Client(api_key=active_key)
-        batch_size = 10
+        batch_size = 5
         batches = [pages[i : i + batch_size] for i in range(0, len(pages), batch_size)]
 
         def _process_batch(batch: list[PageOCRResult]) -> dict[int, str]:
             contents: list[Any] = [
-                "Transcribe the student's handwritten English answers from each attached exam sheet page into clean, accurate digital text.\n"
+                "You are an expert handwriting recognition specialist. Transcribe the student's handwritten English answers from each attached exam sheet page into clean, accurate, properly spelled digital text.\n"
                 "CRITICAL RULES:\n"
                 "1. Ignore printed Hindi headers/stamps/cover tables and any crossed-out (struck-through) words completely.\n"
-                "2. Whenever the student writes a main question/answer heading (such as 'Answer no. - 01', 'Answer no.-06 [or]', 'Ans 1.', 'Q2'), write it on its own line starting with 'Q1:', 'Q2:', 'Q6:', etc.\n"
-                "3. Accurately transcribe messy cursive handwriting, scientific formulas (e.g. V = IR, CO2, 6CO2 + 6H2O -> C6H12O6 + 6O2), short MCQ options ((a), (b)), True/False, fill-in-the-blanks, and diagram labels in exact top-to-bottom reading order.\n"
-                "4. Return strict JSON mapping each page_number to its transcript."
+                "2. Whenever the student writes a main question/answer heading (such as 'Answer no. - 01', 'Answer no. - 03', 'Answer no.-06 [or]', 'Answer no. - 21', 'Ans 1.', 'Q2'), write it on its own line starting with 'Q1:', 'Q3:', 'Q6:', 'Q21:', etc.\n"
+                "3. Convert messy cursive handwriting into clean, readable digital English words using context (for example, 'Federal', 'Kanha National Park Kisli', 'cattle plague', 'primary', 'Road Transport', 'Rail Transport'). Do NOT output garbled OCR character noise.\n"
+                "4. Preserve sub-item markers ((i), (ii), (iii), (iv), (v), (vi), (1), (2), (a), (b)), scientific formulas (e.g. V = IR, CO2, 6CO2 + 6H2O -> C6H12O6 + 6O2), True/False, fill-in-the-blanks, comparison tables, and diagram labels in exact top-to-bottom reading order.\n"
+                "5. Return strict JSON mapping each page_number to its clean digital transcript."
             ]
             for p in batch:
                 pil_img = Image.open(p.source_path).convert("RGB")
-                if pil_img.width > 900:
-                    ratio = 900.0 / float(pil_img.width)
-                    pil_img = pil_img.resize((900, int(pil_img.height * ratio)))
+                if pil_img.width > 1250:
+                    ratio = 1250.0 / float(pil_img.width)
+                    pil_img = pil_img.resize((1250, int(pil_img.height * ratio)))
                 contents.append(f"--- PAGE {p.page_number} ---")
                 contents.append(pil_img)
 
-            models_to_try = [GEMINI_MODEL_NAME, "gemini-2.5-flash", "gemini-2.0-flash"]
+            models_to_try = [GEMINI_MODEL_NAME, *GEMINI_FALLBACK_MODELS]
             for m_name in dict.fromkeys(models_to_try):
                 try:
                     resp = client.models.generate_content(
@@ -929,13 +993,13 @@ class OCREngine:
                     )
                     return {item.page_number: item.transcript.strip() for item in parsed.pages}
                 except Exception as exc:
-                    time.sleep(0.8)
+                    time.sleep(0.6)
                     logger.warning("Gemini OCR batch attempt (%s) failed: %s", m_name, exc)
             return {}
 
         page_map: dict[int, str] = {}
         try:
-            with ThreadPoolExecutor(max_workers=min(3, len(batches))) as pool:
+            with ThreadPoolExecutor(max_workers=max(1, min(4, len(batches)))) as pool:
                 for batch_res in pool.map(_process_batch, batches):
                     page_map.update(batch_res)
         except Exception as exc:
@@ -943,6 +1007,11 @@ class OCREngine:
 
         for p in pages:
             p.transcript = page_map.get(p.page_number, "")
+            if p.transcript and p.text_lines:
+                clean_lines = [ln.strip() for ln in p.transcript.splitlines() if ln.strip()]
+                for idx_l, reg in enumerate(p.text_lines):
+                    if idx_l < len(clean_lines):
+                        reg.text = clean_lines[idx_l]
         return any(bool(p.transcript) for p in pages)
 
     def transcribe_lines(self, crop_paths: list[Path]) -> list[str]:

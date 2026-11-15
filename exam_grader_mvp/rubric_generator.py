@@ -11,7 +11,7 @@ from typing import Any
 from PIL import Image
 from pydantic import BaseModel, Field
 
-from config import GEMINI_API_KEY, GEMINI_MODEL_NAME
+from config import GEMINI_API_KEY, GEMINI_FALLBACK_MODELS, GEMINI_MODEL_NAME, get_gemini_api_key
 from grader import ExamRubric, KeyPoint, RubricQuestion
 
 logger = logging.getLogger(__name__)
@@ -107,7 +107,9 @@ class RubricGenerator:
         )
         ref_mode = "dual_reference" if has_answer_key else "auto_inferred"
 
-        if not force_offline and self.api_key:
+        active_key = get_gemini_api_key() or self.api_key
+        if not force_offline and active_key:
+            self.api_key = active_key
             try:
                 rubric = self._generate_with_gemini(
                     subject=subject,
@@ -247,15 +249,27 @@ class RubricGenerator:
                 contents.append("--- OFFICIAL ANSWER KEY IMAGE ---")
                 contents.append(ak_img)
 
-        response = client.models.generate_content(
-            model=GEMINI_MODEL_NAME,
-            contents=contents,
-            config=types.GenerateContentConfig(
-                response_mime_type="application/json",
-                response_schema=ExamRubric,
-                temperature=0.1,
-            ),
-        )
+        import time
+
+        last_err: Exception | None = None
+        response = None
+        for m_name in dict.fromkeys([GEMINI_MODEL_NAME, *GEMINI_FALLBACK_MODELS]):
+            try:
+                response = client.models.generate_content(
+                    model=m_name,
+                    contents=contents,
+                    config=types.GenerateContentConfig(
+                        response_mime_type="application/json",
+                        response_schema=ExamRubric,
+                        temperature=0.1,
+                    ),
+                )
+                break
+            except Exception as exc:
+                last_err = exc
+                time.sleep(0.6)
+        if response is None:
+            raise RuntimeError(f"Gemini rubric generation failed across fallback models: {last_err}")
 
         if response.parsed is not None:
             rubric = ExamRubric.model_validate(response.parsed)

@@ -18,6 +18,7 @@ from sentence_transformers import SentenceTransformer, util
 from config import (
     EMBEDDING_MODEL_NAME,
     GEMINI_API_KEY,
+    GEMINI_FALLBACK_MODELS,
     GEMINI_MODEL_NAME,
     GRADING_CONFIG,
     LOCAL_VLM_MODEL_NAME,
@@ -676,18 +677,24 @@ def _evaluate_diagram_gemini(
         "- critique: concise, constructive 1-2 sentence feedback on what is drawn well and what is missing."
     )
 
-    response = client.models.generate_content(
-        model=GEMINI_MODEL_NAME,
-        contents=[prompt, pil_image],
-        config=types.GenerateContentConfig(
-            response_mime_type="application/json",
-            response_schema=DiagramEvaluation,
-            temperature=0.1,
-        ),
-    )
-    if response.parsed is not None:
-        return DiagramEvaluation.model_validate(response.parsed)
-    return DiagramEvaluation.model_validate_json(response.text)
+    last_err: Exception | None = None
+    for m_name in dict.fromkeys([GEMINI_MODEL_NAME, *GEMINI_FALLBACK_MODELS]):
+        try:
+            response = client.models.generate_content(
+                model=m_name,
+                contents=[prompt, pil_image],
+                config=types.GenerateContentConfig(
+                    response_mime_type="application/json",
+                    response_schema=DiagramEvaluation,
+                    temperature=0.1,
+                ),
+            )
+            if response.parsed is not None:
+                return DiagramEvaluation.model_validate(response.parsed)
+            return DiagramEvaluation.model_validate_json(response.text)
+        except Exception as exc:
+            last_err = exc
+    raise RuntimeError(f"Gemini diagram evaluation failed: {last_err}")
 
 
 # ---------------------------------------------------------------------------
@@ -1093,7 +1100,7 @@ class ExamGrader:
         )
 
         last_err: Exception | None = None
-        for m_name in dict.fromkeys([GEMINI_MODEL_NAME, "gemini-2.5-flash", "gemini-2.0-flash"]):
+        for m_name in dict.fromkeys([GEMINI_MODEL_NAME, *GEMINI_FALLBACK_MODELS]):
             try:
                 response = client.models.generate_content(
                     model=m_name,
@@ -1202,7 +1209,7 @@ class ExamGrader:
             )
 
         last_err: Exception | None = None
-        for m_name in dict.fromkeys([GEMINI_MODEL_NAME, "gemini-2.5-flash", "gemini-2.0-flash"]):
+        for m_name in dict.fromkeys([GEMINI_MODEL_NAME, *GEMINI_FALLBACK_MODELS]):
             try:
                 response = client.models.generate_content(
                     model=m_name,
@@ -1243,6 +1250,9 @@ class ExamGrader:
         """Re-evaluate a single question after teacher edits its OCR text."""
         lvl = max(1, min(10, int(strictness_level if strictness_level is not None else self.strictness_level)))
         overall_sim, kp_sims = self.semantic_scorer.score_answer(student_answer, question)
+        active_key = get_gemini_api_key()
+        if active_key:
+            self.api_key = active_key
         grade_output: LLMGradeOutput | None = None
         if not self.offline and self.api_key and student_answer.strip():
             try:
