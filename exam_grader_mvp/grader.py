@@ -22,6 +22,7 @@ from config import (
     GRADING_CONFIG,
     LOCAL_VLM_MODEL_NAME,
     GradingConfig,
+    get_gemini_api_key,
 )
 
 if TYPE_CHECKING:
@@ -336,8 +337,22 @@ def parse_questions_with_pages(
 # ---------------------------------------------------------------------------
 # Semantic Similarity (Sentence Transformers)
 # ---------------------------------------------------------------------------
+_ROMAN_TO_INT: dict[str, int] = {
+    "i": 1, "ii": 2, "iii": 3, "iv": 4, "v": 5,
+    "vi": 6, "vii": 7, "viii": 8, "ix": 9, "x": 10,
+}
+
+_META_STOPWORDS: set[str] = {
+    "the", "a", "an", "of", "in", "to", "for", "and", "or", "is", "are", "was", "were",
+    "by", "on", "at", "with", "from", "as", "into", "any", "valid", "name", "write",
+    "state", "define", "explain", "correct", "option", "answer", "following", "blank",
+    "point", "mention", "give", "example", "one", "two", "three", "four", "five",
+    "core", "concept", "concepts", "accuracy", "completeness", "statement",
+}
+
+
 class SemanticScorer:
-    """Computes dense cosine similarity using all-MiniLM-L6-v2."""
+    """Computes hybrid dense cosine similarity (all-MiniLM-L6-v2) + exact/sub-item lexical matching."""
 
     def __init__(self, model_name: str = EMBEDDING_MODEL_NAME) -> None:
         self.model_name = model_name
@@ -350,27 +365,156 @@ class SemanticScorer:
         return self._model
 
     @staticmethod
-    def _split_chunks(text: str) -> list[str]:
+    def _extract_positional_subitems(text: str) -> dict[int, str]:
+        """Extract sub-answers indexed 1..N from markers like (i), (ii), (1), (2), (a), (b)."""
+        pattern = re.compile(
+            r"(?:^|\s)(?:\(\s*([ivx]{1,4}|\d{1,2}|[a-f])\s*\)|(?<!\w)([ivx]{1,4}|\d{1,2})\s*[\)\.])\s*",
+            re.IGNORECASE,
+        )
+        matches = list(pattern.finditer(text))
+        if not matches:
+            return {}
+
+        sub_items: dict[int, str] = {}
+        for i, m in enumerate(matches):
+            raw_tok = (m.group(1) or m.group(2) or "").strip().lower()
+            idx_num: int | None = None
+            if raw_tok in _ROMAN_TO_INT:
+                idx_num = _ROMAN_TO_INT[raw_tok]
+            elif raw_tok.isdigit():
+                idx_num = int(raw_tok)
+            elif len(raw_tok) == 1 and "a" <= raw_tok <= "f":
+                idx_num = ord(raw_tok) - ord("a") + 1
+
+            start_pos = m.end()
+            end_pos = matches[i + 1].start() if i + 1 < len(matches) else len(text)
+            seg = text[start_pos:end_pos].strip(" ,;.-:\n")
+            if idx_num is not None and 1 <= idx_num <= 15 and seg:
+                sub_items[idx_num] = seg
+        return sub_items
+
+    @classmethod
+    def _split_chunks(cls, text: str) -> list[str]:
         parts = [p.strip() for p in re.split(r"[.!?\n;]+", text) if p.strip()]
-        chunks = [p for p in parts if len(p.split()) >= 3]
+        chunks = [p for p in parts if p]
+        sub_map = cls._extract_positional_subitems(text)
+        for seg in sub_map.values():
+            if seg and seg not in chunks:
+                chunks.append(seg)
         if text.strip() and text.strip() not in chunks:
             chunks.append(text.strip())
-        return chunks
+        return chunks if chunks else [text.strip()]
+
+    @staticmethod
+    def _compute_lexical_kp_similarity(
+        kp: RubricKeyPoint,
+        kp_idx: int,
+        total_kps: int,
+        student_answer: str,
+        sub_items: dict[int, str],
+    ) -> float:
+        """Compute direct lexical / token / positional sub-item match score in [0.0, 1.0]."""
+        raw_desc = kp.description.strip()
+        # Strip leading sub-item prefix from description e.g. "(i) 100" -> "100"
+        clean_desc = re.sub(
+            r"^\s*(?:\(\s*(?:[ivx]{1,4}|\d{1,2}|[a-f])\s*\)|(?:[ivx]{1,4}|\d{1,2}|[a-f])[\.\)\-:])\s*",
+            "",
+            raw_desc,
+            flags=re.IGNORECASE,
+        ).strip()
+        if not clean_desc:
+            clean_desc = raw_desc
+
+        kp_lower = clean_desc.lower().strip(" .,;:()")
+        st_lower = student_answer.lower()
+        pos_sub = sub_items.get(kp_idx + 1, "").strip()
+        pos_lower = pos_sub.lower().strip(" .,;:()")
+
+        # 1. True / False positional check
+        if kp_lower in ("true", "false"):
+            target_scope = pos_lower if (total_kps >= 2 and pos_lower) else st_lower
+            has_true = bool(re.search(r"\b(?:true|t|correct|yes)\b", target_scope))
+            has_false = bool(re.search(r"\b(?:false|f|incorrect|no|not\s+true)\b", target_scope))
+            if kp_lower == "true":
+                if has_true and not has_false:
+                    return 0.98
+                if has_false and not has_true:
+                    return 0.0
+            else:
+                if has_false and not has_true:
+                    return 0.98
+                if has_true and not has_false:
+                    return 0.0
+
+        # 2. Direct substring match in positional sub-item or full student answer
+        if kp_lower and kp_lower not in ("true", "false"):
+            if pos_lower and (kp_lower == pos_lower or kp_lower in pos_lower or pos_lower in kp_lower):
+                if len(pos_lower) >= 2:
+                    return 0.98
+            if len(kp_lower) >= 2 and re.search(r"\b" + re.escape(kp_lower) + r"\b", st_lower):
+                return 0.96
+
+        # 3. Token & Fuzzy Token Matching (handles OCR typos like "Federa" vs "Federal")
+        all_kp_tokens = re.findall(r"[a-z0-9]+", kp_lower)
+        content_tokens = [t for t in all_kp_tokens if t not in _META_STOPWORDS and len(t) >= 2]
+        if not content_tokens:
+            content_tokens = [t for t in all_kp_tokens if t]
+
+        # Include explicit kp.keywords if provided
+        kw_tokens = [
+            w.lower().strip(".,;:()")
+            for w in getattr(kp, "keywords", [])
+            if len(w.strip(".,;:()")) >= 2
+        ]
+
+        scope_text = f"{pos_lower} {st_lower}".strip()
+        st_tokens = re.findall(r"[a-z0-9]+", scope_text)
+        if not st_tokens:
+            return 0.0
+
+        def _token_matches(target_tok: str, token_pool: list[str]) -> bool:
+            if target_tok in token_pool:
+                return True
+            if len(target_tok) >= 4:
+                for sw in token_pool:
+                    if len(sw) >= 3 and SequenceMatcher(None, target_tok, sw).ratio() >= 0.80:
+                        return True
+            return False
+
+        if kw_tokens:
+            kw_hits = sum(1 for kw in kw_tokens if kw in scope_text or _token_matches(kw, st_tokens))
+            if kw_hits >= max(1, (len(kw_tokens) + 1) // 2):
+                return 0.94
+
+        if content_tokens:
+            hits = sum(1 for tok in content_tokens if _token_matches(tok, st_tokens))
+            ratio = hits / len(content_tokens)
+            is_open_prompt = any(w in all_kp_tokens for w in ("any", "valid", "name", "example"))
+            if ratio >= 0.80:
+                return 0.96
+            if is_open_prompt and pos_sub and (ratio >= 0.45 or len(pos_sub.split()) >= 1):
+                return 0.94
+            if ratio >= 0.60:
+                return 0.84
+            if ratio >= 0.40:
+                return 0.65
+
+        return 0.0
 
     def score_answer(
         self, student_answer: str, question: RubricQuestion
     ) -> tuple[float, dict[str, float]]:
-        """Return (overall_model_similarity, {point_id: best_similarity})."""
+        """Return (overall_model_similarity, {point_id: best_hybrid_similarity})."""
         if not student_answer.strip():
             return 0.0, {kp.point_id: 0.0 for kp in question.key_points}
 
         model = self._ensure_loaded()
         chunks = self._split_chunks(student_answer)
+        sub_items = self._extract_positional_subitems(student_answer)
 
         student_full_emb = model.encode(student_answer, convert_to_tensor=True, normalize_embeddings=True)
         model_ans_emb = model.encode(question.model_answer, convert_to_tensor=True, normalize_embeddings=True)
         overall_sim = float(util.cos_sim(student_full_emb, model_ans_emb).item())
-        overall_sim = round(max(0.0, min(1.0, overall_sim)), 4)
 
         chunk_embs = model.encode(chunks, convert_to_tensor=True, normalize_embeddings=True)
         kp_texts = [kp.description for kp in question.key_points]
@@ -378,9 +522,19 @@ class SemanticScorer:
 
         sim_matrix = util.cos_sim(kp_embs, chunk_embs)
         kp_scores: dict[str, float] = {}
+        total_kps = len(question.key_points)
         for idx, kp in enumerate(question.key_points):
-            best_sim = float(sim_matrix[idx].max().item())
+            dense_sim = float(sim_matrix[idx].max().item())
+            lex_sim = self._compute_lexical_kp_similarity(
+                kp, idx, total_kps, student_answer, sub_items
+            )
+            best_sim = max(dense_sim, lex_sim)
             kp_scores[kp.point_id] = round(max(0.0, min(1.0, best_sim)), 4)
+
+        if kp_scores:
+            avg_kp_sim = sum(kp_scores.values()) / len(kp_scores)
+            overall_sim = max(overall_sim, round(avg_kp_sim * 0.95, 4))
+        overall_sim = round(max(0.0, min(1.0, overall_sim)), 4)
 
         return overall_sim, kp_scores
 
@@ -695,7 +849,7 @@ class ExamGrader:
     ) -> None:
         self.cfg = cfg
         self.strictness_level = max(1, min(10, int(strictness_level)))
-        self.api_key = GEMINI_API_KEY
+        self.api_key = get_gemini_api_key()
         self.offline = offline or not bool(self.api_key)
         if not offline and not self.api_key:
             logger.warning(
@@ -725,7 +879,7 @@ class ExamGrader:
         diagram_eval: DiagramEvaluation | None,
         strictness_level: int | None = None,
     ) -> LLMGradeOutput:
-        """Deterministic local heuristic rubric scorer using MiniLM + diagram structure."""
+        """Deterministic local heuristic rubric scorer using hybrid exact/lexical + MiniLM + diagram structure."""
         lvl = max(1, min(10, int(strictness_level if strictness_level is not None else self.strictness_level)))
         if (
             question.question_type in ("mcq", "fill_blank", "one_word")
@@ -747,29 +901,30 @@ class ExamGrader:
         text_awarded = 0.0
 
         # Scale thresholds dynamically by strictness_level (1..10)
-        # Level 1 (Lenient): hit=0.48, partial=0.28, partial_credit=0.70
-        # Level 5 (Balanced): hit=0.62, partial=0.40, partial_credit=0.50
-        # Level 10 (Strict): hit=0.76, partial=0.55, partial_credit=0.35
         hit_threshold = round(0.45 + (lvl * 0.031), 3)
         partial_threshold = round(0.25 + (lvl * 0.030), 3)
         partial_credit_factor = 0.70 if lvl <= 3 else (0.35 if lvl >= 8 else 0.50)
         word_count = len(student_answer.split())
+        is_objective_group = question.question_type in ("mcq", "fill_blank", "one_word")
 
         for kp in question.key_points:
             kp_max = round((kp.weight / total_weight) * text_budget, 2)
             sim = kp_sims.get(kp.point_id, 0.0)
-            blended_sim = (1.0 - self.cfg.semantic_blend_weight) * sim + (
-                self.cfg.semantic_blend_weight * overall_sim
-            )
+            if sim >= 0.85:
+                blended_sim = sim
+            else:
+                blended_sim = (1.0 - self.cfg.semantic_blend_weight) * sim + (
+                    self.cfg.semantic_blend_weight * overall_sim
+                )
 
-            # Penalty if answer is too short for a multi-mark question (stronger at higher strictness)
-            if question.max_marks >= 3.0 and word_count < 6 and lvl >= 4:
+            # Penalty if subjective answer is too short for a multi-mark question
+            if not is_objective_group and question.max_marks >= 3.0 and word_count < 6 and lvl >= 4 and sim < 0.85:
                 blended_sim *= 0.45 if lvl >= 8 else 0.6
 
             if blended_sim >= hit_threshold:
                 status: Literal["Hit", "Partial", "Missed"] = "Hit"
                 awarded = kp_max
-                note = f"Key concept matched (similarity {sim:.2f}, strictness {lvl}/10)."
+                note = f"Correctly matched in answer (confidence {sim:.2f}, strictness {lvl}/10)."
             elif blended_sim >= partial_threshold:
                 status = "Partial"
                 awarded = _round_quarter(kp_max * partial_credit_factor)
@@ -810,7 +965,7 @@ class ExamGrader:
             hit_count = sum(1 for item in breakdown if item.status == "Hit")
             feedback_parts = [
                 f"Covered {hit_count}/{len(breakdown)} rubric key points "
-                f"(Strictness {lvl}/10, similarity: {overall_sim:.2f})."
+                f"(Strictness {lvl}/10, accuracy: {overall_sim:.2f})."
             ]
             if missing:
                 feedback_parts.append(f"Focus on: {missing[0]}")
@@ -828,6 +983,39 @@ class ExamGrader:
             student_feedback=feedback,
         )
 
+    @staticmethod
+    def _enforce_verified_hits(
+        grade_out: LLMGradeOutput,
+        question: RubricQuestion,
+        kp_sims: dict[str, float],
+        text_budget: float,
+    ) -> LLMGradeOutput:
+        """Ensure any key point with verified exact/sub-item match (sim >= 0.90) receives full Hit credit."""
+        total_weight = sum(kp.weight for kp in question.key_points) or 1.0
+        kp_max_map = {
+            kp.point_id: round((kp.weight / total_weight) * text_budget, 2)
+            for kp in question.key_points
+        }
+        updated_any = False
+        for step in grade_out.step_wise_breakdown:
+            sim_val = kp_sims.get(step.point_id, step.similarity_score)
+            if sim_val >= 0.90 and step.status != "Hit":
+                max_m = kp_max_map.get(step.point_id, step.max_point_marks)
+                step.status = "Hit"
+                step.awarded_point_marks = max_m
+                step.similarity_score = sim_val
+                step.notes = f"Verified correct match ({step.description})."
+                updated_any = True
+        if updated_any:
+            new_sum = sum(s.awarded_point_marks for s in grade_out.step_wise_breakdown)
+            grade_out.marks_awarded = _round_quarter(
+                max(grade_out.marks_awarded, min(question.max_marks, new_sum))
+            )
+            grade_out.missing_key_points = [
+                s.description for s in grade_out.step_wise_breakdown if s.status != "Hit"
+            ]
+        return grade_out
+
     def _grade_with_gemini(
         self,
         question: RubricQuestion,
@@ -837,7 +1025,11 @@ class ExamGrader:
         diagram_eval: DiagramEvaluation | None,
         strictness_level: int | None = None,
     ) -> LLMGradeOutput:
-        """Use Gemini Flash Lite with Pydantic structured output for step-wise grading."""
+        """Use Gemini with automatic model fallback and Pydantic structured output for step-wise grading."""
+        import time
+        from google import genai
+        from google.genai import types
+
         lvl = max(1, min(10, int(strictness_level if strictness_level is not None else self.strictness_level)))
         if (
             question.question_type in ("mcq", "fill_blank", "one_word")
@@ -845,9 +1037,6 @@ class ExamGrader:
             and question.max_marks <= 1.5
         ):
             return _grade_objective_answer(question, student_answer, strictness_level=lvl)
-
-        from google import genai
-        from google.genai import types
 
         assert self.api_key is not None
         client = genai.Client(api_key=self.api_key)
@@ -864,7 +1053,7 @@ class ExamGrader:
         for kp in question.key_points:
             kp_max = round((kp.weight / total_weight) * text_budget, 2)
             kp_lines.append(
-                f"- {kp.point_id} (max {kp_max} marks, MiniLM similarity={kp_sims.get(kp.point_id, 0.0):.3f}): "
+                f"- {kp.point_id} (max {kp_max} marks, match_score={kp_sims.get(kp.point_id, 0.0):.3f}): "
                 f"{kp.description}"
             )
 
@@ -881,8 +1070,9 @@ class ExamGrader:
             f"{strictness_block}\n\n"
             "CRITICAL GRADING RULES:\n"
             "1. OBJECTIVE QUESTIONS & MULTI-PART OBJECTIVE GROUPS (MCQ, Fill in blanks, One word/sentence, True/False, Match pairs):\n"
-            "   - Grade each sub-item directly based on correctness of the selected option or target term.\n"
-            "   - Award full marks for each correct sub-item and 0 for incorrect/missing sub-items.\n"
+            "   - Grade each sub-item ((i), (ii), (1), (2), etc.) directly based on factual correctness of the student's term, number, or option.\n"
+            "   - If a key point asks an open-ended question (e.g., 'Name of any valid national park in MP') and the student gives a factually valid answer (e.g., 'Kanha National Park Kisli'), award FULL MARKS ('Hit')!\n"
+            "   - Ignore minor OCR spelling variations (e.g. 'Federa' for 'Federal').\n"
             "2. INTERNAL '[OR]' CHOICES:\n"
             "   - If the question has an '[OR]' option, the student only needs to answer ONE of the options. Award full credit if their chosen option is answered accurately.\n"
             "3. SUBJECTIVE QUESTIONS (Short Answer, Long Answer):\n"
@@ -892,35 +1082,41 @@ class ExamGrader:
             f"Official Model Answer / Answer Key:\n{question.model_answer}\n\n"
             f"Rubric Key Points (Text budget = {round(text_budget, 2)} marks):\n"
             + "\n".join(kp_lines)
-            + f"\n\nStudent Transcribed Answer (Overall MiniLM cosine similarity = {overall_sim:.3f}):\n"
+            + f"\n\nStudent Transcribed Answer (Overall match score = {overall_sim:.3f}):\n"
             + (student_answer if student_answer.strip() else "[NO TEXT ANSWER DETECTED]")
             + f"\n\nDiagram Evaluation (Diagram budget = {diagram_budget} marks):\n{diagram_summary}\n\n"
             "Return strict JSON matching the schema:\n"
-            "- step_wise_breakdown: list covering EVERY key_point id in order, using the provided similarity_score, "
-            "status ('Hit', 'Partial', or 'Missed'), max_point_marks, awarded_point_marks, and concise notes.\n"
+            "- step_wise_breakdown: list covering EVERY key_point id in order, status ('Hit', 'Partial', or 'Missed'), max_point_marks, awarded_point_marks, and concise notes.\n"
             "- missing_key_points: list of missed or incomplete concepts.\n"
             f"- marks_awarded: total marks out of {question.max_marks} (sum of awarded_point_marks + diagram marks if required), rounded to nearest 0.25.\n"
             "- student_feedback: 1-2 short, actionable, constructive sentences."
         )
 
-        response = client.models.generate_content(
-            model=GEMINI_MODEL_NAME,
-            contents=[prompt],
-            config=types.GenerateContentConfig(
-                response_mime_type="application/json",
-                response_schema=LLMGradeOutput,
-                temperature=0.1,
-            ),
-        )
-        if response.parsed is not None:
-            parsed = LLMGradeOutput.model_validate(response.parsed)
-        else:
-            parsed = LLMGradeOutput.model_validate_json(response.text)
-
-        parsed.marks_awarded = _round_quarter(
-            max(0.0, min(question.max_marks, parsed.marks_awarded))
-        )
-        return parsed
+        last_err: Exception | None = None
+        for m_name in dict.fromkeys([GEMINI_MODEL_NAME, "gemini-2.5-flash", "gemini-2.0-flash"]):
+            try:
+                response = client.models.generate_content(
+                    model=m_name,
+                    contents=[prompt],
+                    config=types.GenerateContentConfig(
+                        response_mime_type="application/json",
+                        response_schema=LLMGradeOutput,
+                        temperature=0.1,
+                    ),
+                )
+                if response.parsed is not None:
+                    parsed = LLMGradeOutput.model_validate(response.parsed)
+                else:
+                    parsed = LLMGradeOutput.model_validate_json(response.text)
+                parsed = self._enforce_verified_hits(parsed, question, kp_sims, text_budget)
+                parsed.marks_awarded = _round_quarter(
+                    max(0.0, min(question.max_marks, parsed.marks_awarded))
+                )
+                return parsed
+            except Exception as exc:
+                last_err = exc
+                time.sleep(0.8)
+        raise RuntimeError(f"Gemini grading failed across fallback models: {last_err}")
 
     @staticmethod
     def _select_diagram_for_question(
@@ -955,7 +1151,8 @@ class ExamGrader:
         ],
         strictness_level: int | None = None,
     ) -> dict[str, LLMGradeOutput]:
-        """Grade a batch of up to 12 questions in a SINGLE Gemini API call to stay well within 15 RPM limits."""
+        """Grade a batch of questions in a SINGLE Gemini API call with automatic retry & model fallback."""
+        import time
         from google import genai
         from google.genai import types
 
@@ -975,23 +1172,25 @@ class ExamGrader:
         blocks: list[str] = [
             "You are an expert board exam evaluator grading a batch of student answers.\n"
             f"{strictness_block}\n\n"
-            "RULES:\n"
-            "1. For OBJECTIVE questions / 6-item objective blocks: award full marks for each correct item and 0 for wrong/missing items.\n"
+            "CRITICAL RULES:\n"
+            "1. For OBJECTIVE questions / 6-item objective blocks ((i)..(vi), (1)..(6)): check each sub-item directly against the student's sub-answer. Award full marks ('Hit') for each factually correct sub-item (including valid examples like 'Kanha National Park Kisli' for 'Name of any valid national park in MP', and minor OCR typos like 'Federa' for 'Federal').\n"
             "2. For '[OR]' internal choices: award full credit if the student accurately answered EITHER option.\n"
             f"3. For SUBJECTIVE questions (Short/Long Answer): evaluate according to Global Strictness Level ({lvl}/10).\n"
             "4. Keep notes and student_feedback concise (1 sentence).\n"
             "Return strict JSON with a result for every question_id below:\n"
         ]
 
+        q_map: dict[str, tuple[RubricQuestion, dict[str, float], float]] = {}
         for question, student_answer, overall_sim, kp_sims, diagram_eval in batch_items:
             text_budget = (
                 question.max_marks * (1.0 - self.cfg.diagram_weight_when_required)
                 if question.requires_diagram
                 else question.max_marks
             )
+            q_map[question.question_id] = (question, kp_sims, text_budget)
             total_weight = sum(kp.weight for kp in question.key_points) or 1.0
             kp_str = "\n".join(
-                f"  * {kp.point_id} (max {round((kp.weight / total_weight) * text_budget, 2)}M, sim={kp_sims.get(kp.point_id, 0.0):.2f}): {kp.description}"
+                f"  * {kp.point_id} (max {round((kp.weight / total_weight) * text_budget, 2)}M, match_score={kp_sims.get(kp.point_id, 0.0):.2f}): {kp.description}"
                 for kp in question.key_points
             )
             blocks.append(
@@ -1002,29 +1201,37 @@ class ExamGrader:
                 f"Student Answer: {student_answer if student_answer.strip() else '[NO ANSWER]'}\n"
             )
 
-        response = client.models.generate_content(
-            model=GEMINI_MODEL_NAME,
-            contents=["\n".join(blocks)],
-            config=types.GenerateContentConfig(
-                response_mime_type="application/json",
-                response_schema=BatchGradeResponse,
-                temperature=0.1,
-            ),
-        )
-        parsed = (
-            BatchGradeResponse.model_validate(response.parsed)
-            if response.parsed is not None
-            else BatchGradeResponse.model_validate_json(response.text)
-        )
-        out: dict[str, LLMGradeOutput] = {}
-        q_max_map = {q.question_id: q.max_marks for q, _, _, _, _ in batch_items}
-        for item in parsed.results:
-            max_m = q_max_map.get(item.question_id, 5.0)
-            item.grade.marks_awarded = _round_quarter(
-                max(0.0, min(max_m, item.grade.marks_awarded))
-            )
-            out[item.question_id] = item.grade
-        return out
+        last_err: Exception | None = None
+        for m_name in dict.fromkeys([GEMINI_MODEL_NAME, "gemini-2.5-flash", "gemini-2.0-flash"]):
+            try:
+                response = client.models.generate_content(
+                    model=m_name,
+                    contents=["\n".join(blocks)],
+                    config=types.GenerateContentConfig(
+                        response_mime_type="application/json",
+                        response_schema=BatchGradeResponse,
+                        temperature=0.1,
+                    ),
+                )
+                parsed = (
+                    BatchGradeResponse.model_validate(response.parsed)
+                    if response.parsed is not None
+                    else BatchGradeResponse.model_validate_json(response.text)
+                )
+                out: dict[str, LLMGradeOutput] = {}
+                for item in parsed.results:
+                    if item.question_id in q_map:
+                        q_obj, k_sims, t_bud = q_map[item.question_id]
+                        item.grade = self._enforce_verified_hits(item.grade, q_obj, k_sims, t_bud)
+                        item.grade.marks_awarded = _round_quarter(
+                            max(0.0, min(q_obj.max_marks, item.grade.marks_awarded))
+                        )
+                    out[item.question_id] = item.grade
+                return out
+            except Exception as exc:
+                last_err = exc
+                time.sleep(0.9)
+        raise RuntimeError(f"Batch Gemini grading failed across fallback models: {last_err}")
 
     def grade_single_question(
         self,

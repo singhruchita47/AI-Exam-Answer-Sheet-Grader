@@ -17,7 +17,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
-from config import GEMINI_API_KEY, TROCR_MODEL_NAME
+from config import GEMINI_API_KEY, TROCR_MODEL_NAME, get_gemini_api_key
 from grader import ExamGrader, ExamRubric, RubricQuestion, SemanticScorer
 from ocr_engine import OCREngine
 from rubric_generator import RubricGenerator, filter_hindi_keep_english
@@ -91,7 +91,7 @@ def api_config() -> dict[str, Any]:
         photo_rubric = photo_rubric_path.read_text(encoding="utf-8")
 
     return {
-        "has_gemini_key": bool(GEMINI_API_KEY),
+        "has_gemini_key": bool(get_gemini_api_key()),
         "trocr_model": TROCR_MODEL_NAME,
         "default_rubric": default_rubric,
         "photo_rubric": photo_rubric,
@@ -133,7 +133,7 @@ def _extract_reference_upload(
             first_page.save(image_path, "JPEG", quality=88)
 
         if not extracted_chunks:
-            if not offline and GEMINI_API_KEY:
+            if not offline and get_gemini_api_key():
                 pil_images = [doc[p_idx].render(scale=1.0).to_pil() for p_idx in range(max_p)]
             else:
                 from rapidocr_onnxruntime import RapidOCR
@@ -205,7 +205,7 @@ async def api_generate_rubric(
             )
 
     try:
-        generator = RubricGenerator(api_key=GEMINI_API_KEY)
+        generator = RubricGenerator(api_key=get_gemini_api_key())
         rubric = generator.generate(
             subject=subject,
             total_marks=total_marks,
@@ -373,7 +373,7 @@ async def api_grade(
 
     try:
         engine = get_ocr_engine()
-        online_fast = not offline and bool(GEMINI_API_KEY)
+        online_fast = not offline and bool(get_gemini_api_key())
         ocr_result = engine.process_pages(
             page_paths, debug_dir=session_crops_dir, online_fast=online_fast
         )

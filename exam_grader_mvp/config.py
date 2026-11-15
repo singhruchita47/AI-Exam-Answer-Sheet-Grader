@@ -6,12 +6,15 @@ import os
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from pathlib import Path
 from dotenv import load_dotenv
 
 if TYPE_CHECKING:
     import torch
 
-load_dotenv(override=True)
+_ENV_PATH = Path(__file__).resolve().parent / ".env"
+_ENV_EXAMPLE_PATH = Path(__file__).resolve().parent / ".env.example"
+load_dotenv(dotenv_path=_ENV_PATH, override=True)
 
 # ---------------------------------------------------------------------------
 # Model & API Configuration
@@ -20,11 +23,47 @@ TROCR_MODEL_NAME: str = os.getenv(
     "TROCR_MODEL_NAME", "microsoft/trocr-base-handwritten"
 )
 EMBEDDING_MODEL_NAME: str = os.getenv("EMBEDDING_MODEL_NAME", "all-MiniLM-L6-v2")
-GEMINI_MODEL_NAME: str = os.getenv("GEMINI_MODEL_NAME", "gemini-3.5-flash-lite")
+GEMINI_MODEL_NAME: str = os.getenv("GEMINI_MODEL_NAME", "gemini-2.5-flash")
 LOCAL_VLM_MODEL_NAME: str = os.getenv(
     "LOCAL_VLM_MODEL_NAME", "Qwen/Qwen2.5-VL-7B-Instruct"
 )
 GEMINI_API_KEY: str | None = os.getenv("GEMINI_API_KEY")
+
+
+def _read_key_from_file(path: Path) -> str | None:
+    if not path.exists():
+        return None
+    try:
+        for line in path.read_text(encoding="utf-8", errors="ignore").splitlines():
+            line = line.strip()
+            if line.startswith("GEMINI_API_KEY="):
+                val = line.split("=", 1)[1].strip().strip('"').strip("'")
+                if val and val != "your_gemini_api_key_here":
+                    return val
+    except Exception:
+        pass
+    return None
+
+
+def get_gemini_api_key() -> str | None:
+    """Hot-reload .env (and .env.example if edited by user) to return the latest GEMINI_API_KEY."""
+    candidates: list[tuple[float, str]] = []
+    for p in (_ENV_PATH, _ENV_EXAMPLE_PATH):
+        k = _read_key_from_file(p)
+        if k:
+            try:
+                mtime = p.stat().st_mtime
+            except Exception:
+                mtime = 0.0
+            candidates.append((mtime, k))
+    if candidates:
+        candidates.sort(key=lambda x: x[0], reverse=True)
+        latest_key = candidates[0][1]
+        os.environ["GEMINI_API_KEY"] = latest_key
+        return latest_key
+    load_dotenv(dotenv_path=_ENV_PATH, override=True)
+    key = os.getenv("GEMINI_API_KEY")
+    return key.strip() if key and key.strip() and key != "your_gemini_api_key_here" else None
 
 
 def get_device_and_dtype() -> tuple[str, "torch.dtype"]:

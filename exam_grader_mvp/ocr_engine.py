@@ -876,9 +876,10 @@ class OCREngine:
         from pydantic import BaseModel
         from google import genai
         from google.genai import types
-        from config import GEMINI_API_KEY, GEMINI_MODEL_NAME
+        from config import GEMINI_MODEL_NAME, get_gemini_api_key
 
-        if not GEMINI_API_KEY:
+        active_key = get_gemini_api_key()
+        if not active_key:
             return False
 
         class PageItem(BaseModel):
@@ -888,7 +889,7 @@ class OCREngine:
         class BatchTranscript(BaseModel):
             pages: list[PageItem]
 
-        client = genai.Client(api_key=GEMINI_API_KEY)
+        client = genai.Client(api_key=active_key)
         batch_size = 10
         batches = [pages[i : i + batch_size] for i in range(0, len(pages), batch_size)]
 
@@ -909,10 +910,11 @@ class OCREngine:
                 contents.append(f"--- PAGE {p.page_number} ---")
                 contents.append(pil_img)
 
-            for attempt in range(2):
+            models_to_try = [GEMINI_MODEL_NAME, "gemini-2.5-flash", "gemini-2.0-flash"]
+            for m_name in dict.fromkeys(models_to_try):
                 try:
                     resp = client.models.generate_content(
-                        model=GEMINI_MODEL_NAME,
+                        model=m_name,
                         contents=contents,
                         config=types.GenerateContentConfig(
                             response_mime_type="application/json",
@@ -927,10 +929,8 @@ class OCREngine:
                     )
                     return {item.page_number: item.transcript.strip() for item in parsed.pages}
                 except Exception as exc:
-                    if attempt == 0:
-                        time.sleep(0.8)
-                    else:
-                        logger.warning("Gemini OCR batch failed: %s", exc)
+                    time.sleep(0.8)
+                    logger.warning("Gemini OCR batch attempt (%s) failed: %s", m_name, exc)
             return {}
 
         page_map: dict[int, str] = {}
