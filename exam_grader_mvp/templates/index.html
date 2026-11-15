@@ -21,7 +21,7 @@
   </style>
 </head>
 <body class="bg-slate-50 text-slate-800 min-h-screen antialiased">
-  <div class="max-w-[1440px] mx-auto px-4 sm:px-6 py-5 sm:py-7">
+  <div class="max-w-[1860px] w-full mx-auto px-2 sm:px-5 py-4 sm:py-6">
 
     <!-- Top Header -->
     <header class="mb-5 pb-4 border-b border-slate-200 flex flex-wrap items-center justify-between gap-4">
@@ -448,14 +448,14 @@
         <!-- =============================================================== -->
         <!-- MAIN SIDE-BY-SIDE SPLIT-SCREEN VIEW (LEFT: SHEET | RIGHT: Q&A)  -->
         <!-- =============================================================== -->
-        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        <div id="splitDashboardGrid" class="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
 
-          <!-- LEFT PANEL (6 Cols, Sticky): Original Handwritten Answer Sheet Viewer -->
-          <div class="lg:col-span-6 lg:sticky lg:top-4 bg-white rounded-2xl shadow-xs border border-slate-200 overflow-hidden flex flex-col">
+          <!-- LEFT PANEL (7 Cols Large, Sticky): Enlarged Handwritten Answer Sheet Viewer -->
+          <div id="leftViewerCol" class="lg:col-span-7 lg:sticky lg:top-3 bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden flex flex-col">
 
-            <!-- Viewer Top Bar: Title + Overlay Toggle + Zoom Controls -->
-            <div class="p-3.5 bg-slate-900 text-white flex flex-wrap items-center justify-between gap-2">
-              <div class="flex items-center gap-2">
+            <!-- Viewer Top Bar: Title + Prev/Next + Overlay Toggle + Wide Toggle -->
+            <div class="p-3 bg-slate-900 text-white flex flex-wrap items-center justify-between gap-2">
+              <div class="flex items-center gap-2.5">
                 <span class="text-base">🖼️</span>
                 <div>
                   <h3 class="text-xs sm:text-sm font-extrabold">Original Handwritten Answer Sheet</h3>
@@ -463,43 +463,62 @@
                 </div>
               </div>
 
-              <!-- Toggle Overlay vs Clean Sheet -->
-              <div class="flex items-center gap-1 bg-slate-800 p-1 rounded-xl border border-slate-700 text-[11px] font-bold">
-                <button type="button" id="viewModeAnnotatedBtn" onclick="setViewerMode('annotated')"
-                  class="px-2.5 py-1 rounded-lg bg-indigo-600 text-white cursor-pointer transition">
-                  🎯 AI Boxes
-                </button>
-                <button type="button" id="viewModeOriginalBtn" onclick="setViewerMode('original')"
-                  class="px-2.5 py-1 rounded-lg text-slate-300 hover:text-white cursor-pointer transition">
-                  📄 Original Sheet
+              <div class="flex flex-wrap items-center gap-2">
+                <!-- Toggle Overlay vs Clean Sheet -->
+                <div class="flex items-center gap-1 bg-slate-800 p-1 rounded-xl border border-slate-700 text-[11px] font-bold">
+                  <button type="button" id="viewModeAnnotatedBtn" onclick="setViewerMode('annotated')"
+                    class="px-2.5 py-1 rounded-lg bg-indigo-600 text-white cursor-pointer transition">
+                    🎯 AI Boxes
+                  </button>
+                  <button type="button" id="viewModeOriginalBtn" onclick="setViewerMode('original')"
+                    class="px-2.5 py-1 rounded-lg text-slate-300 hover:text-white cursor-pointer transition">
+                    📄 Original Sheet
+                  </button>
+                </div>
+
+                <!-- Toggle Extra-Wide Photo View -->
+                <button type="button" id="toggleWidePhotoBtn" onclick="toggleWidePhotoLayout()"
+                  title="Expand Left Photo Viewer Wider"
+                  class="px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-indigo-600 text-slate-200 hover:text-white border border-slate-700 text-[11px] font-bold transition cursor-pointer">
+                  ⛶ Wider Photo
                 </button>
               </div>
             </div>
 
-            <!-- Page Switcher Tabs Bar (Page 1, Page 2, ...) -->
-            <div class="bg-slate-100 border-b border-slate-200 px-3 py-2 flex items-center justify-between gap-2">
-              <div id="leftPageTabs" class="flex items-center gap-1.5 overflow-x-auto pb-0.5 custom-scrollbar"></div>
+            <!-- Page Switcher Tabs Bar (Prev, Page 1, Page 2, ..., Next) -->
+            <div class="bg-slate-100 border-b border-slate-200 px-2.5 py-2 flex flex-wrap items-center justify-between gap-2">
+              <div class="flex items-center gap-1.5 flex-1 min-w-0">
+                <button type="button" onclick="stepViewerPage(-1)" title="Previous Page"
+                  class="px-2.5 py-1 rounded-lg text-xs font-extrabold bg-white hover:bg-indigo-50 text-slate-700 hover:text-indigo-700 border border-slate-300 shrink-0 cursor-pointer">
+                  ◀ Prev
+                </button>
+                <div id="leftPageTabs" class="flex items-center gap-1.5 overflow-x-auto pb-0.5 custom-scrollbar"></div>
+                <button type="button" onclick="stepViewerPage(1)" title="Next Page"
+                  class="px-2.5 py-1 rounded-lg text-xs font-extrabold bg-white hover:bg-indigo-50 text-slate-700 hover:text-indigo-700 border border-slate-300 shrink-0 cursor-pointer">
+                  Next ▶
+                </button>
+              </div>
 
               <!-- Zoom & Pan Toolbar -->
               <div class="flex items-center gap-1 shrink-0 bg-white px-2 py-1 rounded-lg border border-slate-200 shadow-2xs text-xs font-bold">
-                <button type="button" onclick="adjustZoom(-0.25)" title="Zoom Out" class="px-2 py-0.5 hover:bg-slate-100 rounded text-slate-700 cursor-pointer">−</button>
+                <button type="button" onclick="adjustZoom(-0.20)" title="Zoom Out" class="px-2 py-0.5 hover:bg-slate-100 rounded text-slate-700 cursor-pointer">−</button>
                 <span id="zoomLevelLabel" class="text-[11px] text-slate-600 mono-font min-w-[42px] text-center">100%</span>
-                <button type="button" onclick="adjustZoom(0.25)" title="Zoom In" class="px-2 py-0.5 hover:bg-slate-100 rounded text-slate-700 cursor-pointer">+</button>
+                <button type="button" onclick="adjustZoom(0.20)" title="Zoom In" class="px-2 py-0.5 hover:bg-slate-100 rounded text-slate-700 cursor-pointer">+</button>
                 <button type="button" onclick="resetZoom()" title="Reset Zoom" class="px-2 py-0.5 hover:bg-slate-100 rounded text-[10px] text-indigo-600 cursor-pointer">Reset</button>
                 <button type="button" onclick="openCurrentPageFullscreen()" title="Open Full High-Res in New Tab" class="px-1.5 py-0.5 hover:bg-indigo-50 rounded text-[11px] text-indigo-600 cursor-pointer">↗</button>
               </div>
             </div>
 
-            <!-- High-Resolution Zoom/Pan Image Viewport -->
+            <!-- High-Resolution Large Zoom/Pan Image Viewport -->
             <div id="sheetViewport"
-                 class="relative bg-slate-950/95 overflow-auto h-[560px] sm:h-[680px] flex items-start justify-center p-3 select-none custom-scrollbar cursor-grab active:cursor-grabbing">
+                 class="relative bg-slate-950/95 overflow-auto h-[760px] sm:h-[880px] xl:h-[950px] flex items-start justify-center p-1 select-none custom-scrollbar cursor-grab active:cursor-grabbing">
               <img id="sheetViewerImage" src="" alt="Student Answer Sheet Page"
-                   class="transition-transform duration-150 origin-top-left rounded shadow-md max-w-none"
+                   class="transition-transform duration-150 origin-top-left rounded shadow-lg max-w-none"
                    style="width: 100%; height: auto;" />
             </div>
 
             <!-- Viewer Footer Legend -->
-            <div class="px-4 py-2.5 bg-slate-50 border-t border-slate-200 flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-600">
+            <div class="px-3.5 py-2 bg-slate-50 border-t border-slate-200 flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-600">
               <div class="flex items-center gap-3">
                 <span class="flex items-center gap-1.5 font-semibold">
                   <span class="w-2.5 h-2.5 rounded-xs bg-emerald-500 inline-block"></span> Green = Handwritten Lines
@@ -508,27 +527,41 @@
                   <span class="w-2.5 h-2.5 rounded-xs bg-rose-500 inline-block"></span> Red = True Diagrams
                 </span>
               </div>
-              <span class="text-slate-400">💡 Scroll or click +/− to zoom • Drag to pan</span>
+              <span class="text-slate-400">💡 Switching pages automatically shows that page's OCR & Question(s) on the right</span>
             </div>
           </div>
 
-          <!-- RIGHT PANEL (6 Cols): Question-Wise Structured Breakdown & Editable OCR/Marks -->
-          <div class="lg:col-span-6 space-y-4">
+          <!-- RIGHT PANEL (5 Cols): Page-Synchronized OCR & Question Grading Verification -->
+          <div id="rightVerificationCol" class="lg:col-span-5 space-y-4">
 
-            <!-- Right Panel Sticky Header & Question Jump Bar -->
+            <!-- Right Panel Sticky Header: Page Sync Indicator + Filter Toggle + Question Jump Bar -->
             <div class="bg-white rounded-2xl shadow-xs border border-slate-200 p-4 space-y-3">
               <div class="flex flex-wrap items-center justify-between gap-2">
                 <div>
-                  <h3 class="text-sm sm:text-base font-extrabold text-slate-900 flex items-center gap-2">
-                    <span>🎯</span> Question-Wise OCR & Grading Verification
-                  </h3>
-                  <p class="text-[11px] text-slate-500">
-                    Edit extracted digital OCR text or adjust marks for any question—totals recalculate automatically.
+                  <div class="flex items-center gap-2">
+                    <h3 class="text-sm sm:text-base font-extrabold text-slate-900 flex items-center gap-1.5">
+                      <span>🎯</span> <span id="rightPanelPageTitle">Page 1 — OCR & Question Verification</span>
+                    </h3>
+                    <span id="rightPanelQCountBadge" class="text-[11px] font-extrabold px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-800 border border-indigo-200">
+                      Synced with Left Page
+                    </span>
+                  </div>
+                  <p class="text-[11px] text-slate-500 mt-0.5" id="rightPanelSubtitle">
+                    Showing extracted OCR text & questions for the currently selected page on the left.
                   </p>
                 </div>
-                <span class="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200">
-                  ✏️ OCR & Marks Editable
-                </span>
+
+                <!-- Toggle: Current Page Only vs Show All Questions -->
+                <div class="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200 text-[11px] font-bold">
+                  <button type="button" id="filterPageOnlyBtn" onclick="setRightPanelFilterMode(true)"
+                    class="px-2.5 py-1 rounded-lg bg-indigo-600 text-white shadow-2xs cursor-pointer transition">
+                    📄 Current Page Only
+                  </button>
+                  <button type="button" id="filterAllQuestionsBtn" onclick="setRightPanelFilterMode(false)"
+                    class="px-2.5 py-1 rounded-lg text-slate-600 hover:text-slate-900 cursor-pointer transition">
+                    📚 Show All Pages
+                  </button>
+                </div>
               </div>
 
               <!-- Quick Question Jump Pills -->
@@ -579,11 +612,13 @@
     let currentSessionId = null;
     let globalStrictnessLevel = 5;
 
-    // Split-screen viewer state
+    // Split-screen viewer & page-sync state
     let segmentationPages = [];
     let currentViewerPageIdx = 0;
     let currentViewerMode = 'annotated'; // 'annotated' | 'original'
     let currentZoom = 1.0;
+    let filterByCurrentPage = true; // Automatically show selected page's OCR & questions on the right
+    let isWidePhotoLayout = false;
 
     function switchTab(tabNum) {
       const tab1Content = document.getElementById('tab1Content');
@@ -1145,12 +1180,69 @@
     // =========================================================================
     // SPLIT-SCREEN LEFT PANEL VIEWER (ZOOM, PAN, PAGE TABS, OVERLAY TOGGLE)
     // =========================================================================
+    function toggleWidePhotoLayout() {
+      isWidePhotoLayout = !isWidePhotoLayout;
+      const leftCol = document.getElementById('leftViewerCol');
+      const rightCol = document.getElementById('rightVerificationCol');
+      const btn = document.getElementById('toggleWidePhotoBtn');
+      if (!leftCol || !rightCol) return;
+
+      if (isWidePhotoLayout) {
+        leftCol.className = "lg:col-span-8 lg:sticky lg:top-3 bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden flex flex-col";
+        rightCol.className = "lg:col-span-4 space-y-4";
+        if (btn) {
+          btn.className = "px-2.5 py-1.5 rounded-xl bg-indigo-600 text-white border border-indigo-500 text-[11px] font-bold transition cursor-pointer";
+          btn.textContent = "⛶ Standard Split";
+        }
+      } else {
+        leftCol.className = "lg:col-span-7 lg:sticky lg:top-3 bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden flex flex-col";
+        rightCol.className = "lg:col-span-5 space-y-4";
+        if (btn) {
+          btn.className = "px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-indigo-600 text-slate-200 hover:text-white border border-slate-700 text-[11px] font-bold transition cursor-pointer";
+          btn.textContent = "⛶ Wider Photo";
+        }
+      }
+    }
+
+    function stepViewerPage(delta) {
+      if (!segmentationPages || segmentationPages.length === 0) return;
+      const nextIdx = Math.max(0, Math.min(segmentationPages.length - 1, currentViewerPageIdx + delta));
+      selectViewerPage(nextIdx);
+    }
+
+    function setRightPanelFilterMode(onlyCurrentPage) {
+      filterByCurrentPage = Boolean(onlyCurrentPage);
+      const pageBtn = document.getElementById('filterPageOnlyBtn');
+      const allBtn = document.getElementById('filterAllQuestionsBtn');
+      if (pageBtn && allBtn) {
+        if (filterByCurrentPage) {
+          pageBtn.className = "px-2.5 py-1 rounded-lg bg-indigo-600 text-white shadow-2xs cursor-pointer transition";
+          allBtn.className = "px-2.5 py-1 rounded-lg text-slate-600 hover:text-slate-900 cursor-pointer transition";
+        } else {
+          allBtn.className = "px-2.5 py-1 rounded-lg bg-indigo-600 text-white shadow-2xs cursor-pointer transition";
+          pageBtn.className = "px-2.5 py-1 rounded-lg text-slate-600 hover:text-slate-900 cursor-pointer transition";
+        }
+      }
+      renderQuestionJumpBar();
+      renderGradingBreakdownCards();
+    }
+
+    function getQuestionsForPageNumber(pageNum) {
+      if (!currentGradingReport || !currentGradingReport.question_results) return [];
+      return currentGradingReport.question_results
+        .map((res, qIdx) => ({ res, qIdx }))
+        .filter(({ res }) => {
+          const pNums = (res.page_numbers && res.page_numbers.length > 0) ? res.page_numbers : [1];
+          return pNums.includes(pageNum);
+        });
+    }
+
     function selectViewerPage(pageIdx) {
       if (!segmentationPages || segmentationPages.length === 0) return;
       currentViewerPageIdx = Math.max(0, Math.min(segmentationPages.length - 1, pageIdx));
       const pageObj = segmentationPages[currentViewerPageIdx];
 
-      // Update Page Tabs active styling
+      // Update Page Tabs active styling + show questions on each page tab
       const tabsContainer = document.getElementById('leftPageTabs');
       tabsContainer.innerHTML = '';
       segmentationPages.forEach((p, idx) => {
@@ -1158,10 +1250,12 @@
         btn.type = 'button';
         btn.onclick = () => selectViewerPage(idx);
         const isActive = idx === currentViewerPageIdx;
+        const pageQs = getQuestionsForPageNumber(p.page_number).map(item => item.res.question_id);
+        const qSuffix = pageQs.length > 0 ? ` (${pageQs.slice(0, 2).join(',')}${pageQs.length > 2 ? '+' : ''})` : '';
         btn.className = isActive
           ? "px-3 py-1 rounded-lg text-xs font-extrabold bg-indigo-600 text-white shadow-2xs shrink-0 cursor-pointer"
           : "px-2.5 py-1 rounded-lg text-xs font-bold bg-white text-slate-600 hover:bg-slate-200 border border-slate-200 shrink-0 cursor-pointer";
-        btn.textContent = `Page ${p.page_number}`;
+        btn.textContent = `Page ${p.page_number}${qSuffix}`;
         tabsContainer.appendChild(btn);
       });
 
@@ -1172,11 +1266,19 @@
         : pageObj.layout_image_path;
       imgEl.src = `/${rawPath.replace(/\\/g, '/')}?t=${Date.now()}`;
 
+      // Reset viewport scroll to top when switching page
+      const vp = document.getElementById('sheetViewport');
+      if (vp) vp.scrollTop = 0;
+
       // Update page meta subtitle
       const metaEl = document.getElementById('leftViewerPageMeta');
       if (metaEl) {
         metaEl.textContent = `Page ${pageObj.page_number} of ${segmentationPages.length} • ${pageObj.text_lines_detected} Text Lines, ${pageObj.diagrams_detected} Diagram(s) Detected`;
       }
+
+      // Automatically synchronize Right Panel OCR & Questions for the selected page!
+      renderQuestionJumpBar();
+      renderGradingBreakdownCards();
     }
 
     function setViewerMode(mode) {
@@ -1249,7 +1351,7 @@
     }
 
     // =========================================================================
-    // SPLIT-SCREEN RIGHT PANEL: QUESTION-WISE OCR & MARKS VERIFICATION
+    // SPLIT-SCREEN RIGHT PANEL: PAGE-SYNCHRONIZED QUESTION OCR & MARKS
     // =========================================================================
     function renderGradingResults(data) {
       originalGradingReport = JSON.parse(JSON.stringify(data.grading_report));
@@ -1272,14 +1374,14 @@
       document.getElementById('resEngineMode').textContent =
         `AI Pipeline: ${currentGradingReport.mode === 'online_gemini' ? 'Multimodal Vision + Step-by-Step Rubric Grader' : 'Local TrOCR + MiniLM Semantic Grader'}`;
 
-      // Initialize Left Panel Viewer on Page 1
+      // Default to Page-Synchronized view so switching pages shows that page's OCR & question
+      filterByCurrentPage = true;
+      setRightPanelFilterMode(true);
+
+      // Initialize Left Panel Viewer on Page 1 (or first page)
       currentZoom = 1.0;
       applyZoom();
       selectViewerPage(0);
-
-      // Render Right Panel Question Cards & Jump Bar
-      renderQuestionJumpBar();
-      renderGradingBreakdownCards();
 
       document.getElementById('gradingResultsCard').classList.remove('hidden');
     }
@@ -1288,21 +1390,35 @@
       const bar = document.getElementById('questionJumpBar');
       if (!bar || !currentGradingReport) return;
       bar.innerHTML = '';
+
+      const activePageObj = (segmentationPages && segmentationPages[currentViewerPageIdx])
+        ? segmentationPages[currentViewerPageIdx]
+        : { page_number: 1 };
+      const activePageNum = activePageObj.page_number;
+
       currentGradingReport.question_results.forEach((res, qIdx) => {
         const btn = document.createElement('button');
         btn.type = 'button';
+        const pNums = (res.page_numbers && res.page_numbers.length > 0) ? res.page_numbers : [1];
+        const isOnActivePage = pNums.includes(activePageNum);
+
         btn.onclick = () => {
-          const cardEl = document.getElementById(`questionCard_${qIdx}`);
-          if (cardEl) cardEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-          if (res.page_numbers && res.page_numbers.length > 0) {
-            selectViewerPage(res.page_numbers[0] - 1);
-          }
+          selectViewerPage(pNums[0] - 1);
+          setTimeout(() => {
+            const cardEl = document.getElementById(`questionCard_${qIdx}`);
+            if (cardEl) cardEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          }, 50);
         };
+
         const hasScore = res.marks_awarded > 0;
-        btn.className = hasScore
-          ? "px-2.5 py-1 rounded-lg text-[11px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 hover:bg-emerald-100 shrink-0 cursor-pointer"
-          : "px-2.5 py-1 rounded-lg text-[11px] font-bold bg-slate-100 text-slate-600 border border-slate-200 hover:bg-slate-200 shrink-0 cursor-pointer";
-        btn.textContent = `${res.question_id} (${Number(res.marks_awarded).toFixed(1)}/${res.max_marks})`;
+        if (isOnActivePage) {
+          btn.className = "px-2.5 py-1 rounded-lg text-[11px] font-extrabold bg-indigo-600 text-white ring-2 ring-indigo-300 shrink-0 cursor-pointer shadow-2xs";
+        } else if (hasScore) {
+          btn.className = "px-2.5 py-1 rounded-lg text-[11px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 hover:bg-emerald-100 shrink-0 cursor-pointer";
+        } else {
+          btn.className = "px-2.5 py-1 rounded-lg text-[11px] font-bold bg-slate-100 text-slate-600 border border-slate-200 hover:bg-slate-200 shrink-0 cursor-pointer";
+        }
+        btn.textContent = `${res.question_id} (${Number(res.marks_awarded).toFixed(1)}/${res.max_marks}) • P${pNums.join(',')}`;
         bar.appendChild(btn);
       });
     }
@@ -1312,13 +1428,109 @@
       const breakdownList = document.getElementById('resGradingBreakdown');
       breakdownList.innerHTML = '';
 
-      currentGradingReport.question_results.forEach((res, qIdx) => {
+      const activePageObj = (segmentationPages && segmentationPages[currentViewerPageIdx])
+        ? segmentationPages[currentViewerPageIdx]
+        : { page_number: 1, page_transcript: '', text_lines_detected: 0 };
+      const activePageNum = activePageObj.page_number;
+
+      const allItems = currentGradingReport.question_results.map((res, qIdx) => ({ res, qIdx }));
+      const pageItems = getQuestionsForPageNumber(activePageNum);
+
+      // Update Right Panel Header Title & Badge
+      const titleEl = document.getElementById('rightPanelPageTitle');
+      const badgeEl = document.getElementById('rightPanelQCountBadge');
+      const subEl = document.getElementById('rightPanelSubtitle');
+      const pageBtn = document.getElementById('filterPageOnlyBtn');
+
+      if (pageBtn) {
+        pageBtn.textContent = `📄 Page ${activePageNum} Only (${pageItems.length})`;
+      }
+      if (titleEl) {
+        titleEl.textContent = filterByCurrentPage
+          ? `Page ${activePageNum} — OCR & Question Verification`
+          : `All Pages (${allItems.length} Questions) — OCR & Verification`;
+      }
+      if (badgeEl) {
+        badgeEl.textContent = filterByCurrentPage
+          ? `${pageItems.length} Question(s) on Page ${activePageNum}`
+          : `${allItems.length} Total Questions`;
+      }
+      if (subEl) {
+        subEl.textContent = filterByCurrentPage
+          ? `Automatically showing OCR & questions written on Page ${activePageNum}. Switch pages on the left to view other pages.`
+          : `Showing all ${allItems.length} questions across the entire answer sheet.`;
+      }
+
+      const itemsToRender = filterByCurrentPage ? pageItems : allItems;
+
+      // If filtering by current page and this page has NO mapped question (e.g., cover page)
+      if (filterByCurrentPage && itemsToRender.length === 0) {
+        const emptyCard = document.createElement('div');
+        emptyCard.className = 'border-2 border-dashed border-indigo-200 rounded-2xl p-5 bg-indigo-50/30 space-y-4';
+
+        // Find pages that DO have questions for quick jump buttons
+        const pagesWithQs = segmentationPages
+          .map((p, idx) => ({ p, idx, qs: getQuestionsForPageNumber(p.page_number) }))
+          .filter(x => x.qs.length > 0);
+
+        const jumpBtnsHtml = pagesWithQs.map(x => `
+          <button type="button" onclick="selectViewerPage(${x.idx})"
+            class="px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-extrabold shadow-2xs transition cursor-pointer">
+            👉 Go to Page ${x.p.page_number} (${x.qs.map(q => q.res.question_id).join(', ')})
+          </button>
+        `).join('');
+
+        emptyCard.innerHTML = `
+          <div class="flex items-start justify-between gap-3">
+            <div>
+              <span class="text-[11px] font-extrabold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-200">
+                📄 Page ${activePageNum} • Cover / Header Page
+              </span>
+              <h4 class="text-sm sm:text-base font-extrabold text-slate-900 mt-2">
+                No Graded English Question Started on Page ${activePageNum}
+              </h4>
+              <p class="text-xs text-slate-600 mt-1">
+                This page appears to be a cover page, roll-number header, or non-answer page (${activePageObj.text_lines_detected || 0} lines detected).
+              </p>
+            </div>
+          </div>
+
+          <div class="space-y-1.5">
+            <label class="text-[11px] font-extrabold uppercase tracking-wider text-slate-500 block">
+              ✍️ Raw Page ${activePageNum} Extracted OCR Text:
+            </label>
+            <textarea rows="3" readonly
+              class="w-full text-xs p-3 bg-white rounded-xl border border-slate-200 text-slate-700 font-medium">${activePageObj.page_transcript || '(No English answer text detected on this page — Hindi header ignored)'}</textarea>
+          </div>
+
+          <div class="space-y-2 pt-1">
+            <span class="text-[11px] font-extrabold uppercase tracking-wider text-indigo-900 block">
+              Jump to Pages with Student Answers:
+            </span>
+            <div class="flex flex-wrap gap-2">
+              ${jumpBtnsHtml || ''}
+              <button type="button" onclick="setRightPanelFilterMode(false)"
+                class="px-3 py-1.5 rounded-xl bg-white hover:bg-slate-100 text-slate-800 border border-slate-300 text-xs font-bold cursor-pointer">
+                📚 Show All Questions
+              </button>
+            </div>
+          </div>
+        `;
+        breakdownList.appendChild(emptyCard);
+        return;
+      }
+
+      itemsToRender.forEach(({ res, qIdx }) => {
         const card = document.createElement('div');
         card.id = `questionCard_${qIdx}`;
         card.className = 'border border-slate-200 rounded-2xl p-4 sm:p-5 space-y-4 bg-white shadow-2xs transition hover:border-indigo-200';
 
         const pageNums = (res.page_numbers && res.page_numbers.length > 0) ? res.page_numbers : [1];
         const firstPageNum = pageNums[0];
+        const pageSpecificText = (res.page_texts && res.page_texts[String(activePageNum)])
+          ? res.page_texts[String(activePageNum)]
+          : '';
+        const spansMultiplePages = pageNums.length > 1;
 
         const stepRows = (res.step_wise_breakdown || []).map((step) => {
           let badge = `<span class="badge-hit px-2 py-0.5 rounded-full text-[10px] font-bold shrink-0">✓ Hit (+${Number(step.awarded_point_marks).toFixed(2)})</span>`;
@@ -1370,6 +1582,16 @@
           `;
         }
 
+        // If this question spans multiple pages, highlight the specific portion on activePageNum
+        const multiPageSliceHtml = (spansMultiplePages && filterByCurrentPage && pageSpecificText) ? `
+          <div class="p-2.5 bg-indigo-50/70 border border-indigo-200 rounded-xl text-xs space-y-1">
+            <span class="text-[10px] font-extrabold uppercase tracking-wider text-indigo-800 block">
+              📍 OCR Extracted Specifically from Page ${activePageNum} (Part of ${res.question_id} across Pages ${pageNums.join(', ')}):
+            </span>
+            <p class="text-slate-800 font-medium leading-relaxed">${pageSpecificText}</p>
+          </div>
+        ` : '';
+
         card.innerHTML = `
           <!-- Question Card Header: Question ID + Page Link + Editable Marks Input -->
           <div class="flex flex-wrap items-center justify-between gap-2.5 border-b border-slate-100 pb-3">
@@ -1378,7 +1600,7 @@
               ${getQuestionTypeBadge(res.question_type)}
               <button type="button" onclick="selectViewerPage(${firstPageNum - 1})"
                 title="Click to view Page ${firstPageNum} on the Left Panel"
-                class="text-[11px] font-bold px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-indigo-50 text-slate-700 hover:text-indigo-700 border border-slate-200 transition cursor-pointer flex items-center gap-1">
+                class="text-[11px] font-bold px-2.5 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 transition cursor-pointer flex items-center gap-1">
                 <span>📄</span> <span>Page ${pageNums.join(', ')}</span>
               </button>
               <span id="qEditBadge_${qIdx}" class="hidden text-[10px] font-bold bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full border border-amber-200">
@@ -1397,18 +1619,20 @@
             </div>
           </div>
 
+          ${multiPageSliceHtml}
+
           <!-- Extracted Digital Text (OCR Output) in Editable Text Box -->
           <div class="space-y-1.5">
             <div class="flex flex-wrap items-center justify-between gap-2">
               <label for="qOcrInput_${qIdx}" class="text-[11px] font-extrabold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
-                <span>✍️</span> Extracted Digital Text (Editable OCR Output)
+                <span>✍️</span> <span>Extracted Digital Text (${res.question_id} — Page ${pageNums.join(', ')})</span>
               </label>
               <button type="button" id="regradeBtn_${qIdx}" onclick="regradeSingleQuestion(${qIdx})"
                 class="text-[11px] font-bold px-2.5 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 transition cursor-pointer flex items-center gap-1">
                 <span>🔄</span> <span>Re-Grade Edited Text</span>
               </button>
             </div>
-            <textarea id="qOcrInput_${qIdx}" rows="3"
+            <textarea id="qOcrInput_${qIdx}" rows="4"
               oninput="onQuestionOcrTextChanged(${qIdx}, this.value)"
               placeholder="No handwriting detected for this question. Type here if needed..."
               class="w-full text-xs sm:text-sm p-3 bg-slate-50 focus:bg-white rounded-xl border border-slate-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 text-slate-800 font-medium leading-relaxed">${res.student_answer || ''}</textarea>
@@ -1451,10 +1675,21 @@
     }
 
     async function regradeSingleQuestion(qIdx) {
-      if (!currentGradingReport || !currentRubric) return;
+      if (!currentGradingReport) return;
       const qRes = currentGradingReport.question_results[qIdx];
-      const rubricQ = (currentRubric.questions || []).find(q => q.question_id === qRes.question_id);
-      if (!rubricQ) return;
+      const rubricQ = ((currentRubric && currentRubric.questions) ? currentRubric.questions : []).find(q => q.question_id === qRes.question_id) || {
+        question_id: qRes.question_id,
+        question_type: qRes.question_type || 'short_answer',
+        question_text: `Answer evaluation for ${qRes.question_id}`,
+        max_marks: qRes.max_marks || 2.0,
+        model_answer: qRes.student_answer || '',
+        key_points: [{
+          point_id: `${qRes.question_id}_P1`,
+          description: `Core concepts and accuracy for ${qRes.question_id}`,
+          weight: 1.0,
+          keywords: []
+        }]
+      };
 
       const btn = document.getElementById(`regradeBtn_${qIdx}`);
       const origHtml = btn ? btn.innerHTML : '';

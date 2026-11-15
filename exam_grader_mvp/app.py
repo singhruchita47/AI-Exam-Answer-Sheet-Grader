@@ -297,6 +297,15 @@ def _build_final_payload(
     report: Any,
 ) -> dict[str, Any]:
     """Format segmentation and grading report with client-friendly relative URLs."""
+    from grader import _clean_ocr_handwriting_text
+
+    report_dump = report.model_dump()
+    for q_res in report_dump.get("question_results", []):
+        if q_res.get("diagram_path"):
+            diag_p = Path(q_res["diagram_path"])
+            if diag_p.is_absolute() and BASE_DIR in diag_p.parents:
+                q_res["diagram_path"] = str(diag_p.relative_to(BASE_DIR))
+
     seg_data = []
     for p in ocr_result.pages:
         rel_layout = p.layout_image_path.relative_to(BASE_DIR)
@@ -305,6 +314,16 @@ def _build_final_payload(
             if p.source_path.is_absolute() and BASE_DIR in p.source_path.parents
             else rel_layout
         )
+        page_qids = [
+            q_res["question_id"]
+            for q_res in report_dump.get("question_results", [])
+            if p.page_number in (q_res.get("page_numbers") or [])
+        ]
+        cleaned_page_lines = [
+            _clean_ocr_handwriting_text(raw)
+            for raw in (p.transcript or "").splitlines()
+            if _clean_ocr_handwriting_text(raw)
+        ]
         seg_data.append(
             {
                 "page_number": p.page_number,
@@ -314,15 +333,10 @@ def _build_final_payload(
                 "text_lines_detected": len(p.text_lines),
                 "diagrams_detected": len(p.diagrams),
                 "layout_image_path": str(rel_layout),
+                "page_transcript": "\n".join(cleaned_page_lines).strip(),
+                "page_questions": page_qids,
             }
         )
-
-    report_dump = report.model_dump()
-    for q_res in report_dump.get("question_results", []):
-        if q_res.get("diagram_path"):
-            diag_p = Path(q_res["diagram_path"])
-            if diag_p.is_absolute() and BASE_DIR in diag_p.parents:
-                q_res["diagram_path"] = str(diag_p.relative_to(BASE_DIR))
 
     return {
         "session_id": session_id,

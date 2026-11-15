@@ -101,6 +101,7 @@ class QuestionGradeResult(BaseModel):
     question_type: str = "short_answer"
     student_answer: str
     page_numbers: list[int] = Field(default_factory=list)
+    page_texts: dict[str, str] = Field(default_factory=dict)
     semantic_similarity: float = Field(ge=0.0, le=1.0)
     diagram_path: str | None = None
     diagram_evaluation: DiagramEvaluation | None = None
@@ -244,13 +245,15 @@ def parse_questions(full_text: str) -> dict[str, str]:
     return {qid: " ".join(parts).strip() for qid, parts in mapped.items()}
 
 
-def parse_questions_with_pages(
+def parse_questions_with_page_texts(
     pages: list["PageOCRResult"],
-) -> tuple[dict[str, str], dict[str, list[int]]]:
-    """Parse questions across ordered pages while tracking page numbers per question."""
+) -> tuple[dict[str, str], dict[str, list[int]], dict[str, dict[str, str]]]:
+    """Parse questions across ordered pages while tracking page numbers and per-page text per question."""
     mapped: dict[str, list[str]] = {}
     question_pages: dict[str, list[int]] = {}
+    page_texts_list: dict[str, dict[str, list[str]]] = {}
     current_qid: str = "Q1"  # Default start to Q1 so opening text is NEVER lost
+    explicit_opened: set[str] = set()
 
     all_lines = [
         raw.strip()
@@ -263,31 +266,70 @@ def parse_questions_with_pages(
     )
 
     for page in pages:
+        p_str = str(page.page_number)
         for raw_line in page.transcript.splitlines():
             line = raw_line.strip()
             if not line:
                 continue
             marker = _match_question_marker(line, explicit_only=has_explicit)
             if marker is not None:
-                current_qid, remainder = marker
+                marker_qid, remainder = marker
+                # If Q1 was only opened implicitly on an earlier cover page and now
+                # explicitly starts on a later page, clear pre-marker cover noise.
+                if (
+                    has_explicit
+                    and marker_qid == "Q1"
+                    and "Q1" not in explicit_opened
+                    and question_pages.get("Q1")
+                    and all(p < page.page_number for p in question_pages["Q1"])
+                ):
+                    mapped["Q1"] = []
+                    question_pages["Q1"] = []
+                    page_texts_list["Q1"] = {}
+
+                explicit_opened.add(marker_qid)
+                current_qid = marker_qid
                 mapped.setdefault(current_qid, [])
                 question_pages.setdefault(current_qid, [])
+                page_texts_list.setdefault(current_qid, {})
                 if page.page_number not in question_pages[current_qid]:
                     question_pages[current_qid].append(page.page_number)
                 if remainder:
                     mapped[current_qid].append(remainder)
+                    page_texts_list[current_qid].setdefault(p_str, []).append(remainder)
             else:
                 cleaned_line = _clean_ocr_handwriting_text(line)
                 if not cleaned_line:
                     continue
                 mapped.setdefault(current_qid, [])
                 question_pages.setdefault(current_qid, [])
+                page_texts_list.setdefault(current_qid, {})
                 if page.page_number not in question_pages[current_qid]:
                     question_pages[current_qid].append(page.page_number)
                 mapped[current_qid].append(cleaned_line)
+                page_texts_list[current_qid].setdefault(p_str, []).append(cleaned_line)
 
-    # Clean empty strings
-    clean_answers = {qid: " ".join(parts).strip() for qid, parts in mapped.items() if " ".join(parts).strip()}
+    clean_answers = {
+        qid: " ".join(parts).strip()
+        for qid, parts in mapped.items()
+        if " ".join(parts).strip()
+    }
+    clean_page_texts = {
+        qid: {
+            p_str: " ".join(p_lines).strip()
+            for p_str, p_lines in p_map.items()
+            if " ".join(p_lines).strip()
+        }
+        for qid, p_map in page_texts_list.items()
+    }
+    return clean_answers, question_pages, clean_page_texts
+
+
+def parse_questions_with_pages(
+    pages: list["PageOCRResult"],
+) -> tuple[dict[str, str], dict[str, list[int]]]:
+    """Parse questions across ordered pages while tracking page numbers per question."""
+    clean_answers, question_pages, _ = parse_questions_with_page_texts(pages)
     return clean_answers, question_pages
 
 
@@ -1033,19 +1075,57 @@ class ExamGrader:
         lvl = max(1, min(10, int(strictness_level if strictness_level is not None else self.strictness_level)))
         self.strictness_level = lvl
 
-        mapped_answers, question_pages = parse_questions_with_pages(ocr_result.pages)
+        mapped_answers, question_pages, question_page_texts = parse_questions_with_page_texts(ocr_result.pages)
         used_diagrams: set[str] = set()
         is_short_submission = len(ocr_result.pages) <= 2
+
+        effective_questions: list[RubricQuestion] = list(rubric.questions)
+        existing_qids = {q.question_id for q in effective_questions}
+
+        # Ensure any additional questions detected on multi-page student sheets are also graded & shown on their page
+        def _qid_sort_key(q_str: str) -> int:
+            m = re.search(r"\d+", q_str)
+            return int(m.group(0)) if m else 999
+
+        for extra_qid in sorted(mapped_answers.keys(), key=_qid_sort_key):
+            if extra_qid in existing_qids:
+                continue
+            extra_ans = mapped_answers.get(extra_qid, "").strip()
+            if not extra_ans:
+                continue
+            words = extra_ans.split()
+            q_type: Literal["mcq", "fill_blank", "one_word", "short_answer", "long_answer"] = (
+                "one_word" if len(words) <= 12 else ("long_answer" if len(words) >= 65 else "short_answer")
+            )
+            default_max = 1.0 if q_type == "one_word" else (4.0 if q_type == "long_answer" else 2.0)
+            effective_questions.append(
+                RubricQuestion(
+                    question_id=extra_qid,
+                    question_type=q_type,
+                    question_text=f"Answer evaluation for {extra_qid} (Detected on Page {', '.join(str(p) for p in question_pages.get(extra_qid, [1]))})",
+                    max_marks=default_max,
+                    model_answer=extra_ans,
+                    key_points=[
+                        RubricKeyPoint(
+                            point_id=f"{extra_qid}_P1",
+                            description=f"Core concepts, accuracy, and completeness for {extra_qid}",
+                            weight=1.0,
+                            keywords=[w.lower().strip(".,;:()") for w in words[:8] if len(w) > 3],
+                        )
+                    ],
+                )
+            )
+            existing_qids.add(extra_qid)
 
         prepared_items: list[
             tuple[RubricQuestion, str, float, dict[str, float], Path | None, DiagramEvaluation | None, list[int]]
         ] = []
         fast_ocr = None
 
-        for question in rubric.questions:
+        for question in effective_questions:
             qid = question.question_id
             student_answer = mapped_answers.get(qid, "")
-            q_pages = question_pages.get(qid, [])
+            q_pages = list(question_pages.get(qid, []))
 
             diagram_path: Path | None = None
             if question.requires_diagram or (
@@ -1055,6 +1135,11 @@ class ExamGrader:
                 diagram_path = self._select_diagram_for_question(
                     question, q_pages, ocr_result, used_diagrams
                 )
+                if diagram_path is not None:
+                    for p_obj in ocr_result.pages:
+                        if any(str(d.crop_path) == str(diagram_path) for d in p_obj.diagrams):
+                            if p_obj.page_number not in q_pages:
+                                q_pages.append(p_obj.page_number)
 
             if diagram_path is not None and is_short_submission:
                 try:
@@ -1140,6 +1225,7 @@ class ExamGrader:
                     question_type=question.question_type,
                     student_answer=student_answer,
                     page_numbers=q_pages if q_pages else [1],
+                    page_texts=question_page_texts.get(qid, {}),
                     semantic_similarity=overall_sim,
                     diagram_path=str(diagram_path) if diagram_path else None,
                     diagram_evaluation=diagram_eval,
