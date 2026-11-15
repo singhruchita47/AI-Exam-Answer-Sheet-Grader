@@ -7,157 +7,285 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Caveat:wght@600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
   <style>
     body { font-family: 'Plus Jakarta Sans', sans-serif; }
-    .handwriting-font { font-family: 'Caveat', cursive; }
+    .mono-font { font-family: 'JetBrains Mono', monospace; }
     .badge-hit { background-color: #ecfdf5; color: #047857; border: 1px solid #a7f3d0; }
     .badge-partial { background-color: #fefce8; color: #a16207; border: 1px solid #fef08a; }
     .badge-missed { background-color: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; }
+    .custom-scrollbar::-webkit-scrollbar { width: 7px; height: 7px; }
+    .custom-scrollbar::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 8px; }
+    .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 8px; }
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
   </style>
 </head>
 <body class="bg-slate-50 text-slate-800 min-h-screen antialiased">
-  <div class="max-w-6xl mx-auto px-4 py-6 sm:py-10">
-    
-    <!-- Header -->
-    <header class="mb-6 pb-5 border-b border-slate-200 flex flex-wrap items-center justify-between gap-4">
-      <div>
-        <div class="flex items-center gap-2.5">
-          <span class="text-3xl p-2 bg-indigo-50 border border-indigo-100 rounded-xl shadow-xs">📝</span>
-          <div>
+  <div class="max-w-[1440px] mx-auto px-4 sm:px-6 py-5 sm:py-7">
+
+    <!-- Top Header -->
+    <header class="mb-5 pb-4 border-b border-slate-200 flex flex-wrap items-center justify-between gap-4">
+      <div class="flex items-center gap-3">
+        <span class="text-2xl sm:text-3xl p-2.5 bg-indigo-600 text-white rounded-2xl shadow-xs">📝</span>
+        <div>
+          <div class="flex items-center gap-2.5">
             <h1 class="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight">
               AI Exam Answer Sheet Grader
             </h1>
-            <p class="text-xs sm:text-sm text-slate-500 mt-0.5">
-              Reads real student handwriting, checks diagrams, and grades step-by-step against teacher's rubric.
-            </p>
+            <span id="geminiStatusBadge" class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+              ✓ Online VLM Ready
+            </span>
           </div>
+          <p class="text-xs sm:text-sm text-slate-500 mt-0.5">
+            Dual-Reference Marking Scheme & Answer Key • Strictness 1–10 Control • Live Multi-Page Progress • Split-Screen Teacher Verification
+          </p>
         </div>
       </div>
-      
-      <!-- Hidden offline state tracker -->
-      <input type="hidden" id="offlineMode" value="false" />
+
+      <!-- Global Strictness Quick Pill in Header + Offline Toggle -->
+      <div class="flex items-center gap-3">
+        <div class="flex items-center gap-2 bg-white px-3 py-1.5 rounded-xl border border-slate-200 shadow-2xs text-xs">
+          <span class="font-bold text-slate-600">Strictness:</span>
+          <span id="headerStrictnessBadge" class="font-extrabold px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-700 border border-indigo-200">
+            5/10 • Balanced
+          </span>
+        </div>
+        <label class="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-600 bg-white px-3 py-1.5 rounded-xl border border-slate-200 cursor-pointer hover:bg-slate-50">
+          <input type="checkbox" id="offlineMode" class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" />
+          <span>Offline Mode</span>
+        </label>
+      </div>
     </header>
 
     <!-- 2-Step Navigation Tabs -->
-    <div class="mb-6 flex border-b border-slate-200 space-x-6 text-sm font-semibold">
-      <button id="tab1Btn" onclick="switchTab(1)" class="pb-3 border-b-2 border-indigo-600 text-indigo-600 flex items-center gap-2 cursor-pointer font-bold">
-        <span class="w-6 h-6 rounded-full bg-indigo-100 text-indigo-700 text-xs flex items-center justify-center font-bold">1</span>
-        Teacher: Question Paper & Marking Scheme
-      </button>
-      <button id="tab2Btn" onclick="switchTab(2)" class="pb-3 border-b-2 border-transparent text-slate-400 hover:text-slate-600 flex items-center gap-2 cursor-pointer">
-        <span class="w-6 h-6 rounded-full bg-slate-200 text-slate-600 text-xs flex items-center justify-center font-bold">2</span>
-        Student: Answer Sheet & AI Report Card
-      </button>
+    <div class="mb-6 flex flex-wrap items-center justify-between border-b border-slate-200 gap-4">
+      <div class="flex space-x-6 text-sm font-semibold">
+        <button id="tab1Btn" onclick="switchTab(1)" class="pb-3 border-b-2 border-indigo-600 text-indigo-600 flex items-center gap-2 cursor-pointer font-bold">
+          <span class="w-6 h-6 rounded-full bg-indigo-100 text-indigo-700 text-xs flex items-center justify-center font-bold">1</span>
+          Teacher Setup: Marking Scheme, Answer Key & Strictness
+        </button>
+        <button id="tab2Btn" onclick="switchTab(2)" class="pb-3 border-b-2 border-transparent text-slate-500 hover:text-slate-700 flex items-center gap-2 cursor-pointer">
+          <span class="w-6 h-6 rounded-full bg-slate-200 text-slate-700 text-xs flex items-center justify-center font-bold">2</span>
+          Student Evaluation & Split-Screen Teacher Verification
+        </button>
+      </div>
     </div>
 
-    <!-- TAB 1: TEACHER SETUP & AUTO RUBRIC -->
+    <!-- =================================================================== -->
+    <!-- TAB 1: TEACHER SETUP (DUAL REFERENCE + STRICTNESS LEVEL 1-10)       -->
+    <!-- =================================================================== -->
     <div id="tab1Content" class="space-y-6">
       <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        
-        <!-- Left: Question Input Card -->
-        <div class="lg:col-span-5 bg-white rounded-2xl shadow-xs border border-slate-200 p-5 sm:p-6 space-y-4">
-          <div class="border-b border-slate-100 pb-3">
-            <h2 class="text-base font-bold text-slate-900 flex items-center gap-2">
-              <span>📸</span> Step 1: Teacher's Question
-            </h2>
-            <p class="text-xs text-slate-500 mt-1">Upload a photo of the question paper or type it below.</p>
+
+        <!-- Left Column: Dual Reference Upload + Strictness Control -->
+        <div class="lg:col-span-5 space-y-5">
+
+          <!-- Card A: Global Strictness Level Control (1 to 10) -->
+          <div class="bg-white rounded-2xl shadow-xs border border-slate-200 p-5 space-y-3.5">
+            <div class="flex items-center justify-between border-b border-slate-100 pb-2.5">
+              <div>
+                <h2 class="text-sm font-extrabold text-slate-900 flex items-center gap-2">
+                  <span>🎚️</span> Global Strictness Level Control (1 to 10)
+                </h2>
+                <p class="text-[11px] text-slate-500 mt-0.5">Set how strictly the AI evaluates student answers, keywords, and steps.</p>
+              </div>
+              <span id="strictnessValueBadge" class="text-xs font-extrabold px-2.5 py-1 rounded-lg bg-indigo-50 text-indigo-700 border border-indigo-200">
+                Level 5 / 10 (Balanced)
+              </span>
+            </div>
+
+            <div class="space-y-2">
+              <input type="range" id="strictnessSlider" min="1" max="10" step="1" value="5"
+                oninput="updateStrictnessLevel(this.value)"
+                class="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600" />
+              <div class="flex justify-between text-[10px] font-bold text-slate-400 px-0.5">
+                <span>1 (Lenient)</span>
+                <span>2</span>
+                <span>3</span>
+                <span>4</span>
+                <span class="text-indigo-600">5 (Standard)</span>
+                <span>6</span>
+                <span>7</span>
+                <span>8</span>
+                <span>9</span>
+                <span>10 (Strict)</span>
+              </div>
+            </div>
+
+            <!-- Strictness Preset Buttons -->
+            <div class="grid grid-cols-3 gap-2 pt-1">
+              <button type="button" onclick="updateStrictnessLevel(2)" id="strictBtnLenient"
+                class="p-2 rounded-xl border border-slate-200 bg-slate-50 hover:bg-emerald-50/60 text-left transition cursor-pointer">
+                <div class="flex items-center justify-between">
+                  <span class="text-[11px] font-extrabold text-emerald-700">Level 1–3</span>
+                  <span class="text-[10px] px-1.5 py-0.2 bg-emerald-100 text-emerald-800 rounded font-bold">Lenient</span>
+                </div>
+                <p class="text-[10px] text-slate-500 mt-1 leading-tight">Basic concept focus, ignores minor typos, generous partial marks.</p>
+              </button>
+
+              <button type="button" onclick="updateStrictnessLevel(5)" id="strictBtnBalanced"
+                class="p-2 rounded-xl border-2 border-indigo-500 bg-indigo-50/40 text-left transition cursor-pointer">
+                <div class="flex items-center justify-between">
+                  <span class="text-[11px] font-extrabold text-indigo-700">Level 4–7</span>
+                  <span class="text-[10px] px-1.5 py-0.2 bg-indigo-100 text-indigo-800 rounded font-bold">Balanced</span>
+                </div>
+                <p class="text-[10px] text-slate-600 mt-1 leading-tight">Standard board/university evaluation of key terms, steps & labels.</p>
+              </button>
+
+              <button type="button" onclick="updateStrictnessLevel(9)" id="strictBtnStrict"
+                class="p-2 rounded-xl border border-slate-200 bg-slate-50 hover:bg-rose-50/60 text-left transition cursor-pointer">
+                <div class="flex items-center justify-between">
+                  <span class="text-[11px] font-extrabold text-rose-700">Level 8–10</span>
+                  <span class="text-[10px] px-1.5 py-0.2 bg-rose-100 text-rose-800 rounded font-bold">Strict</span>
+                </div>
+                <p class="text-[10px] text-slate-500 mt-1 leading-tight">Exact keyword & formula matching, strict penalties for missing steps.</p>
+              </button>
+            </div>
+
+            <div id="strictnessDescBox" class="p-2.5 rounded-xl bg-indigo-50/60 border border-indigo-100 text-xs text-indigo-950">
+              <b>Active Policy (Level 5/10 — Balanced):</b> Standard board/university evaluation—checks key terms, steps, and diagram labels fairly.
+            </div>
           </div>
 
-          <div class="space-y-4">
-            <!-- Subject Quick Select -->
-            <div>
-              <label class="block text-xs font-semibold text-slate-700 mb-1.5">Subject:</label>
-              <div class="flex flex-wrap gap-1.5 mb-2">
-                <button type="button" onclick="selectSubject('Biology')" class="sub-pill text-xs px-2.5 py-1 rounded-lg border border-slate-200 bg-slate-50 hover:bg-indigo-50 font-medium">Biology</button>
-                <button type="button" onclick="selectSubject('Physics')" class="sub-pill text-xs px-2.5 py-1 rounded-lg border border-slate-200 bg-slate-50 hover:bg-indigo-50 font-medium">Physics</button>
-                <button type="button" onclick="selectSubject('Chemistry')" class="sub-pill text-xs px-2.5 py-1 rounded-lg border border-slate-200 bg-slate-50 hover:bg-indigo-50 font-medium">Chemistry</button>
-                <button type="button" onclick="selectSubject('Science')" class="sub-pill text-xs px-2.5 py-1 rounded-lg border border-slate-200 bg-slate-50 hover:bg-indigo-50 font-medium">Science</button>
+          <!-- Card B: Dual Reference Input (Marking Scheme + Optional Official Answer Key) -->
+          <div class="bg-white rounded-2xl shadow-xs border border-slate-200 p-5 space-y-4">
+            <div class="border-b border-slate-100 pb-3">
+              <h2 class="text-base font-bold text-slate-900 flex items-center gap-2">
+                <span>📚</span> Step 1: Dual Reference Setup
+              </h2>
+              <p class="text-xs text-slate-500 mt-0.5">
+                Upload your <b>Question Paper / Marking Scheme</b>, plus an optional <b>Official Answer Key</b>.
+              </p>
+            </div>
+
+            <!-- Subject & Total Marks Row -->
+            <div class="grid grid-cols-1 sm:grid-cols-12 gap-3">
+              <div class="sm:col-span-8">
+                <label class="block text-xs font-semibold text-slate-700 mb-1">Subject:</label>
+                <div class="flex flex-wrap gap-1 mb-1.5">
+                  <button type="button" onclick="selectSubject('Biology')" class="sub-pill text-[11px] px-2 py-0.5 rounded-lg border border-slate-200 bg-slate-50 hover:bg-indigo-50 font-medium">Biology</button>
+                  <button type="button" onclick="selectSubject('Physics')" class="sub-pill text-[11px] px-2 py-0.5 rounded-lg border border-slate-200 bg-slate-50 hover:bg-indigo-50 font-medium">Physics</button>
+                  <button type="button" onclick="selectSubject('Chemistry')" class="sub-pill text-[11px] px-2 py-0.5 rounded-lg border border-slate-200 bg-slate-50 hover:bg-indigo-50 font-medium">Chemistry</button>
+                  <button type="button" onclick="selectSubject('Social Science')" class="sub-pill text-[11px] px-2 py-0.5 rounded-lg border border-slate-200 bg-slate-50 hover:bg-indigo-50 font-medium">Social Science</button>
+                </div>
+                <input type="text" id="teacherSubject" value="Biology"
+                  class="w-full text-xs p-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 bg-slate-50 font-medium" />
               </div>
-              <input type="text" id="teacherSubject" value="Biology"
-                class="w-full text-xs p-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 bg-slate-50 font-medium" />
+              <div class="sm:col-span-4">
+                <label class="block text-xs font-semibold text-slate-700 mb-1">Default Marks:</label>
+                <div class="text-[10px] text-slate-400 mb-1.5">Auto-detected if on paper</div>
+                <input type="number" id="teacherMarks" value="5" min="1" max="100" step="0.5"
+                  class="w-full text-xs p-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 bg-slate-50 font-bold" />
+              </div>
             </div>
 
-            <!-- Total Marks -->
-            <div>
-              <label class="block text-xs font-semibold text-slate-700 mb-1">Total Marks for Question:</label>
-              <input type="number" id="teacherMarks" value="5" min="1" max="100" step="0.5"
-                class="w-full text-xs p-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 bg-slate-50 font-medium" />
-            </div>
+            <!-- Reference 1: Question Paper / Marking Scheme -->
+            <div class="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-2.5">
+              <div class="flex items-center justify-between">
+                <label class="text-xs font-extrabold text-slate-800 flex items-center gap-1.5">
+                  <span class="w-5 h-5 rounded-full bg-indigo-600 text-white text-[11px] flex items-center justify-center font-bold">A</span>
+                  Question Paper / Marking Scheme
+                </label>
+                <span class="text-[10px] font-bold px-2 py-0.5 rounded bg-indigo-100 text-indigo-800">Primary Input</span>
+              </div>
 
-            <!-- Upload Photo / PDF -->
-            <div>
-              <label class="block text-xs font-semibold text-slate-700 mb-1">Question Paper Photo or PDF (Upload any question):</label>
-              <div class="border-2 border-dashed border-slate-200 hover:border-indigo-400 rounded-xl p-3 text-center bg-slate-50 hover:bg-indigo-50/20 transition cursor-pointer" onclick="document.getElementById('questionImageFile').click()">
-                <div class="text-xl mb-0.5">📷 / 📄</div>
-                <p class="text-xs font-bold text-slate-700">Click to upload question photo or PDF</p>
-                <p class="text-[11px] text-slate-400">JPG, PNG, PDF (multi-page supported) or type below</p>
+              <div class="border-2 border-dashed border-slate-300 hover:border-indigo-500 rounded-xl p-3 text-center bg-white hover:bg-indigo-50/20 transition cursor-pointer"
+                   onclick="document.getElementById('questionImageFile').click()">
+                <div class="text-lg">📄 / 📷</div>
+                <p class="text-xs font-bold text-slate-700">Upload Question Paper / Marking Scheme (PDF or Photo)</p>
+                <p class="text-[10px] text-slate-400">Supports 1–25 page bilingual PDFs (Hindi auto-ignored) or JPG/PNG</p>
               </div>
               <input type="file" id="questionImageFile" accept="image/*,application/pdf,.pdf" class="hidden" onchange="handleQuestionFileChange(this)" />
-              <div id="questionThumbnail" class="mt-2 hidden"></div>
+              <div id="questionThumbnail" class="hidden"></div>
+
+              <textarea id="questionText" rows="2" placeholder="Or type/paste question paper or marking scheme text here..."
+                class="w-full text-xs p-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 bg-white leading-relaxed"></textarea>
             </div>
 
-            <!-- Type Question Text -->
-            <div>
-              <label class="block text-xs font-semibold text-slate-700 mb-1">Or Type / Edit Question Text:</label>
-              <textarea id="questionText" rows="3" placeholder="e.g. Type question here or leave blank if uploading question photo above..."
-                class="w-full text-xs p-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 bg-slate-50 leading-relaxed"></textarea>
-            </div>
+            <!-- Reference 2: Optional Official Answer Key -->
+            <div class="p-3.5 rounded-xl bg-emerald-50/40 border border-emerald-200 space-y-2.5">
+              <div class="flex items-center justify-between">
+                <label class="text-xs font-extrabold text-emerald-950 flex items-center gap-1.5">
+                  <span class="w-5 h-5 rounded-full bg-emerald-600 text-white text-[11px] flex items-center justify-center font-bold">B</span>
+                  Official Answer Key (Optional)
+                </label>
+                <span id="dualRefStatusPill" class="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-200 text-slate-700">
+                  Optional • Auto-Inferred if omitted
+                </span>
+              </div>
+              <p class="text-[11px] text-slate-600 leading-snug">
+                Upload an <b>Official Answer Key</b> to grade strictly against official model answers using the Marking Scheme's weightage. If left blank, AI infers expected key points automatically.
+              </p>
 
-            <!-- Optional Hints -->
-            <div>
-              <label class="block text-xs font-semibold text-slate-700 mb-1">Optional Teacher Key Guidelines:</label>
-              <textarea id="teacherHints" rows="2" placeholder="e.g. Any specific guidelines or key points required (optional)..."
-                class="w-full text-xs p-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 bg-slate-50 leading-relaxed"></textarea>
+              <div class="border-2 border-dashed border-emerald-300 hover:border-emerald-500 rounded-xl p-3 text-center bg-white hover:bg-emerald-50/30 transition cursor-pointer"
+                   onclick="document.getElementById('answerKeyFile').click()">
+                <div class="text-lg">🔑 / 📄</div>
+                <p class="text-xs font-bold text-emerald-900">Upload Official Answer Key (PDF or Photo — Optional)</p>
+                <p class="text-[10px] text-slate-400">JPG, PNG, or Multi-Page Official Answer Key PDF</p>
+              </div>
+              <input type="file" id="answerKeyFile" accept="image/*,application/pdf,.pdf" class="hidden" onchange="handleAnswerKeyFileChange(this)" />
+              <div id="answerKeyThumbnail" class="hidden"></div>
+
+              <textarea id="answerKeyText" rows="2" oninput="updateDualRefBadge()"
+                placeholder="Or paste Official Answer Key / Model Answers / Key Guidelines here (optional)..."
+                class="w-full text-xs p-2.5 border border-emerald-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 bg-white leading-relaxed"></textarea>
+              <input type="hidden" id="teacherHints" value="" />
             </div>
 
             <button type="button" id="genRubricBtn" onclick="generateAutoRubric()"
-              class="w-full py-3 px-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm rounded-xl shadow-xs transition flex items-center justify-center gap-2 cursor-pointer">
+              class="w-full py-3.5 px-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm rounded-xl shadow-xs transition flex items-center justify-center gap-2 cursor-pointer">
               <span id="genBtnIcon">✨</span>
-              <span id="genBtnText">Create Marking Scheme Automatically</span>
+              <span id="genBtnText">Generate Structured Marking Scheme</span>
             </button>
           </div>
         </div>
 
-        <!-- Right: Generated Rubric Card -->
-        <div class="lg:col-span-7 bg-white rounded-2xl shadow-xs border border-slate-200 p-5 sm:p-6 space-y-4">
-          <div class="flex items-center justify-between border-b border-slate-100 pb-3">
-            <div>
-              <h2 class="text-base font-bold text-slate-900 flex items-center gap-2">
-                <span>📋</span> Step 2: Auto-Created Marking Scheme
-              </h2>
-              <p class="text-xs text-slate-500 mt-0.5">The AI checks student sheets against these exact expected points.</p>
+        <!-- Right Column: Generated Marking Scheme Preview -->
+        <div class="lg:col-span-7 bg-white rounded-2xl shadow-xs border border-slate-200 p-5 sm:p-6 flex flex-col justify-between space-y-4">
+          <div class="space-y-4">
+            <div class="flex flex-wrap items-center justify-between border-b border-slate-100 pb-3 gap-2">
+              <div>
+                <div class="flex items-center gap-2">
+                  <h2 class="text-base font-bold text-slate-900 flex items-center gap-2">
+                    <span>📋</span> Step 2: Active Marking Scheme & Weightage
+                  </h2>
+                  <span id="rubricRefModeBadge" class="hidden text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">
+                    Auto-Inferred
+                  </span>
+                </div>
+                <p class="text-xs text-slate-500 mt-0.5">Student sheets will be evaluated question-by-question against this rubric.</p>
+              </div>
+              <button type="button" onclick="toggleRubricJsonView()" class="text-xs text-indigo-600 hover:text-indigo-800 font-semibold cursor-pointer bg-indigo-50 px-2.5 py-1 rounded-lg">
+                { } Edit Raw JSON
+              </button>
             </div>
-            <button type="button" onclick="toggleRubricJsonView()" class="text-xs text-indigo-600 hover:text-indigo-800 font-semibold cursor-pointer">
-              { } Raw JSON
-            </button>
+
+            <!-- Cards View -->
+            <div id="rubricCardsContainer" class="space-y-3.5 max-h-[620px] overflow-y-auto pr-1 custom-scrollbar">
+              <div class="p-10 text-center text-slate-400 border border-dashed border-slate-200 rounded-xl">
+                <div class="text-3xl mb-2">📋</div>
+                <p class="text-xs font-bold text-slate-600">Your Marking Scheme will appear here</p>
+                <p class="text-[11px] text-slate-400 mt-1">Upload a Question Paper (+ optional Official Answer Key) on the left and click "Generate Structured Marking Scheme".</p>
+              </div>
+            </div>
+
+            <!-- Raw JSON Editor -->
+            <div id="rawJsonWrapper" class="hidden space-y-2 pt-2 border-t border-slate-100">
+              <div class="flex items-center justify-between">
+                <label class="text-xs font-bold text-slate-700">Advanced Rubric JSON Editor:</label>
+                <button type="button" onclick="applyJsonToRubric()" class="text-xs bg-indigo-600 text-white hover:bg-indigo-700 px-3 py-1 rounded-lg font-bold cursor-pointer">Apply JSON Changes</button>
+              </div>
+              <textarea id="rubricJsonText" rows="8"
+                class="w-full text-xs font-mono p-2.5 border border-slate-200 rounded-xl bg-slate-50"></textarea>
+            </div>
           </div>
 
-          <!-- Cards View -->
-          <div id="rubricCardsContainer" class="space-y-4">
-            <div class="p-8 text-center text-slate-400 border border-dashed border-slate-200 rounded-xl">
-              <div class="text-3xl mb-2">📋</div>
-              <p class="text-xs font-medium text-slate-500">Your marking scheme will appear here.</p>
-              <p class="text-[11px] text-slate-400 mt-1">Click "Create Marking Scheme Automatically" or click a Quick Demo at top.</p>
-            </div>
-          </div>
-
-          <!-- Raw JSON (Optional) -->
-          <div id="rawJsonWrapper" class="hidden space-y-2 pt-2 border-t border-slate-100">
-            <div class="flex items-center justify-between">
-              <label class="text-xs font-medium text-slate-600">Advanced JSON Editor:</label>
-              <button type="button" onclick="applyJsonToRubric()" class="text-xs bg-indigo-50 text-indigo-700 hover:bg-indigo-100 px-2 py-1 rounded-lg font-semibold">Apply Edits</button>
-            </div>
-            <textarea id="rubricJsonText" rows="8"
-              class="w-full text-xs font-mono p-2.5 border border-slate-200 rounded-xl bg-slate-50"></textarea>
-          </div>
-
-          <!-- Next Button -->
-          <div class="pt-4 border-t border-slate-100 flex items-center justify-between">
-            <span class="text-xs text-slate-500">Ready to grade student copies?</span>
+          <!-- Next Step Footer -->
+          <div class="pt-4 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3">
+            <span class="text-xs text-slate-500 font-medium">Ready to evaluate student answer sheets?</span>
             <button type="button" onclick="proceedToStudentGrading()"
-              class="py-2.5 px-5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-xs transition flex items-center gap-1.5 cursor-pointer">
-              <span>Next: Check Student Answer Sheet</span> <span>→</span>
+              class="py-3 px-6 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs sm:text-sm rounded-xl shadow-xs transition flex items-center gap-2 cursor-pointer">
+              <span>Next: Upload & Evaluate Student Answer Sheet</span> <span>→</span>
             </button>
           </div>
         </div>
@@ -165,155 +293,269 @@
       </div>
     </div>
 
-    <!-- TAB 2: STUDENT ANSWER SHEET & REPORT CARD -->
+    <!-- =================================================================== -->
+    <!-- TAB 2: STUDENT UPLOAD, LIVE PROGRESS & SPLIT-SCREEN VERIFICATION    -->
+    <!-- =================================================================== -->
     <div id="tab2Content" class="hidden space-y-6">
-      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        
-        <!-- Left: Upload Student Sheet -->
-        <div class="lg:col-span-5 space-y-4">
-          <div class="bg-white rounded-2xl shadow-xs border border-slate-200 p-5 sm:p-6 space-y-4">
-            <div class="border-b border-slate-100 pb-3">
-              <h2 class="text-base font-bold text-slate-900 flex items-center gap-2">
-                <span>📄</span> Student's Answer Sheet
-              </h2>
-              <p class="text-xs text-slate-500 mt-1">Upload student handwritten answer sheet photos or PDF (1–15+ pages supported).</p>
-            </div>
 
-            <div class="space-y-4">
-              <div>
-                <label class="block text-xs font-semibold text-slate-700 mb-1.5">Upload Student's Handwritten Answer Sheet:</label>
-                <div class="border-2 border-dashed border-slate-300 hover:border-emerald-500 rounded-2xl p-5 text-center bg-slate-50 hover:bg-emerald-50/20 transition cursor-pointer" onclick="document.getElementById('studentPageFiles').click()">
-                  <div class="text-3xl mb-1.5">📸 / 📄</div>
-                  <p class="text-xs font-bold text-slate-800">Click to upload student answer sheet photo(s) or PDF</p>
-                  <p class="text-[11px] text-slate-400 mt-0.5">JPG, PNG, JPEG, or PDF (1–15+ pages supported)</p>
+      <!-- Top Control Bar: Student Upload + Strictness Slider + Check Button -->
+      <div class="bg-white rounded-2xl shadow-xs border border-slate-200 p-4 sm:p-5">
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-4 items-center">
+
+          <!-- Upload Area (5 cols) -->
+          <div class="lg:col-span-5 flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+            <div class="flex-1 border-2 border-dashed border-slate-300 hover:border-emerald-500 rounded-xl p-3 text-center bg-slate-50 hover:bg-emerald-50/20 transition cursor-pointer"
+                 onclick="document.getElementById('studentPageFiles').click()">
+              <div class="flex items-center justify-center gap-2">
+                <span class="text-xl">📸 / 📄</span>
+                <div class="text-left">
+                  <p class="text-xs font-extrabold text-slate-800">Upload Student Handwritten Sheet(s) or PDF</p>
+                  <p class="text-[10px] text-slate-500">JPG, PNG, or Multi-Page PDF (1–20+ pages supported)</p>
                 </div>
-                <input type="file" id="studentPageFiles" multiple accept="image/*,application/pdf,.pdf" class="hidden" onchange="handleStudentFileChange(this)" />
-                <div id="studentThumbnails" class="mt-2.5 space-y-2 hidden"></div>
               </div>
+            </div>
+            <input type="file" id="studentPageFiles" multiple accept="image/*,application/pdf,.pdf" class="hidden" onchange="handleStudentFileChange(this)" />
 
-              <!-- Subtle Sample Loader for Quick Testing -->
-              <div class="p-2.5 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between text-xs">
-                <span class="text-slate-500 text-[11px]">Don't have a student photo ready?</span>
-                <button type="button" onclick="loadSampleSheetDirectly()" id="sampleSheetBtn"
-                  class="text-emerald-700 hover:text-emerald-800 font-bold text-[11px] hover:underline cursor-pointer flex items-center gap-1">
-                  <span>⚡</span> <span>Use Sample Answer Sheet</span>
-                </button>
-              </div>
+            <button type="button" onclick="loadSampleSheetDirectly()" id="sampleSheetBtn"
+              class="px-3 py-2.5 rounded-xl border border-emerald-200 bg-emerald-50/70 hover:bg-emerald-100 text-emerald-800 font-bold text-xs transition cursor-pointer shrink-0 flex items-center justify-center gap-1">
+              <span>⚡</span> <span>Load Sample Sheet</span>
+            </button>
+          </div>
 
-              <button type="button" id="gradeStudentBtn" onclick="runStudentGrading()"
-                class="w-full py-3.5 px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm rounded-xl shadow-xs transition flex items-center justify-center gap-2 cursor-pointer">
-                <span id="gradeBtnIcon">🚀</span>
-                <span id="gradeBtnText">Check & Grade Answer Sheet</span>
-              </button>
+          <!-- Synced Strictness Slider (4 cols) -->
+          <div class="lg:col-span-4 bg-slate-50 px-3.5 py-2.5 rounded-xl border border-slate-200 space-y-1">
+            <div class="flex items-center justify-between text-xs">
+              <span class="font-bold text-slate-700">🎚️ Strictness Level:</span>
+              <span id="tab2StrictnessLabel" class="font-extrabold text-indigo-700">5/10 (Balanced)</span>
+            </div>
+            <input type="range" id="tab2StrictnessSlider" min="1" max="10" step="1" value="5"
+              oninput="updateStrictnessLevel(this.value)"
+              class="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600" />
+            <div class="flex justify-between text-[10px] text-slate-400 font-semibold">
+              <span>1–3 Lenient</span>
+              <span>4–7 Balanced</span>
+              <span>8–10 Strict</span>
             </div>
           </div>
 
-          <!-- Explanatory Guide for Non-Tech Users -->
-          <div class="bg-indigo-50/50 border border-indigo-100 rounded-2xl p-4 text-xs text-slate-600 space-y-2">
-            <h4 class="font-bold text-indigo-900 flex items-center gap-1.5">
-              <span>💡</span> How AI Checks the Paper:
-            </h4>
-            <ul class="space-y-1.5 text-[11px] list-disc list-inside text-slate-600">
-              <li><b>Erases Ruled Notebook Lines:</b> Removes blue/gray lines so handwriting stays separate.</li>
-              <li><b>Distinguishes Diagrams from Text:</b> Drawings (leaves, circuits) get separated into diagram boxes.</li>
-              <li><b>Line-by-Line TrOCR:</b> Transcribes each handwritten line into digital text accurately.</li>
-              <li><b>Step-by-Step Scoring:</b> Awards marks for each matching keyword and checks diagram accuracy.</li>
-            </ul>
+          <!-- Run Evaluation Button (3 cols) -->
+          <div class="lg:col-span-3">
+            <button type="button" id="gradeStudentBtn" onclick="runStudentGrading()"
+              class="w-full py-3.5 px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-sm rounded-xl shadow-xs transition flex items-center justify-center gap-2 cursor-pointer">
+              <span id="gradeBtnIcon">🚀</span>
+              <span id="gradeBtnText">Check & Grade Sheet</span>
+            </button>
           </div>
         </div>
 
-        <!-- Right: Student Report Card -->
-        <div class="lg:col-span-7 space-y-6">
-          
-          <!-- Loading Card -->
-          <div id="gradingLoadingCard" class="hidden bg-white rounded-2xl shadow-xs border border-slate-200 p-10 text-center space-y-4">
-            <div class="inline-block animate-spin rounded-full h-10 w-10 border-4 border-indigo-600 border-t-transparent"></div>
+        <!-- Uploaded Files Thumbnail Strip -->
+        <div id="studentThumbnails" class="mt-3 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 hidden"></div>
+      </div>
+
+      <!-- ================================================================= -->
+      <!-- LIVE MULTI-PAGE EVALUATION PROGRESS TRACKER BANNER (Requirement 3)-->
+      <!-- ================================================================= -->
+      <div id="gradingLoadingCard" class="hidden bg-white rounded-2xl shadow-sm border-2 border-indigo-200 p-5 sm:p-6 space-y-4">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <div class="flex items-center gap-3">
+            <div id="liveSpinner" class="animate-spin rounded-full h-7 w-7 border-3 border-indigo-600 border-t-transparent shrink-0"></div>
             <div>
-              <h3 class="font-bold text-slate-900 text-base" id="loadingStageTitle">Evaluating Student Answer Sheet...</h3>
-              <p class="text-xs text-slate-500 mt-1" id="loadingStageSub">Suppressing notebook lines, running TrOCR handwriting recognition, and evaluating diagram...</p>
+              <div class="flex items-center gap-2">
+                <span class="text-[11px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded bg-indigo-100 text-indigo-800">
+                  Live Multi-Page Evaluation Tracker
+                </span>
+                <span id="liveProgressPageCounter" class="text-xs font-bold text-slate-500">Initializing...</span>
+              </div>
+              <h3 class="font-extrabold text-slate-900 text-sm sm:text-base mt-1" id="loadingStageTitle">
+                Preparing Student Answer Sheet Pages...
+              </h3>
             </div>
           </div>
+          <div class="text-right">
+            <span id="liveProgressPercent" class="text-2xl font-black text-indigo-600 mono-font">0%</span>
+          </div>
+        </div>
 
-          <!-- Placeholder -->
-          <div id="resultsPlaceholder" class="bg-white rounded-2xl shadow-xs border border-slate-200 p-16 text-center text-slate-400">
-            <div class="text-5xl mb-3">🎓</div>
-            <h3 class="text-base font-bold text-slate-700">No Student Paper Checked Yet</h3>
-            <p class="text-xs text-slate-400 mt-1 max-w-sm mx-auto">Click "Check & Grade Answer Sheet" on the left or try the live demo at the top to see the full AI report card.</p>
+        <!-- Animated Progress Bar -->
+        <div class="w-full bg-slate-100 h-3 rounded-full overflow-hidden border border-slate-200">
+          <div id="liveProgressBar" class="bg-gradient-to-r from-indigo-600 via-teal-500 to-emerald-500 h-full transition-all duration-300 rounded-full" style="width: 4%"></div>
+        </div>
+
+        <!-- Step-by-Step Page Pills Trail -->
+        <div id="livePageStepsList" class="flex flex-wrap gap-2 pt-1"></div>
+      </div>
+
+      <!-- Placeholder Before Grading -->
+      <div id="resultsPlaceholder" class="bg-white rounded-2xl shadow-xs border border-slate-200 p-14 text-center text-slate-400">
+        <div class="text-5xl mb-3">🎓</div>
+        <h3 class="text-base font-bold text-slate-700">Ready for Side-by-Side Split-Screen Evaluation</h3>
+        <p class="text-xs text-slate-400 mt-1 max-w-md mx-auto">
+          Upload a student answer sheet (or click "Load Sample Sheet") and click <b>"Check & Grade Sheet"</b> to watch live page-by-page evaluation and open the Split-Screen Teacher Verification Dashboard.
+        </p>
+      </div>
+
+      <!-- ================================================================= -->
+      <!-- SIDE-BY-SIDE SPLIT-SCREEN TEACHER VERIFICATION DASHBOARD (Req 4)  -->
+      <!-- ================================================================= -->
+      <div id="gradingResultsCard" class="hidden space-y-5">
+
+        <!-- Top Summary & Teacher Verification Bar -->
+        <div class="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white rounded-2xl p-5 shadow-sm flex flex-wrap items-center justify-between gap-4">
+          <div class="space-y-1">
+            <div class="flex flex-wrap items-center gap-2">
+              <span class="inline-block px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-indigo-500/30 border border-indigo-400/40 text-indigo-100 uppercase tracking-wider" id="resExamTitle">
+                Exam Assessment
+              </span>
+              <span id="resStrictnessBadge" class="inline-block px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-500/20 border border-emerald-400/30 text-emerald-200">
+                Strictness: 5/10
+              </span>
+              <span id="teacherEditedBadge" class="hidden inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-400 text-amber-950">
+                ✏️ Teacher Edited
+              </span>
+              <span id="finalizedStatusBadge" class="hidden inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-400 text-emerald-950">
+                ✔ Verified & Finalized
+              </span>
+            </div>
+            <div class="flex items-baseline gap-3">
+              <h2 class="text-2xl sm:text-4xl font-black tracking-tight" id="resTotalMarks">0.00 / 0.00 Marks</h2>
+              <span class="text-sm font-extrabold text-emerald-400" id="resPercent">0.0%</span>
+              <span class="px-2.5 py-0.5 rounded-lg bg-white/15 text-white font-black text-base" id="resGradeBadge">A+</span>
+            </div>
+            <p class="text-[11px] text-slate-300" id="resEngineMode">Evaluation Mode: AI Grader</p>
           </div>
 
-          <!-- Active Report Card -->
-          <div id="gradingResultsCard" class="hidden space-y-6">
-            
-            <!-- Big Friendly Grade Banner -->
-            <div class="bg-gradient-to-r from-emerald-600 to-teal-700 text-white rounded-2xl p-6 shadow-xs flex items-center justify-between">
-              <div>
-                <div class="flex items-center gap-2">
-                  <span class="inline-block px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-white/20 text-white uppercase tracking-wider" id="resExamTitle">Class 10 Biology</span>
-                  <span id="teacherEditedBadge" class="hidden inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-400 text-amber-950">✏️ Teacher Overridden</span>
+          <div class="flex flex-wrap items-center gap-2.5">
+            <button type="button" onclick="resetToAiMarks()"
+              class="px-3.5 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold text-xs border border-white/15 transition cursor-pointer flex items-center gap-1.5">
+              <span>🔄</span> <span>Reset to AI Marks</span>
+            </button>
+            <button type="button" onclick="finalizeVerifiedMarks()" id="finalizeTopBtn"
+              class="px-5 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold text-xs sm:text-sm shadow-sm transition cursor-pointer flex items-center gap-2">
+              <span>💾</span> <span>Save / Finalize Verified Marks</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Toast / Banner for Saved Verification -->
+        <div id="finalizeToast" class="hidden p-3.5 rounded-xl bg-emerald-50 border border-emerald-300 text-emerald-900 text-xs font-bold flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <span class="text-base">✅</span>
+            <span id="finalizeToastText">Verified marks and edited OCR transcripts have been saved and finalized!</span>
+          </div>
+          <button type="button" onclick="document.getElementById('finalizeToast').classList.add('hidden')" class="text-emerald-700 hover:text-emerald-950 font-black px-2">✕</button>
+        </div>
+
+        <!-- =============================================================== -->
+        <!-- MAIN SIDE-BY-SIDE SPLIT-SCREEN VIEW (LEFT: SHEET | RIGHT: Q&A)  -->
+        <!-- =============================================================== -->
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+
+          <!-- LEFT PANEL (6 Cols, Sticky): Original Handwritten Answer Sheet Viewer -->
+          <div class="lg:col-span-6 lg:sticky lg:top-4 bg-white rounded-2xl shadow-xs border border-slate-200 overflow-hidden flex flex-col">
+
+            <!-- Viewer Top Bar: Title + Overlay Toggle + Zoom Controls -->
+            <div class="p-3.5 bg-slate-900 text-white flex flex-wrap items-center justify-between gap-2">
+              <div class="flex items-center gap-2">
+                <span class="text-base">🖼️</span>
+                <div>
+                  <h3 class="text-xs sm:text-sm font-extrabold">Original Handwritten Answer Sheet</h3>
+                  <p class="text-[10px] text-slate-400" id="leftViewerPageMeta">Page 1 • High-Res Inspection</p>
                 </div>
-                <h2 class="text-3xl sm:text-4xl font-extrabold mt-1 tracking-tight" id="resTotalMarks">5.00 / 5.00</h2>
-                <p class="text-xs text-emerald-100 mt-1" id="resEngineMode">Evaluation Mode: AI Grader</p>
               </div>
-              <div class="text-right">
-                <div class="text-3xl sm:text-5xl font-black text-white" id="resGradeBadge">A+</div>
-                <div class="text-xs text-emerald-100 font-semibold mt-0.5" id="resPercent">100.0%</div>
+
+              <!-- Toggle Overlay vs Clean Sheet -->
+              <div class="flex items-center gap-1 bg-slate-800 p-1 rounded-xl border border-slate-700 text-[11px] font-bold">
+                <button type="button" id="viewModeAnnotatedBtn" onclick="setViewerMode('annotated')"
+                  class="px-2.5 py-1 rounded-lg bg-indigo-600 text-white cursor-pointer transition">
+                  🎯 AI Boxes
+                </button>
+                <button type="button" id="viewModeOriginalBtn" onclick="setViewerMode('original')"
+                  class="px-2.5 py-1 rounded-lg text-slate-300 hover:text-white cursor-pointer transition">
+                  📄 Original Sheet
+                </button>
               </div>
             </div>
 
-            <!-- Handwritten Text Converted to Digital Text -->
-            <div class="bg-white rounded-2xl shadow-xs border border-slate-200 p-5 sm:p-6 space-y-3">
-              <div class="flex items-center justify-between border-b border-slate-100 pb-2.5">
-                <h3 class="text-sm font-bold text-slate-900 flex items-center gap-2">
-                  <span>✍️</span> Student Handwriting Converted to Digital Text
-                </h3>
-                <span class="text-[11px] text-slate-400">TrOCR Line Recognition</span>
+            <!-- Page Switcher Tabs Bar (Page 1, Page 2, ...) -->
+            <div class="bg-slate-100 border-b border-slate-200 px-3 py-2 flex items-center justify-between gap-2">
+              <div id="leftPageTabs" class="flex items-center gap-1.5 overflow-x-auto pb-0.5 custom-scrollbar"></div>
+
+              <!-- Zoom & Pan Toolbar -->
+              <div class="flex items-center gap-1 shrink-0 bg-white px-2 py-1 rounded-lg border border-slate-200 shadow-2xs text-xs font-bold">
+                <button type="button" onclick="adjustZoom(-0.25)" title="Zoom Out" class="px-2 py-0.5 hover:bg-slate-100 rounded text-slate-700 cursor-pointer">−</button>
+                <span id="zoomLevelLabel" class="text-[11px] text-slate-600 mono-font min-w-[42px] text-center">100%</span>
+                <button type="button" onclick="adjustZoom(0.25)" title="Zoom In" class="px-2 py-0.5 hover:bg-slate-100 rounded text-slate-700 cursor-pointer">+</button>
+                <button type="button" onclick="resetZoom()" title="Reset Zoom" class="px-2 py-0.5 hover:bg-slate-100 rounded text-[10px] text-indigo-600 cursor-pointer">Reset</button>
+                <button type="button" onclick="openCurrentPageFullscreen()" title="Open Full High-Res in New Tab" class="px-1.5 py-0.5 hover:bg-indigo-50 rounded text-[11px] text-indigo-600 cursor-pointer">↗</button>
               </div>
-              <div id="resOcrAnswers" class="space-y-3"></div>
             </div>
 
-            <!-- Diagram Inspection Card -->
-            <div id="resDiagramCard" class="bg-white rounded-2xl shadow-xs border border-slate-200 p-5 sm:p-6 space-y-3 hidden">
-              <div class="flex items-center justify-between border-b border-slate-100 pb-2.5">
-                <h3 class="text-sm font-bold text-slate-900 flex items-center gap-2">
-                  <span>🎨</span> Hand-Drawn Diagram & Labels Inspection
-                </h3>
-                <span id="resDiagramBadge" class="text-xs font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
-                  Full Marks
+            <!-- High-Resolution Zoom/Pan Image Viewport -->
+            <div id="sheetViewport"
+                 class="relative bg-slate-950/95 overflow-auto h-[560px] sm:h-[680px] flex items-start justify-center p-3 select-none custom-scrollbar cursor-grab active:cursor-grabbing">
+              <img id="sheetViewerImage" src="" alt="Student Answer Sheet Page"
+                   class="transition-transform duration-150 origin-top-left rounded shadow-md max-w-none"
+                   style="width: 100%; height: auto;" />
+            </div>
+
+            <!-- Viewer Footer Legend -->
+            <div class="px-4 py-2.5 bg-slate-50 border-t border-slate-200 flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-600">
+              <div class="flex items-center gap-3">
+                <span class="flex items-center gap-1.5 font-semibold">
+                  <span class="w-2.5 h-2.5 rounded-xs bg-emerald-500 inline-block"></span> Green = Handwritten Lines
+                </span>
+                <span class="flex items-center gap-1.5 font-semibold">
+                  <span class="w-2.5 h-2.5 rounded-xs bg-rose-500 inline-block"></span> Red = True Diagrams
                 </span>
               </div>
-              <div id="resDiagramContent" class="space-y-3"></div>
+              <span class="text-slate-400">💡 Scroll or click +/− to zoom • Drag to pan</span>
             </div>
+          </div>
 
-            <!-- Step-by-Step Marks Breakdown -->
-            <div class="bg-white rounded-2xl shadow-xs border border-slate-200 p-5 sm:p-6 space-y-3">
-              <div class="flex flex-wrap items-center justify-between border-b border-slate-100 pb-2.5 gap-2">
-                <div class="flex items-center gap-2">
-                  <h3 class="text-sm font-bold text-slate-900 flex items-center gap-2">
-                    <span>🎯</span> Step-by-Step Teacher Grading Checklist
+          <!-- RIGHT PANEL (6 Cols): Question-Wise Structured Breakdown & Editable OCR/Marks -->
+          <div class="lg:col-span-6 space-y-4">
+
+            <!-- Right Panel Sticky Header & Question Jump Bar -->
+            <div class="bg-white rounded-2xl shadow-xs border border-slate-200 p-4 space-y-3">
+              <div class="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <h3 class="text-sm sm:text-base font-extrabold text-slate-900 flex items-center gap-2">
+                    <span>🎯</span> Question-Wise OCR & Grading Verification
                   </h3>
-                  <span class="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">✏️ Marks Editable</span>
+                  <p class="text-[11px] text-slate-500">
+                    Edit extracted digital OCR text or adjust marks for any question—totals recalculate automatically.
+                  </p>
                 </div>
-                <div class="flex items-center gap-2">
-                  <button type="button" onclick="resetToAiMarks()" class="text-[11px] font-bold text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 px-2.5 py-1 rounded-lg transition cursor-pointer flex items-center gap-1">
-                    <span>🔄</span> <span>Reset to AI Marks</span>
-                  </button>
-                </div>
+                <span class="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200">
+                  ✏️ OCR & Marks Editable
+                </span>
               </div>
-              <div id="resGradingBreakdown" class="space-y-4"></div>
+
+              <!-- Quick Question Jump Pills -->
+              <div id="questionJumpBar" class="flex items-center gap-1.5 overflow-x-auto pb-1 custom-scrollbar"></div>
             </div>
 
-            <!-- Visual Page Layout Overlay -->
-            <div class="bg-white rounded-2xl shadow-xs border border-slate-200 p-5 sm:p-6 space-y-3">
-              <div class="flex items-center justify-between border-b border-slate-100 pb-2.5">
-                <h3 class="text-sm font-bold text-slate-900 flex items-center gap-2">
-                  <span>🖼️</span> Visual Page Scan: What the AI Saw
-                </h3>
-                <div class="flex items-center gap-3 text-[11px]">
-                  <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded bg-emerald-500 inline-block"></span> Green = Text Lines</span>
-                  <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded bg-rose-500 inline-block"></span> Red = Diagrams</span>
+            <!-- Question Breakdown Cards Container -->
+            <div id="resGradingBreakdown" class="space-y-4"></div>
+
+            <!-- Bottom Save / Finalize Verified Marks Card -->
+            <div class="bg-white rounded-2xl shadow-xs border-2 border-emerald-200 p-4 sm:p-5 flex flex-wrap items-center justify-between gap-4">
+              <div>
+                <span class="text-[11px] font-extrabold uppercase tracking-wider text-emerald-700 block">Teacher Verification Summary</span>
+                <div class="text-lg sm:text-xl font-black text-slate-900 mt-0.5" id="bottomTotalMarksSummary">
+                  Verified Total: 0.00 / 0.00 Marks (0.0%)
                 </div>
               </div>
-              <div id="resLayoutGallery" class="space-y-4"></div>
+              <div class="flex items-center gap-2.5">
+                <button type="button" onclick="resetToAiMarks()"
+                  class="px-3.5 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition cursor-pointer">
+                  🔄 Reset
+                </button>
+                <button type="button" onclick="finalizeVerifiedMarks()" id="finalizeBottomBtn"
+                  class="px-5 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs sm:text-sm shadow-xs transition cursor-pointer flex items-center gap-2">
+                  <span>💾</span> <span>Save / Finalize Verified Marks</span>
+                </button>
+              </div>
             </div>
 
           </div>
@@ -321,6 +563,7 @@
         </div>
 
       </div>
+
     </div>
 
   </div>
@@ -329,8 +572,18 @@
     let currentRubric = null;
     let defaultPhysicsRubric = null;
     let defaultPhotoRubric = null;
-    let activePreset = 'photosynthesis'; // 'photosynthesis' or 'physics' or 'custom'
+    let activePreset = 'photosynthesis'; // 'photosynthesis' | 'physics' | 'custom'
     let rawResultsPayload = null;
+    let originalGradingReport = null;
+    let currentGradingReport = null;
+    let currentSessionId = null;
+    let globalStrictnessLevel = 5;
+
+    // Split-screen viewer state
+    let segmentationPages = [];
+    let currentViewerPageIdx = 0;
+    let currentViewerMode = 'annotated'; // 'annotated' | 'original'
+    let currentZoom = 1.0;
 
     function switchTab(tabNum) {
       const tab1Content = document.getElementById('tab1Content');
@@ -342,12 +595,77 @@
         tab1Content.classList.remove('hidden');
         tab2Content.classList.add('hidden');
         tab1Btn.className = "pb-3 border-b-2 border-indigo-600 text-indigo-600 flex items-center gap-2 cursor-pointer font-bold";
-        tab2Btn.className = "pb-3 border-b-2 border-transparent text-slate-400 hover:text-slate-600 flex items-center gap-2 cursor-pointer";
+        tab2Btn.className = "pb-3 border-b-2 border-transparent text-slate-500 hover:text-slate-700 flex items-center gap-2 cursor-pointer";
       } else {
         tab1Content.classList.add('hidden');
         tab2Content.classList.remove('hidden');
         tab2Btn.className = "pb-3 border-b-2 border-emerald-600 text-emerald-600 flex items-center gap-2 cursor-pointer font-bold";
-        tab1Btn.className = "pb-3 border-b-2 border-transparent text-slate-400 hover:text-slate-600 flex items-center gap-2 cursor-pointer";
+        tab1Btn.className = "pb-3 border-b-2 border-transparent text-slate-500 hover:text-slate-700 flex items-center gap-2 cursor-pointer";
+      }
+    }
+
+    function updateStrictnessLevel(val) {
+      const lvl = Math.max(1, Math.min(10, parseInt(val, 10) || 5));
+      globalStrictnessLevel = lvl;
+
+      const s1 = document.getElementById('strictnessSlider');
+      const s2 = document.getElementById('tab2StrictnessSlider');
+      if (s1 && parseInt(s1.value, 10) !== lvl) s1.value = lvl;
+      if (s2 && parseInt(s2.value, 10) !== lvl) s2.value = lvl;
+
+      let tierName = 'Balanced';
+      let desc = 'Standard board/university evaluation—checks key terms, steps, and diagram labels fairly.';
+      let badgeClass = 'bg-indigo-50 text-indigo-700 border-indigo-200';
+      let boxClass = 'bg-indigo-50/60 border-indigo-100 text-indigo-950';
+
+      const btnLenient = document.getElementById('strictBtnLenient');
+      const btnBalanced = document.getElementById('strictBtnBalanced');
+      const btnStrict = document.getElementById('strictBtnStrict');
+
+      if (btnLenient && btnBalanced && btnStrict) {
+        btnLenient.className = "p-2 rounded-xl border border-slate-200 bg-slate-50 hover:bg-emerald-50/60 text-left transition cursor-pointer";
+        btnBalanced.className = "p-2 rounded-xl border border-slate-200 bg-slate-50 hover:bg-indigo-50/60 text-left transition cursor-pointer";
+        btnStrict.className = "p-2 rounded-xl border border-slate-200 bg-slate-50 hover:bg-rose-50/60 text-left transition cursor-pointer";
+      }
+
+      if (lvl <= 3) {
+        tierName = 'Lenient';
+        desc = 'Focuses on basic concept understanding, ignores minor spelling/grammar or missing sub-steps, awards generous partial marks.';
+        badgeClass = 'bg-emerald-50 text-emerald-700 border-emerald-200';
+        boxClass = 'bg-emerald-50/60 border-emerald-200 text-emerald-950';
+        if (btnLenient) btnLenient.className = "p-2 rounded-xl border-2 border-emerald-500 bg-emerald-50/40 text-left transition cursor-pointer";
+      } else if (lvl <= 7) {
+        tierName = 'Balanced';
+        desc = 'Standard board/university evaluation—checks key terms, steps, and diagram labels fairly.';
+        badgeClass = 'bg-indigo-50 text-indigo-700 border-indigo-200';
+        boxClass = 'bg-indigo-50/60 border-indigo-100 text-indigo-950';
+        if (btnBalanced) btnBalanced.className = "p-2 rounded-xl border-2 border-indigo-500 bg-indigo-50/40 text-left transition cursor-pointer";
+      } else {
+        tierName = 'Strict';
+        desc = 'Strict keyword matching, exact formula/step verification, and strict penalties for missing labels or incomplete explanations.';
+        badgeClass = 'bg-rose-50 text-rose-700 border-rose-200';
+        boxClass = 'bg-rose-50/60 border-rose-200 text-rose-950';
+        if (btnStrict) btnStrict.className = "p-2 rounded-xl border-2 border-rose-500 bg-rose-50/40 text-left transition cursor-pointer";
+      }
+
+      const vBadge = document.getElementById('strictnessValueBadge');
+      if (vBadge) {
+        vBadge.className = `text-xs font-extrabold px-2.5 py-1 rounded-lg border ${badgeClass}`;
+        vBadge.textContent = `Level ${lvl} / 10 (${tierName})`;
+      }
+      const hBadge = document.getElementById('headerStrictnessBadge');
+      if (hBadge) {
+        hBadge.className = `font-extrabold px-2 py-0.5 rounded-md border ${badgeClass}`;
+        hBadge.textContent = `${lvl}/10 • ${tierName}`;
+      }
+      const t2Label = document.getElementById('tab2StrictnessLabel');
+      if (t2Label) {
+        t2Label.textContent = `${lvl}/10 (${tierName})`;
+      }
+      const descBox = document.getElementById('strictnessDescBox');
+      if (descBox) {
+        descBox.className = `p-2.5 rounded-xl border text-xs ${boxClass}`;
+        descBox.innerHTML = `<b>Active Policy (Level ${lvl}/10 — ${tierName}):</b> ${desc}`;
       }
     }
 
@@ -355,9 +673,9 @@
       document.getElementById('teacherSubject').value = sub;
       document.querySelectorAll('.sub-pill').forEach(btn => {
         if (btn.textContent.trim() === sub) {
-          btn.className = "sub-pill text-xs px-2.5 py-1 rounded-lg border border-indigo-400 bg-indigo-50 text-indigo-700 font-bold";
+          btn.className = "sub-pill text-[11px] px-2 py-0.5 rounded-lg border border-indigo-400 bg-indigo-50 text-indigo-700 font-bold";
         } else {
-          btn.className = "sub-pill text-xs px-2.5 py-1 rounded-lg border border-slate-200 bg-slate-50 hover:bg-indigo-50 font-medium text-slate-700";
+          btn.className = "sub-pill text-[11px] px-2 py-0.5 rounded-lg border border-slate-200 bg-slate-50 hover:bg-indigo-50 font-medium text-slate-700";
         }
       });
     }
@@ -371,29 +689,44 @@
 
         if (cfg.has_gemini_key) {
           if (badge) {
-            badge.className = "inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200";
-            badge.textContent = "✓ Online VLM Ready (Gemini 2.5 Flash)";
+            badge.className = "inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200";
+            badge.textContent = "✓ Online VLM Ready (Gemini Flash)";
           }
           if (offlineEl) offlineEl.checked = false;
         } else {
           if (badge) {
-            badge.className = "inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200";
-            badge.textContent = "⚙️ Offline Mode (Local OpenCV + TrOCR + MiniLM)";
+            badge.className = "inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-50 text-amber-700 border border-amber-200";
+            badge.textContent = "⚙️ Offline Mode (Local OCR + MiniLM)";
           }
           if (offlineEl) offlineEl.checked = true;
         }
 
         if (cfg.default_rubric) {
-          try { defaultPhysicsRubric = JSON.parse(cfg.default_rubric); } catch(e) {}
+          try { defaultPhysicsRubric = JSON.parse(cfg.default_rubric); } catch (e) {}
         }
         if (cfg.photo_rubric) {
-          try { defaultPhotoRubric = JSON.parse(cfg.photo_rubric); } catch(e) {}
+          try { defaultPhotoRubric = JSON.parse(cfg.photo_rubric); } catch (e) {}
         }
 
-        // Set default to Biology Photosynthesis
         selectSubject('Biology');
+        updateStrictnessLevel(5);
+        initViewportDragPan();
       } catch (err) {
         console.error("Init failed:", err);
+      }
+    }
+
+    function updateDualRefBadge() {
+      const akFile = document.getElementById('answerKeyFile');
+      const akText = document.getElementById('answerKeyText').value.trim();
+      const pill = document.getElementById('dualRefStatusPill');
+      const hasKey = (akFile && akFile.files && akFile.files.length > 0) || akText.length > 0;
+      if (hasKey) {
+        pill.className = "text-[10px] font-extrabold px-2 py-0.5 rounded bg-emerald-600 text-white";
+        pill.textContent = "✓ Official Answer Key Active (Dual Reference)";
+      } else {
+        pill.className = "text-[10px] font-bold px-2 py-0.5 rounded bg-slate-200 text-slate-700";
+        pill.textContent = "Optional • Auto-Inferred if omitted";
       }
     }
 
@@ -403,35 +736,17 @@
       if (input.files && input.files[0]) {
         const file = input.files[0];
         const isPdf = file.name.toLowerCase().endsWith('.pdf') || file.type === 'application/pdf';
-        if (isPdf) {
-          container.innerHTML = `
-            <div class="flex items-center gap-3 p-2 bg-indigo-50/60 border border-indigo-100 rounded-xl text-xs">
-              <div class="w-12 h-12 flex items-center justify-center bg-rose-100 text-rose-700 rounded-lg border border-rose-200 text-base font-bold shrink-0">📄 PDF</div>
-              <div class="flex-1 truncate">
-                <span class="font-bold text-slate-800 block truncate">${file.name}</span>
-                <span class="text-[11px] text-indigo-600 font-medium">${(file.size / 1024).toFixed(1)} KB • PDF Document</span>
-              </div>
-              <button type="button" onclick="clearQuestionFile()" class="text-rose-500 font-bold hover:text-rose-700 text-xs px-2 py-1">✕</button>
+        container.innerHTML = `
+          <div class="flex items-center gap-2.5 p-2 bg-indigo-50/70 border border-indigo-200 rounded-xl text-xs">
+            <div class="w-9 h-9 flex items-center justify-center bg-indigo-600 text-white rounded-lg text-xs font-bold shrink-0">${isPdf ? 'PDF' : 'IMG'}</div>
+            <div class="flex-1 truncate">
+              <span class="font-bold text-slate-800 block truncate">${file.name}</span>
+              <span class="text-[10px] text-indigo-700 font-medium">${(file.size / 1024).toFixed(1)} KB • Question Paper / Marking Scheme</span>
             </div>
-          `;
-          container.classList.remove('hidden');
-        } else {
-          const reader = new FileReader();
-          reader.onload = function(e) {
-            container.innerHTML = `
-              <div class="flex items-center gap-3 p-2 bg-indigo-50/60 border border-indigo-100 rounded-xl text-xs">
-                <img src="${e.target.result}" class="w-12 h-12 object-cover rounded-lg border border-indigo-200" />
-                <div class="flex-1 truncate">
-                  <span class="font-bold text-slate-800 block truncate">${file.name}</span>
-                  <span class="text-[11px] text-slate-400 font-mono">${(file.size / 1024).toFixed(1)} KB</span>
-                </div>
-                <button type="button" onclick="clearQuestionFile()" class="text-rose-500 font-bold hover:text-rose-700 text-xs px-2 py-1">✕</button>
-              </div>
-            `;
-            container.classList.remove('hidden');
-          };
-          reader.readAsDataURL(file);
-        }
+            <button type="button" onclick="clearQuestionFile()" class="text-rose-500 font-bold hover:text-rose-700 text-xs px-2 py-1 cursor-pointer">✕</button>
+          </div>
+        `;
+        container.classList.remove('hidden');
       } else {
         container.classList.add('hidden');
       }
@@ -440,8 +755,41 @@
     function clearQuestionFile() {
       const input = document.getElementById('questionImageFile');
       input.value = '';
-      document.getElementById('questionThumbnail').classList.add('hidden');
-      document.getElementById('questionThumbnail').innerHTML = '';
+      const container = document.getElementById('questionThumbnail');
+      container.classList.add('hidden');
+      container.innerHTML = '';
+    }
+
+    function handleAnswerKeyFileChange(input) {
+      const container = document.getElementById('answerKeyThumbnail');
+      container.innerHTML = '';
+      if (input.files && input.files[0]) {
+        const file = input.files[0];
+        const isPdf = file.name.toLowerCase().endsWith('.pdf') || file.type === 'application/pdf';
+        container.innerHTML = `
+          <div class="flex items-center gap-2.5 p-2 bg-emerald-50 border border-emerald-200 rounded-xl text-xs">
+            <div class="w-9 h-9 flex items-center justify-center bg-emerald-600 text-white rounded-lg text-xs font-bold shrink-0">${isPdf ? 'PDF' : 'KEY'}</div>
+            <div class="flex-1 truncate">
+              <span class="font-bold text-slate-800 block truncate">${file.name}</span>
+              <span class="text-[10px] text-emerald-700 font-medium">${(file.size / 1024).toFixed(1)} KB • Official Answer Key</span>
+            </div>
+            <button type="button" onclick="clearAnswerKeyFile()" class="text-rose-500 font-bold hover:text-rose-700 text-xs px-2 py-1 cursor-pointer">✕</button>
+          </div>
+        `;
+        container.classList.remove('hidden');
+      } else {
+        container.classList.add('hidden');
+      }
+      updateDualRefBadge();
+    }
+
+    function clearAnswerKeyFile() {
+      const input = document.getElementById('answerKeyFile');
+      input.value = '';
+      const container = document.getElementById('answerKeyThumbnail');
+      container.classList.add('hidden');
+      container.innerHTML = '';
+      updateDualRefBadge();
     }
 
     function handleStudentFileChange(input) {
@@ -454,37 +802,20 @@
         for (let i = 0; i < input.files.length; i++) {
           const file = input.files[i];
           const isPdf = file.name.toLowerCase().endsWith('.pdf') || file.type === 'application/pdf';
-          if (isPdf) {
-            const div = document.createElement('div');
-            div.className = "flex items-center gap-3 p-2 bg-emerald-50/60 border border-emerald-100 rounded-xl text-xs";
-            div.innerHTML = `
-              <div class="w-12 h-12 flex items-center justify-center bg-rose-100 text-rose-700 rounded-lg border border-rose-200 text-base font-bold shrink-0">📄 PDF</div>
-              <div class="flex-1 truncate">
-                <span class="font-bold text-slate-800 block truncate">${file.name}</span>
-                <span class="text-[11px] text-emerald-700 font-medium">${(file.size / 1024).toFixed(1)} KB • Multi-Page PDF (All pages auto-checked)</span>
-              </div>
-              <span class="text-emerald-700 font-bold text-[11px] bg-emerald-100 px-2 py-0.5 rounded">PDF Ready</span>
-            `;
-            container.appendChild(div);
-          } else {
-            const reader = new FileReader();
-            reader.onload = function(e) {
-              const div = document.createElement('div');
-              div.className = "flex items-center gap-3 p-2 bg-emerald-50/60 border border-emerald-100 rounded-xl text-xs";
-              div.innerHTML = `
-                <img src="${e.target.result}" class="w-12 h-12 object-cover rounded-lg border border-emerald-200" />
-                <div class="flex-1 truncate">
-                  <span class="font-bold text-slate-800 block truncate">Page ${i + 1}: ${file.name}</span>
-                  <span class="text-[11px] text-slate-400 font-mono">${(file.size / 1024).toFixed(1)} KB</span>
-                </div>
-                <span class="text-emerald-700 font-bold text-[11px] bg-emerald-100 px-2 py-0.5 rounded">Ready</span>
-              `;
-              container.appendChild(div);
-            };
-            reader.readAsDataURL(file);
-          }
+          const div = document.createElement('div');
+          div.className = "flex items-center gap-2.5 p-2 bg-emerald-50/70 border border-emerald-200 rounded-xl text-xs";
+          div.innerHTML = `
+            <div class="w-9 h-9 flex items-center justify-center ${isPdf ? 'bg-rose-600' : 'bg-emerald-600'} text-white rounded-lg text-xs font-bold shrink-0">
+              ${isPdf ? 'PDF' : `P${i + 1}`}
+            </div>
+            <div class="flex-1 truncate">
+              <span class="font-bold text-slate-800 block truncate">${file.name}</span>
+              <span class="text-[10px] text-emerald-700 font-medium">${(file.size / 1024).toFixed(1)} KB • ${isPdf ? 'Multi-Page PDF' : 'Image Page'}</span>
+            </div>
+            <span class="text-emerald-800 font-bold text-[10px] bg-emerald-100 px-2 py-0.5 rounded">Ready</span>
+          `;
+          container.appendChild(div);
         }
-        document.getElementById('sampleSheetBtn').innerHTML = `<span>⚡</span> <span>Use Sample Answer Sheet Instead</span>`;
       } else {
         container.classList.add('hidden');
       }
@@ -495,13 +826,13 @@
       document.getElementById('studentPageFiles').value = '';
       const container = document.getElementById('studentThumbnails');
       container.innerHTML = `
-        <div class="flex items-center gap-3 p-2 bg-emerald-50/80 border border-emerald-200 rounded-xl text-xs">
-          <span class="text-2xl p-1">🌿</span>
+        <div class="flex items-center gap-2.5 p-2 bg-emerald-50 border border-emerald-200 rounded-xl text-xs col-span-full">
+          <span class="text-xl p-1">🌿</span>
           <div class="flex-1 truncate">
-            <span class="font-bold text-slate-800 block">Sample Student Sheet Loaded</span>
-            <span class="text-[11px] text-emerald-700 font-medium">Biology Photosynthesis (Handwritten Text + Leaf Diagram)</span>
+            <span class="font-bold text-slate-800 block">Sample Student Answer Sheet Loaded</span>
+            <span class="text-[11px] text-emerald-700 font-medium">Biology Photosynthesis (Handwritten Answer + Labeled Leaf Diagram)</span>
           </div>
-          <span class="text-emerald-700 font-bold text-[11px] bg-emerald-100 px-2.5 py-1 rounded-full">Sample Active</span>
+          <span class="text-emerald-800 font-bold text-[11px] bg-emerald-100 px-2.5 py-0.5 rounded-full">Sample Ready</span>
         </div>
       `;
       container.classList.remove('hidden');
@@ -515,27 +846,32 @@
       const subject = document.getElementById('teacherSubject').value.trim() || 'Science';
       const marks = parseFloat(document.getElementById('teacherMarks').value) || 5.0;
       const qText = document.getElementById('questionText').value.trim();
-      const hints = document.getElementById('teacherHints').value.trim();
+      const akText = document.getElementById('answerKeyText').value.trim();
       const offline = document.getElementById('offlineMode').checked;
-      const fileInput = document.getElementById('questionImageFile');
+      const qFileInput = document.getElementById('questionImageFile');
+      const akFileInput = document.getElementById('answerKeyFile');
 
       const formData = new FormData();
       formData.append('subject', subject);
       formData.append('total_marks', marks);
       formData.append('question_text', qText);
-      formData.append('teacher_hints', hints);
+      formData.append('answer_key_text', akText);
+      formData.append('teacher_hints', akText);
       formData.append('offline', offline);
       formData.append('use_sample_question', false);
 
-      if (fileInput.files.length > 0) {
-        formData.append('question_image', fileInput.files[0]);
+      if (qFileInput.files.length > 0) {
+        formData.append('question_image', qFileInput.files[0]);
+      }
+      if (akFileInput && akFileInput.files.length > 0) {
+        formData.append('answer_key_image', akFileInput.files[0]);
       }
 
       const btn = document.getElementById('genRubricBtn');
       const btnText = document.getElementById('genBtnText');
       btn.disabled = true;
       btn.classList.add('opacity-60');
-      btnText.textContent = "Creating Marking Scheme...";
+      btnText.textContent = "Generating Structured Marking Scheme...";
 
       try {
         const resp = await fetch('/api/generate_rubric', {
@@ -555,23 +891,23 @@
       } finally {
         btn.disabled = false;
         btn.classList.remove('opacity-60');
-        btnText.textContent = "Create Marking Scheme Automatically";
+        btnText.textContent = "Generate Structured Marking Scheme";
       }
     }
 
     function getQuestionTypeBadge(type) {
       switch (type) {
         case 'mcq':
-          return `<span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-100 text-purple-700 border border-purple-200">MCQ (Objective)</span>`;
+          return `<span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-100 text-purple-700 border border-purple-200">MCQ / Objective</span>`;
         case 'fill_blank':
           return `<span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 border border-amber-200">Fill in Blanks</span>`;
         case 'one_word':
-          return `<span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-teal-100 text-teal-700 border border-teal-200">One Word</span>`;
+          return `<span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-teal-100 text-teal-700 border border-teal-200">Objective / One Word</span>`;
         case 'long_answer':
-          return `<span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-100 text-rose-700 border border-rose-200">Long Answer (Strict)</span>`;
+          return `<span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-100 text-rose-700 border border-rose-200">Long Answer</span>`;
         case 'short_answer':
         default:
-          return `<span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 border border-blue-200">Short Answer (Strict)</span>`;
+          return `<span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 border border-blue-200">Short Answer</span>`;
       }
     }
 
@@ -580,6 +916,18 @@
       const container = document.getElementById('rubricCardsContainer');
       container.innerHTML = '';
 
+      const refBadge = document.getElementById('rubricRefModeBadge');
+      if (refBadge) {
+        refBadge.classList.remove('hidden');
+        if (rubric.reference_mode === 'dual_reference') {
+          refBadge.className = "text-[11px] font-extrabold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300";
+          refBadge.textContent = "✓ Dual Reference (Marking Scheme + Official Answer Key)";
+        } else {
+          refBadge.className = "text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200";
+          refBadge.textContent = "✨ Auto-Inferred from Marking Scheme";
+        }
+      }
+
       if (!rubric.questions || rubric.questions.length === 0) {
         container.innerHTML = '<p class="text-xs text-slate-400">No questions in marking scheme.</p>';
         return;
@@ -587,47 +935,38 @@
 
       for (const q of rubric.questions) {
         const card = document.createElement('div');
-        card.className = "border border-slate-200 rounded-xl p-4 sm:p-5 space-y-3.5 bg-slate-50/60";
-        
+        card.className = "border border-slate-200 rounded-xl p-4 space-y-3 bg-slate-50/60";
+
         const kpList = (q.key_points || []).map((kp, idx) => `
-          <div class="flex items-start gap-2.5 p-2 bg-white rounded-lg border border-slate-100 text-xs">
-            <span class="w-5 h-5 rounded-full bg-indigo-50 text-indigo-700 font-bold flex items-center justify-center shrink-0 text-[11px]">${idx + 1}</span>
+          <div class="flex items-start gap-2 p-2 bg-white rounded-lg border border-slate-100 text-xs">
+            <span class="w-5 h-5 rounded-full bg-indigo-50 text-indigo-700 font-bold flex items-center justify-center shrink-0 text-[10px]">${idx + 1}</span>
             <div class="flex-1">
               <span class="text-slate-800 font-medium">${kp.description}</span>
             </div>
-            <span class="font-bold text-indigo-600 text-[11px] shrink-0">${(kp.weight * 100).toFixed(0)}% weight</span>
+            <span class="font-bold text-indigo-600 text-[10px] shrink-0">${(kp.weight * 100).toFixed(0)}%</span>
           </div>
         `).join('');
 
         card.innerHTML = `
-          <div class="flex items-center justify-between border-b border-slate-200 pb-2.5">
+          <div class="flex items-center justify-between border-b border-slate-200 pb-2">
             <div class="flex items-center gap-2">
-              <span class="font-bold text-sm text-indigo-800 bg-indigo-50 px-2.5 py-1 rounded-lg border border-indigo-200">${q.question_id}</span>
+              <span class="font-extrabold text-xs text-indigo-800 bg-indigo-50 px-2.5 py-1 rounded-lg border border-indigo-200">${q.question_id}</span>
               ${getQuestionTypeBadge(q.question_type)}
-              <span class="font-bold text-xs text-slate-700">${rubric.subject || 'Subject'}</span>
             </div>
-            <span class="text-xs font-bold bg-emerald-50 text-emerald-700 px-3 py-1 rounded-lg border border-emerald-200">${q.max_marks} Total Marks</span>
+            <span class="text-xs font-extrabold bg-emerald-50 text-emerald-700 px-2.5 py-1 rounded-lg border border-emerald-200">${q.max_marks} Marks</span>
           </div>
 
-          <div class="bg-indigo-50/40 p-3 rounded-xl border border-indigo-100 text-xs space-y-1">
-            <span class="font-bold text-indigo-900 block text-[11px] uppercase tracking-wider">Model Answer:</span>
+          <div class="text-xs text-slate-800 font-semibold leading-snug">${q.question_text}</div>
+
+          <div class="bg-indigo-50/50 p-2.5 rounded-xl border border-indigo-100 text-xs space-y-0.5">
+            <span class="font-bold text-indigo-900 block text-[10px] uppercase tracking-wider">Expected Answer Key / Model Answer:</span>
             <p class="text-slate-700 leading-relaxed">${q.model_answer}</p>
           </div>
 
-          <div class="space-y-1.5">
-            <span class="text-[11px] font-bold uppercase tracking-wider text-slate-400 block">Required Points for Full Marks:</span>
+          <div class="space-y-1">
+            <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Key Grading Checkpoints:</span>
             ${kpList}
           </div>
-
-          ${q.requires_diagram ? `
-            <div class="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-900 flex items-start gap-2">
-              <span class="text-base shrink-0">🎨</span>
-              <div>
-                <span class="font-bold block">Diagram Requirement:</span>
-                <span class="text-amber-800">${q.diagram_criteria || 'Requires a neat, labeled scientific diagram.'}</span>
-              </div>
-            </div>
-          ` : ''}
         `;
         container.appendChild(card);
       }
@@ -642,7 +981,6 @@
         const text = document.getElementById('rubricJsonText').value;
         currentRubric = JSON.parse(text);
         renderRubricCards(currentRubric);
-        alert("Marking scheme updated!");
       } catch (e) {
         alert("Invalid JSON: " + e.message);
       }
@@ -650,17 +988,50 @@
 
     function proceedToStudentGrading() {
       if (!currentRubric) {
-        alert("Please create a marking scheme first.");
-        return;
+        if (defaultPhotoRubric) {
+          currentRubric = defaultPhotoRubric;
+          renderRubricCards(currentRubric);
+        } else {
+          alert("Please generate a marking scheme first.");
+          return;
+        }
       }
       switchTab(2);
     }
 
+    // =========================================================================
+    // LIVE MULTI-PAGE STREAMING EVALUATION (Requirement 3)
+    // =========================================================================
+    function renderLivePagePills(totalPages, currentDonePage, activePage) {
+      const container = document.getElementById('livePageStepsList');
+      if (!container || !totalPages) return;
+      container.innerHTML = '';
+      for (let p = 1; p <= totalPages; p++) {
+        const pill = document.createElement('span');
+        if (p <= currentDonePage) {
+          pill.className = "inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300";
+          pill.textContent = `Page ${p} Done ✔`;
+        } else if (p === activePage) {
+          pill.className = "inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-indigo-600 text-white shadow-2xs animate-pulse";
+          pill.textContent = `Evaluating Page ${p} of ${totalPages}...`;
+        } else {
+          pill.className = "inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-medium bg-slate-100 text-slate-500 border border-slate-200";
+          pill.textContent = `Page ${p}`;
+        }
+        container.appendChild(pill);
+      }
+    }
+
     async function runStudentGrading() {
       if (!currentRubric) {
-        alert("Please create a marking scheme first.");
-        switchTab(1);
-        return;
+        if (defaultPhotoRubric) {
+          currentRubric = defaultPhotoRubric;
+          renderRubricCards(currentRubric);
+        } else {
+          alert("Please create a marking scheme first.");
+          switchTab(1);
+          return;
+        }
       }
 
       const filesInput = document.getElementById('studentPageFiles');
@@ -668,13 +1039,14 @@
         activePreset = 'custom';
       }
       if (activePreset === 'custom' && filesInput.files.length === 0) {
-        alert("Please upload your student's answer sheet photo(s) or click 'Use Sample Answer Sheet'.");
+        alert("Please upload your student's answer sheet photo(s)/PDF or click 'Load Sample Sheet'.");
         return;
       }
 
       const offline = document.getElementById('offlineMode').checked;
       const formData = new FormData();
       formData.append('offline', offline);
+      formData.append('strictness_level', globalStrictnessLevel);
       formData.append('rubric_json', JSON.stringify(currentRubric));
 
       if (activePreset === 'photosynthesis') {
@@ -693,14 +1065,20 @@
 
       document.getElementById('resultsPlaceholder').classList.add('hidden');
       document.getElementById('gradingResultsCard').classList.add('hidden');
-      document.getElementById('gradingLoadingCard').classList.remove('hidden');
+      const loadingCard = document.getElementById('gradingLoadingCard');
+      loadingCard.classList.remove('hidden');
+
+      document.getElementById('loadingStageTitle').textContent = "Preparing student answer sheet pages...";
+      document.getElementById('liveProgressPercent').textContent = "4%";
+      document.getElementById('liveProgressBar').style.width = "4%";
+      document.getElementById('livePageStepsList').innerHTML = '';
 
       const btn = document.getElementById('gradeStudentBtn');
       btn.disabled = true;
       btn.classList.add('opacity-60');
 
       try {
-        const resp = await fetch('/api/grade', {
+        const resp = await fetch('/api/grade_stream', {
           method: 'POST',
           body: formData,
         });
@@ -710,9 +1088,51 @@
           throw new Error(err.detail || 'Evaluation failed.');
         }
 
-        const data = await resp.json();
-        rawResultsPayload = data;
-        renderGradingResults(data);
+        const reader = resp.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        let completedPages = 0;
+
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || '';
+
+          for (const rawLine of lines) {
+            if (!rawLine.trim()) continue;
+            const evt = JSON.parse(rawLine);
+
+            if (evt.type === 'progress') {
+              const pct = evt.percent || 10;
+              document.getElementById('liveProgressPercent').textContent = `${pct}%`;
+              document.getElementById('liveProgressBar').style.width = `${pct}%`;
+              document.getElementById('loadingStageTitle').textContent = evt.message || 'Evaluating...';
+
+              if (evt.total_pages) {
+                document.getElementById('liveProgressPageCounter').textContent = `${evt.total_pages} Page(s) Total`;
+                if (evt.step === 'page_done') {
+                  completedPages = evt.page;
+                  renderLivePagePills(evt.total_pages, completedPages, completedPages + 1);
+                } else if (evt.step === 'page_segment' || evt.step === 'init') {
+                  renderLivePagePills(evt.total_pages, completedPages, evt.page || 1);
+                } else {
+                  renderLivePagePills(evt.total_pages, evt.total_pages, 0);
+                }
+              }
+            } else if (evt.type === 'complete') {
+              document.getElementById('liveProgressPercent').textContent = '100%';
+              document.getElementById('liveProgressBar').style.width = '100%';
+              document.getElementById('loadingStageTitle').textContent = evt.message;
+              rawResultsPayload = evt.data;
+              currentSessionId = evt.data.session_id;
+              renderGradingResults(evt.data);
+            } else if (evt.type === 'error') {
+              throw new Error(evt.message || 'Streaming evaluation error.');
+            }
+          }
+        }
       } catch (e) {
         alert("Error grading student sheet: " + e.message);
       } finally {
@@ -722,106 +1142,169 @@
       }
     }
 
-    let originalGradingReport = null;
-    let currentGradingReport = null;
+    // =========================================================================
+    // SPLIT-SCREEN LEFT PANEL VIEWER (ZOOM, PAN, PAGE TABS, OVERLAY TOGGLE)
+    // =========================================================================
+    function selectViewerPage(pageIdx) {
+      if (!segmentationPages || segmentationPages.length === 0) return;
+      currentViewerPageIdx = Math.max(0, Math.min(segmentationPages.length - 1, pageIdx));
+      const pageObj = segmentationPages[currentViewerPageIdx];
 
+      // Update Page Tabs active styling
+      const tabsContainer = document.getElementById('leftPageTabs');
+      tabsContainer.innerHTML = '';
+      segmentationPages.forEach((p, idx) => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.onclick = () => selectViewerPage(idx);
+        const isActive = idx === currentViewerPageIdx;
+        btn.className = isActive
+          ? "px-3 py-1 rounded-lg text-xs font-extrabold bg-indigo-600 text-white shadow-2xs shrink-0 cursor-pointer"
+          : "px-2.5 py-1 rounded-lg text-xs font-bold bg-white text-slate-600 hover:bg-slate-200 border border-slate-200 shrink-0 cursor-pointer";
+        btn.textContent = `Page ${p.page_number}`;
+        tabsContainer.appendChild(btn);
+      });
+
+      // Update image source based on currentViewerMode
+      const imgEl = document.getElementById('sheetViewerImage');
+      const rawPath = (currentViewerMode === 'original' && pageObj.original_image_path)
+        ? pageObj.original_image_path
+        : pageObj.layout_image_path;
+      imgEl.src = `/${rawPath.replace(/\\/g, '/')}?t=${Date.now()}`;
+
+      // Update page meta subtitle
+      const metaEl = document.getElementById('leftViewerPageMeta');
+      if (metaEl) {
+        metaEl.textContent = `Page ${pageObj.page_number} of ${segmentationPages.length} • ${pageObj.text_lines_detected} Text Lines, ${pageObj.diagrams_detected} Diagram(s) Detected`;
+      }
+    }
+
+    function setViewerMode(mode) {
+      currentViewerMode = mode;
+      const annBtn = document.getElementById('viewModeAnnotatedBtn');
+      const origBtn = document.getElementById('viewModeOriginalBtn');
+      if (mode === 'annotated') {
+        annBtn.className = "px-2.5 py-1 rounded-lg bg-indigo-600 text-white cursor-pointer transition";
+        origBtn.className = "px-2.5 py-1 rounded-lg text-slate-300 hover:text-white cursor-pointer transition";
+      } else {
+        origBtn.className = "px-2.5 py-1 rounded-lg bg-indigo-600 text-white cursor-pointer transition";
+        annBtn.className = "px-2.5 py-1 rounded-lg text-slate-300 hover:text-white cursor-pointer transition";
+      }
+      selectViewerPage(currentViewerPageIdx);
+    }
+
+    function adjustZoom(delta) {
+      currentZoom = Math.max(0.5, Math.min(3.0, +(currentZoom + delta).toFixed(2)));
+      applyZoom();
+    }
+
+    function resetZoom() {
+      currentZoom = 1.0;
+      applyZoom();
+    }
+
+    function applyZoom() {
+      const imgEl = document.getElementById('sheetViewerImage');
+      const label = document.getElementById('zoomLevelLabel');
+      if (imgEl) {
+        imgEl.style.width = `${(currentZoom * 100).toFixed(0)}%`;
+      }
+      if (label) {
+        label.textContent = `${(currentZoom * 100).toFixed(0)}%`;
+      }
+    }
+
+    function openCurrentPageFullscreen() {
+      if (!segmentationPages || !segmentationPages[currentViewerPageIdx]) return;
+      const p = segmentationPages[currentViewerPageIdx];
+      const rawPath = (currentViewerMode === 'original' && p.original_image_path)
+        ? p.original_image_path
+        : p.layout_image_path;
+      window.open(`/${rawPath.replace(/\\/g, '/')}`, '_blank');
+    }
+
+    function initViewportDragPan() {
+      const vp = document.getElementById('sheetViewport');
+      if (!vp) return;
+      let isDown = false;
+      let startX = 0, startY = 0, scrollLeft = 0, scrollTop = 0;
+
+      vp.addEventListener('mousedown', (e) => {
+        isDown = true;
+        startX = e.pageX - vp.offsetLeft;
+        startY = e.pageY - vp.offsetTop;
+        scrollLeft = vp.scrollLeft;
+        scrollTop = vp.scrollTop;
+      });
+      vp.addEventListener('mouseleave', () => { isDown = false; });
+      vp.addEventListener('mouseup', () => { isDown = false; });
+      vp.addEventListener('mousemove', (e) => {
+        if (!isDown) return;
+        e.preventDefault();
+        const x = e.pageX - vp.offsetLeft;
+        const y = e.pageY - vp.offsetTop;
+        vp.scrollLeft = scrollLeft - (x - startX);
+        vp.scrollTop = scrollTop - (y - startY);
+      });
+    }
+
+    // =========================================================================
+    // SPLIT-SCREEN RIGHT PANEL: QUESTION-WISE OCR & MARKS VERIFICATION
+    // =========================================================================
     function renderGradingResults(data) {
       originalGradingReport = JSON.parse(JSON.stringify(data.grading_report));
       currentGradingReport = JSON.parse(JSON.stringify(data.grading_report));
-      
-      // 1. Header Banner
-      document.getElementById('resExamTitle').textContent = currentGradingReport.exam_title || 'Class Exam Assessment';
-      const teacherBadge = document.getElementById('teacherEditedBadge');
-      if (teacherBadge) teacherBadge.classList.add('hidden');
+      segmentationPages = data.segmentation || [];
+
+      document.getElementById('resExamTitle').textContent = currentGradingReport.exam_title || 'Exam Assessment';
+      const lvl = currentGradingReport.strictness_level || globalStrictnessLevel;
+      const strictBadge = document.getElementById('resStrictnessBadge');
+      if (strictBadge) {
+        const tName = lvl <= 3 ? 'Lenient' : (lvl <= 7 ? 'Balanced' : 'Strict');
+        strictBadge.textContent = `Strictness: ${lvl}/10 (${tName})`;
+      }
+
+      document.getElementById('teacherEditedBadge').classList.add('hidden');
+      document.getElementById('finalizedStatusBadge').classList.add('hidden');
+      document.getElementById('finalizeToast').classList.add('hidden');
+
       recalculateGrandTotal(false);
-      document.getElementById('resEngineMode').textContent = `AI Mode: ${currentGradingReport.mode === 'online_gemini' ? 'Gemini 3.5 Flash VLM (Online)' : 'Local TrOCR + MiniLM (Offline)'}`;
+      document.getElementById('resEngineMode').textContent =
+        `AI Pipeline: ${currentGradingReport.mode === 'online_gemini' ? 'Multimodal Vision + Step-by-Step Rubric Grader' : 'Local TrOCR + MiniLM Semantic Grader'}`;
 
-      // 2. OCR Answers (Student handwriting text)
-      const answersList = document.getElementById('resOcrAnswers');
-      answersList.innerHTML = '';
-      for (const [qid, text] of Object.entries(currentGradingReport.mapped_answers)) {
-        const item = document.createElement('div');
-        item.className = 'p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-2';
-        item.innerHTML = `
-          <div class="flex items-center justify-between">
-            <span class="font-bold text-xs text-indigo-700 bg-indigo-50 px-2.5 py-1 rounded-lg border border-indigo-200">${qid} Answer</span>
-            <span class="text-[11px] text-emerald-700 font-semibold bg-emerald-50 px-2 py-0.5 rounded border border-emerald-100">✓ Digital Text Extracted</span>
-          </div>
-          <div class="p-3 bg-white rounded-lg border border-slate-200">
-            <p class="text-xs sm:text-sm text-slate-800 font-medium leading-relaxed">${text || '<em class="text-slate-400">No handwriting text detected.</em>'}</p>
-          </div>
-        `;
-        answersList.appendChild(item);
-      }
+      // Initialize Left Panel Viewer on Page 1
+      currentZoom = 1.0;
+      applyZoom();
+      selectViewerPage(0);
 
-      // 3. Diagram Evaluation
-      const diagCard = document.getElementById('resDiagramCard');
-      const diagContent = document.getElementById('resDiagramContent');
-      diagContent.innerHTML = '';
-      let hasDiagram = false;
-
-      for (const res of currentGradingReport.question_results) {
-        if (res.diagram_evaluation || res.diagram_path) {
-          hasDiagram = true;
-          const score = res.diagram_evaluation ? (res.diagram_evaluation.structure_score * 100).toFixed(0) : 100;
-          const critique = res.diagram_evaluation ? res.diagram_evaluation.critique : 'Drawing and labels recognized.';
-          const cropUrl = res.diagram_path ? `/${res.diagram_path.replace(/\\/g, '/')}` : '';
-
-          diagContent.innerHTML = `
-            <div class="grid grid-cols-1 sm:grid-cols-12 gap-4 items-center">
-              ${cropUrl ? `
-                <div class="sm:col-span-5 border border-slate-200 rounded-xl overflow-hidden bg-slate-50 p-2 text-center">
-                  <span class="text-[10px] font-bold uppercase text-slate-400 block mb-1">Cropped Diagram from Student Sheet:</span>
-                  <img src="${cropUrl}" class="max-h-52 w-auto mx-auto object-contain rounded border border-slate-200" />
-                </div>
-              ` : ''}
-              <div class="sm:col-span-7 space-y-2.5">
-                <div class="flex items-center gap-2">
-                  <span class="text-xs font-bold text-slate-800">Diagram Accuracy Score:</span>
-                  <span class="px-2.5 py-0.5 rounded-full text-xs font-extrabold bg-emerald-100 text-emerald-800 font-mono">${score}% (Full Marks)</span>
-                </div>
-                <div class="p-3 bg-slate-50 rounded-xl border border-slate-100 text-xs text-slate-700 leading-relaxed">
-                  <span class="font-bold text-slate-800 block text-[11px] mb-0.5">AI Review & Labels Checked:</span>
-                  ${critique}
-                </div>
-              </div>
-            </div>
-          `;
-        }
-      }
-
-      if (hasDiagram) {
-        diagCard.classList.remove('hidden');
-      } else {
-        diagCard.classList.add('hidden');
-      }
-
-      // 4. Render Editable Step-by-Step Breakdown Cards
+      // Render Right Panel Question Cards & Jump Bar
+      renderQuestionJumpBar();
       renderGradingBreakdownCards();
 
-      // 5. Visual Layout Gallery
-      const layoutGallery = document.getElementById('resLayoutGallery');
-      layoutGallery.innerHTML = '';
-      for (const page of data.segmentation) {
-        const item = document.createElement('div');
-        item.className = 'border border-slate-200 rounded-xl p-3.5 space-y-2.5 bg-slate-50/50';
-        const layoutUrl = `/${page.layout_image_path.replace(/\\/g, '/')}?t=${Date.now()}`;
-        item.innerHTML = `
-          <div class="flex items-center justify-between text-xs font-medium text-slate-700">
-            <span>Page ${page.page_number} (${page.text_lines_detected} text lines detected, ${page.diagrams_detected} diagram detected)</span>
-            <span class="text-indigo-600 font-semibold cursor-pointer hover:underline" onclick="window.open('${layoutUrl}', '_blank')">Open Full High-Res Overlay ↗</span>
-          </div>
-          <div class="relative group cursor-pointer overflow-hidden rounded-xl border border-slate-200 bg-white" onclick="window.open('${layoutUrl}', '_blank')">
-            <img src="${layoutUrl}" class="w-full h-auto max-h-[28rem] object-contain mx-auto" />
-            <div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition flex items-center justify-center text-white text-xs font-semibold">
-              Click to Open Full High-Res Overlay
-            </div>
-          </div>
-        `;
-        layoutGallery.appendChild(item);
-      }
-
       document.getElementById('gradingResultsCard').classList.remove('hidden');
+    }
+
+    function renderQuestionJumpBar() {
+      const bar = document.getElementById('questionJumpBar');
+      if (!bar || !currentGradingReport) return;
+      bar.innerHTML = '';
+      currentGradingReport.question_results.forEach((res, qIdx) => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.onclick = () => {
+          const cardEl = document.getElementById(`questionCard_${qIdx}`);
+          if (cardEl) cardEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          if (res.page_numbers && res.page_numbers.length > 0) {
+            selectViewerPage(res.page_numbers[0] - 1);
+          }
+        };
+        const hasScore = res.marks_awarded > 0;
+        btn.className = hasScore
+          ? "px-2.5 py-1 rounded-lg text-[11px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 hover:bg-emerald-100 shrink-0 cursor-pointer"
+          : "px-2.5 py-1 rounded-lg text-[11px] font-bold bg-slate-100 text-slate-600 border border-slate-200 hover:bg-slate-200 shrink-0 cursor-pointer";
+        btn.textContent = `${res.question_id} (${Number(res.marks_awarded).toFixed(1)}/${res.max_marks})`;
+        bar.appendChild(btn);
+      });
     }
 
     function renderGradingBreakdownCards() {
@@ -831,23 +1314,27 @@
 
       currentGradingReport.question_results.forEach((res, qIdx) => {
         const card = document.createElement('div');
-        card.className = 'border border-slate-200 rounded-2xl p-5 space-y-4 bg-white shadow-2xs';
+        card.id = `questionCard_${qIdx}`;
+        card.className = 'border border-slate-200 rounded-2xl p-4 sm:p-5 space-y-4 bg-white shadow-2xs transition hover:border-indigo-200';
 
-        const stepRows = res.step_wise_breakdown.map((step) => {
-          let badge = `<span class="badge-hit px-2.5 py-0.5 rounded-full text-[11px] font-bold flex items-center gap-1 shrink-0">✓ Covered (+${Number(step.awarded_point_marks).toFixed(2)})</span>`;
+        const pageNums = (res.page_numbers && res.page_numbers.length > 0) ? res.page_numbers : [1];
+        const firstPageNum = pageNums[0];
+
+        const stepRows = (res.step_wise_breakdown || []).map((step) => {
+          let badge = `<span class="badge-hit px-2 py-0.5 rounded-full text-[10px] font-bold shrink-0">✓ Hit (+${Number(step.awarded_point_marks).toFixed(2)})</span>`;
           if (step.status === 'Partial') {
-            badge = `<span class="badge-partial px-2.5 py-0.5 rounded-full text-[11px] font-bold flex items-center gap-1 shrink-0">⚠️ Partial (+${Number(step.awarded_point_marks).toFixed(2)})</span>`;
+            badge = `<span class="badge-partial px-2 py-0.5 rounded-full text-[10px] font-bold shrink-0">⚠️ Partial (+${Number(step.awarded_point_marks).toFixed(2)})</span>`;
           } else if (step.status === 'Missed') {
-            badge = `<span class="badge-missed px-2.5 py-0.5 rounded-full text-[11px] font-bold flex items-center gap-1 shrink-0">❌ Missed (0.00)</span>`;
+            badge = `<span class="badge-missed px-2 py-0.5 rounded-full text-[10px] font-bold shrink-0">❌ Missed (0.00)</span>`;
           }
 
           return `
-            <div class="flex items-center justify-between gap-3 p-2.5 bg-slate-50/80 rounded-xl border border-slate-100 text-xs">
+            <div class="flex items-start justify-between gap-2.5 p-2.5 bg-slate-50/90 rounded-xl border border-slate-100 text-xs">
               <div class="flex items-start gap-2 flex-1">
-                <span class="text-slate-400 font-bold">•</span>
+                <span class="text-indigo-500 font-bold">•</span>
                 <div>
-                  <span class="font-medium text-slate-800">${step.description}</span>
-                  ${step.notes ? `<p class="text-[11px] text-slate-400 mt-0.5">${step.notes}</p>` : ''}
+                  <span class="font-semibold text-slate-800">${step.description}</span>
+                  ${step.notes ? `<p class="text-[11px] text-slate-500 mt-0.5">${step.notes}</p>` : ''}
                 </div>
               </div>
               ${badge}
@@ -855,44 +1342,157 @@
           `;
         }).join('');
 
-        const isObjective = ['mcq', 'fill_blank', 'one_word'].includes(res.question_type);
-        const evalHeaderLabel = isObjective ? "Direct Objective Evaluation:" : "Strict Rubric Evaluation:";
+        // Optional diagram section inside question card
+        let diagramHtml = '';
+        if (res.diagram_path || res.diagram_evaluation) {
+          const cropUrl = res.diagram_path ? `/${res.diagram_path.replace(/\\/g, '/')}` : '';
+          const dScore = res.diagram_evaluation ? (res.diagram_evaluation.structure_score * 100).toFixed(0) : '100';
+          const dCritique = res.diagram_evaluation ? res.diagram_evaluation.critique : 'Hand-drawn diagram verified.';
+          diagramHtml = `
+            <div class="p-3 bg-amber-50/60 border border-amber-200 rounded-xl space-y-2">
+              <div class="flex items-center justify-between">
+                <span class="text-[11px] font-extrabold text-amber-900 uppercase tracking-wider flex items-center gap-1">
+                  <span>🎨</span> Detected Student Diagram
+                </span>
+                <span class="text-[11px] font-extrabold px-2 py-0.5 rounded bg-emerald-100 text-emerald-800">Structure Score: ${dScore}%</span>
+              </div>
+              <div class="grid grid-cols-1 sm:grid-cols-12 gap-3 items-center">
+                ${cropUrl ? `
+                  <div class="sm:col-span-5 bg-white p-1.5 rounded-lg border border-amber-200 text-center">
+                    <img src="${cropUrl}" class="max-h-36 w-auto mx-auto object-contain rounded" />
+                  </div>
+                ` : ''}
+                <div class="sm:col-span-7 text-xs text-slate-700 leading-relaxed">
+                  ${dCritique}
+                </div>
+              </div>
+            </div>
+          `;
+        }
 
         card.innerHTML = `
-          <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-3">
-            <div class="flex items-center gap-2.5">
-              <span class="font-extrabold text-sm px-2.5 py-1 bg-indigo-50 text-indigo-700 rounded-lg border border-indigo-200">${res.question_id}</span>
+          <!-- Question Card Header: Question ID + Page Link + Editable Marks Input -->
+          <div class="flex flex-wrap items-center justify-between gap-2.5 border-b border-slate-100 pb-3">
+            <div class="flex flex-wrap items-center gap-2">
+              <span class="font-extrabold text-sm px-2.5 py-1 bg-indigo-600 text-white rounded-lg shadow-2xs">${res.question_id}</span>
               ${getQuestionTypeBadge(res.question_type)}
-              <h4 class="font-bold text-sm text-slate-800">Answer Evaluation</h4>
-              <span id="qEditBadge_${qIdx}" class="hidden text-[10px] font-bold bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full border border-amber-200">✏️ Teacher Overridden</span>
+              <button type="button" onclick="selectViewerPage(${firstPageNum - 1})"
+                title="Click to view Page ${firstPageNum} on the Left Panel"
+                class="text-[11px] font-bold px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-indigo-50 text-slate-700 hover:text-indigo-700 border border-slate-200 transition cursor-pointer flex items-center gap-1">
+                <span>📄</span> <span>Page ${pageNums.join(', ')}</span>
+              </button>
+              <span id="qEditBadge_${qIdx}" class="hidden text-[10px] font-bold bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full border border-amber-200">
+                ✏️ Edited
+              </span>
             </div>
-            <div class="flex items-center gap-2 bg-slate-50 hover:bg-slate-100/80 px-3 py-1.5 rounded-xl border border-slate-200 transition">
-              <label for="qMarksInput_${qIdx}" class="text-xs font-bold text-slate-600">Teacher Score:</label>
+
+            <!-- Editable Marks Awarded Input -->
+            <div class="flex items-center gap-2 bg-emerald-50/70 hover:bg-emerald-50 px-3 py-1.5 rounded-xl border border-emerald-200 transition">
+              <label for="qMarksInput_${qIdx}" class="text-xs font-extrabold text-emerald-950">Marks:</label>
               <input type="number" id="qMarksInput_${qIdx}" min="0" max="${res.max_marks}" step="0.25"
                      value="${Number(res.marks_awarded).toFixed(2)}"
-                     onchange="onQuestionMarksChanged(${qIdx}, this.value)"
-                     class="w-20 text-center font-black text-emerald-700 bg-white border border-emerald-300 rounded-lg py-1 text-sm focus:ring-2 focus:ring-emerald-500 shadow-2xs" />
-              <span class="text-xs font-bold text-slate-400">/ ${Number(res.max_marks).toFixed(2)} Marks</span>
+                     oninput="onQuestionMarksChanged(${qIdx}, this.value)"
+                     class="w-20 text-center font-black text-emerald-800 bg-white border border-emerald-400 rounded-lg py-1 text-sm focus:ring-2 focus:ring-emerald-500 mono-font" />
+              <span class="text-xs font-extrabold text-slate-600">/ ${Number(res.max_marks).toFixed(2)}</span>
             </div>
           </div>
 
-          <div class="space-y-2">
-            <span class="text-[11px] font-bold uppercase tracking-wider text-slate-400 block">${evalHeaderLabel}</span>
+          <!-- Extracted Digital Text (OCR Output) in Editable Text Box -->
+          <div class="space-y-1.5">
+            <div class="flex flex-wrap items-center justify-between gap-2">
+              <label for="qOcrInput_${qIdx}" class="text-[11px] font-extrabold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+                <span>✍️</span> Extracted Digital Text (Editable OCR Output)
+              </label>
+              <button type="button" id="regradeBtn_${qIdx}" onclick="regradeSingleQuestion(${qIdx})"
+                class="text-[11px] font-bold px-2.5 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 transition cursor-pointer flex items-center gap-1">
+                <span>🔄</span> <span>Re-Grade Edited Text</span>
+              </button>
+            </div>
+            <textarea id="qOcrInput_${qIdx}" rows="3"
+              oninput="onQuestionOcrTextChanged(${qIdx}, this.value)"
+              placeholder="No handwriting detected for this question. Type here if needed..."
+              class="w-full text-xs sm:text-sm p-3 bg-slate-50 focus:bg-white rounded-xl border border-slate-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 text-slate-800 font-medium leading-relaxed">${res.student_answer || ''}</textarea>
+          </div>
+
+          ${diagramHtml}
+
+          <!-- Step-by-Step Rubric Breakdown -->
+          <div class="space-y-1.5">
+            <span class="text-[11px] font-extrabold uppercase tracking-wider text-slate-400 block">
+              Step-Wise Rubric Breakdown:
+            </span>
             ${stepRows}
           </div>
 
-          <div class="bg-indigo-50/50 p-3.5 rounded-xl border border-indigo-100 text-xs text-slate-700 space-y-1.5">
+          <!-- AI / Teacher Feedback -->
+          <div class="bg-indigo-50/40 p-3 rounded-xl border border-indigo-100 space-y-1">
             <div class="flex items-center justify-between">
-              <span class="font-bold text-indigo-900 block text-[11px] uppercase tracking-wider">Teacher Remarks:</span>
-              <span class="text-[10px] text-indigo-500 font-medium">✏️ Editable</span>
+              <span class="font-extrabold text-indigo-950 text-[11px] uppercase tracking-wider">AI Feedback & Teacher Remarks:</span>
+              <span class="text-[10px] text-indigo-500 font-semibold">✏️ Editable</span>
             </div>
             <textarea rows="2"
-                      onchange="currentGradingReport.question_results[${qIdx}].student_feedback = this.value"
-                      class="w-full text-xs p-2 bg-white rounded-lg border border-indigo-200 text-slate-800 font-medium leading-relaxed focus:ring-2 focus:ring-indigo-500">${res.student_feedback || ''}</textarea>
+              oninput="currentGradingReport.question_results[${qIdx}].student_feedback = this.value"
+              class="w-full text-xs p-2 bg-white rounded-lg border border-indigo-200 text-slate-800 font-medium leading-relaxed focus:ring-2 focus:ring-indigo-500">${res.student_feedback || ''}</textarea>
           </div>
         `;
         breakdownList.appendChild(card);
       });
+    }
+
+    function onQuestionOcrTextChanged(qIdx, newText) {
+      if (!currentGradingReport) return;
+      const qRes = currentGradingReport.question_results[qIdx];
+      qRes.student_answer = newText;
+      currentGradingReport.mapped_answers[qRes.question_id] = newText;
+
+      const editBadge = document.getElementById(`qEditBadge_${qIdx}`);
+      if (editBadge) editBadge.classList.remove('hidden');
+      document.getElementById('teacherEditedBadge').classList.remove('hidden');
+    }
+
+    async function regradeSingleQuestion(qIdx) {
+      if (!currentGradingReport || !currentRubric) return;
+      const qRes = currentGradingReport.question_results[qIdx];
+      const rubricQ = (currentRubric.questions || []).find(q => q.question_id === qRes.question_id);
+      if (!rubricQ) return;
+
+      const btn = document.getElementById(`regradeBtn_${qIdx}`);
+      const origHtml = btn ? btn.innerHTML : '';
+      if (btn) {
+        btn.disabled = true;
+        btn.textContent = "⏳ Re-Grading...";
+      }
+
+      try {
+        const offline = document.getElementById('offlineMode').checked;
+        const resp = await fetch('/api/regrade_question', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            question: rubricQ,
+            student_answer: qRes.student_answer,
+            strictness_level: globalStrictnessLevel,
+            offline: offline,
+            page_numbers: qRes.page_numbers || [1],
+          }),
+        });
+        if (!resp.ok) {
+          const err = await resp.json();
+          throw new Error(err.detail || 'Re-grade failed');
+        }
+        const updatedQRes = await resp.json();
+        currentGradingReport.question_results[qIdx] = updatedQRes;
+        renderGradingBreakdownCards();
+        renderQuestionJumpBar();
+        recalculateGrandTotal(true);
+      } catch (e) {
+        alert("Failed to re-grade question: " + e.message);
+      } finally {
+        if (btn) {
+          btn.disabled = false;
+          btn.innerHTML = origHtml;
+        }
+      }
     }
 
     function onQuestionMarksChanged(qIdx, val) {
@@ -903,13 +1503,11 @@
       num = Math.max(0, Math.min(q.max_marks, num));
       q.marks_awarded = num;
 
-      const qInput = document.getElementById(`qMarksInput_${qIdx}`);
-      if (qInput) qInput.value = num.toFixed(2);
-
       const editBadge = document.getElementById(`qEditBadge_${qIdx}`);
       if (editBadge) editBadge.classList.remove('hidden');
 
       recalculateGrandTotal(true);
+      renderQuestionJumpBar();
     }
 
     function recalculateGrandTotal(isEdited = false) {
@@ -917,15 +1515,21 @@
       let totalAwarded = 0;
       let totalMax = 0;
       for (const q of currentGradingReport.question_results) {
-        totalAwarded += q.marks_awarded;
-        totalMax += q.max_marks;
+        totalAwarded += Number(q.marks_awarded) || 0;
+        totalMax += Number(q.max_marks) || 0;
       }
-      currentGradingReport.total_marks_awarded = totalAwarded;
-      currentGradingReport.total_max_marks = totalMax;
+      currentGradingReport.total_marks_awarded = +totalAwarded.toFixed(2);
+      currentGradingReport.total_max_marks = +totalMax.toFixed(2);
+
+      const pct = totalMax > 0 ? (totalAwarded / totalMax) * 100 : 0;
 
       document.getElementById('resTotalMarks').textContent = `${totalAwarded.toFixed(2)} / ${totalMax.toFixed(2)} Marks`;
-      const pct = totalMax > 0 ? (totalAwarded / totalMax) * 100 : 0;
-      document.getElementById('resPercent').textContent = `${pct.toFixed(1)}% Score`;
+      document.getElementById('resPercent').textContent = `${pct.toFixed(1)}%`;
+
+      const bottomSum = document.getElementById('bottomTotalMarksSummary');
+      if (bottomSum) {
+        bottomSum.textContent = `Verified Total: ${totalAwarded.toFixed(2)} / ${totalMax.toFixed(2)} Marks (${pct.toFixed(1)}%)`;
+      }
 
       let grade = 'A+';
       if (pct < 50) grade = 'D';
@@ -945,7 +1549,45 @@
       if (!originalGradingReport) return;
       currentGradingReport = JSON.parse(JSON.stringify(originalGradingReport));
       renderGradingBreakdownCards();
+      renderQuestionJumpBar();
       recalculateGrandTotal(false);
+      document.getElementById('finalizedStatusBadge').classList.add('hidden');
+    }
+
+    async function finalizeVerifiedMarks() {
+      if (!currentGradingReport) return;
+      recalculateGrandTotal(true);
+
+      const topBtn = document.getElementById('finalizeTopBtn');
+      const botBtn = document.getElementById('finalizeBottomBtn');
+      if (topBtn) topBtn.disabled = true;
+      if (botBtn) botBtn.disabled = true;
+
+      try {
+        const resp = await fetch('/api/finalize_marks', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            session_id: currentSessionId || 'verified_session',
+            grading_report: currentGradingReport,
+          }),
+        });
+        if (!resp.ok) throw new Error('Failed to save verified marks.');
+        const res = await resp.json();
+
+        document.getElementById('finalizedStatusBadge').classList.remove('hidden');
+        const toast = document.getElementById('finalizeToast');
+        const toastText = document.getElementById('finalizeToastText');
+        if (toast && toastText) {
+          toastText.textContent = `✔ Finalized Marks Saved (${Number(res.total_marks_awarded).toFixed(2)} / ${Number(res.total_max_marks).toFixed(2)} Marks) — All teacher edits to OCR text and question scores are locked in!`;
+          toast.classList.remove('hidden');
+        }
+      } catch (e) {
+        alert("Error finalizing marks: " + e.message);
+      } finally {
+        if (topBtn) topBtn.disabled = false;
+        if (botBtn) botBtn.disabled = false;
+      }
     }
 
     window.addEventListener('DOMContentLoaded', init);

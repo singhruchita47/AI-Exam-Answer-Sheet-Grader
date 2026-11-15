@@ -86,32 +86,59 @@ class RubricGenerator:
         question_images: list[Image.Image] | None = None,
         question_text: str | None = None,
         teacher_hints: str = "",
+        answer_key_image_path: str | Path | None = None,
+        answer_key_images: list[Image.Image] | None = None,
+        answer_key_text: str = "",
         force_offline: bool = False,
     ) -> ExamRubric:
-        """Generate an ExamRubric using Gemini VLM or local heuristic fallback."""
+        """Generate an ExamRubric using Gemini VLM or local heuristic fallback.
+
+        Supports Dual Reference Input:
+        - If Official Answer Key (file/images/text) is provided alongside the Marking Scheme / Question Paper,
+          student answers are evaluated against the Official Answer Key using the Marking Scheme's weightage.
+        - If only the Marking Scheme / Question Paper is provided, expected key points and model answers
+          are automatically inferred from the Marking Scheme.
+        """
+        has_answer_key = bool(
+            (answer_key_text and answer_key_text.strip())
+            or answer_key_image_path
+            or answer_key_images
+            or (teacher_hints and teacher_hints.strip())
+        )
+        ref_mode = "dual_reference" if has_answer_key else "auto_inferred"
+
         if not force_offline and self.api_key:
             try:
-                return self._generate_with_gemini(
+                rubric = self._generate_with_gemini(
                     subject=subject,
                     total_marks=total_marks,
                     question_image_path=question_image_path,
                     question_images=question_images,
                     question_text=question_text,
                     teacher_hints=teacher_hints,
+                    answer_key_image_path=answer_key_image_path,
+                    answer_key_images=answer_key_images,
+                    answer_key_text=answer_key_text,
                 )
+                rubric.reference_mode = ref_mode
+                return rubric
             except Exception as exc:
                 logger.warning(
                     "Gemini auto-rubric generation failed (%s); falling back to local generator.",
                     exc,
                 )
 
-        return self._generate_local(
+        rubric = self._generate_local(
             subject=subject,
             total_marks=total_marks,
             question_image_path=question_image_path,
             question_text=question_text,
             teacher_hints=teacher_hints,
+            answer_key_image_path=answer_key_image_path,
+            answer_key_text=answer_key_text,
         )
+        rubric.reference_mode = ref_mode
+        return rubric
 
     def _generate_with_gemini(
         self,
@@ -121,6 +148,9 @@ class RubricGenerator:
         question_images: list[Image.Image] | None,
         question_text: str | None,
         teacher_hints: str,
+        answer_key_image_path: str | Path | None = None,
+        answer_key_images: list[Image.Image] | None = None,
+        answer_key_text: str = "",
     ) -> ExamRubric:
         """Call Gemini Flash with structured Pydantic output to create the rubric."""
         from google import genai
@@ -129,24 +159,54 @@ class RubricGenerator:
         assert self.api_key is not None
         client = genai.Client(api_key=self.api_key)
 
+        has_answer_key = bool(
+            (answer_key_text and answer_key_text.strip())
+            or answer_key_image_path
+            or answer_key_images
+            or (teacher_hints and teacher_hints.strip())
+        )
+
         prompt_parts: list[str] = [
             f"You are a Chief Academic Examiner and Curriculum Specialist in '{subject}'.",
-            "The teacher has provided an exam question paper (via attached image(s) and/or text), the subject, and target marks.",
             f"Subject: {subject}",
             f"Target Total Marks: {total_marks}",
         ]
 
+        if has_answer_key:
+            prompt_parts.append(
+                "\n=== DUAL REFERENCE MODE (MARKING SCHEME + OFFICIAL ANSWER KEY) ===\n"
+                "The teacher has uploaded BOTH the Question Paper / Marking Scheme AND an Official Answer Key.\n"
+                "You MUST:\n"
+                "1. Extract each question and its exact mark weightage from the Question Paper / Marking Scheme.\n"
+                "2. Extract the authoritative model_answer and weighted key_points directly from the Official Answer Key "
+                "so student answers will be evaluated strictly against the Official Answer Key using the Marking Scheme's weightage."
+            )
+        else:
+            prompt_parts.append(
+                "\n=== SINGLE REFERENCE MODE (AUTO-INFERRED FROM MARKING SCHEME) ===\n"
+                "The teacher has uploaded ONLY the Question Paper / Marking Scheme (without a separate Official Answer Key).\n"
+                "You MUST automatically generate/infer the expected model_answer and weighted key_points from the Question Paper / Marking Scheme."
+            )
+
         cleaned_q_text = filter_hindi_keep_english(question_text.strip()) if question_text else ""
         if cleaned_q_text:
-            prompt_parts.append(f"\nTeacher Provided Question Text (English Only):\n\"\"\"{cleaned_q_text}\"\"\"")
+            prompt_parts.append(f"\nQuestion Paper / Marking Scheme Text (English Only):\n\"\"\"{cleaned_q_text}\"\"\"")
 
-        if teacher_hints and teacher_hints.strip():
-            prompt_parts.append(f"\nTeacher Solution / Grading Hints:\n\"\"\"{teacher_hints.strip()}\"\"\"")
+        combined_key_text = "\n".join(
+            part.strip()
+            for part in [answer_key_text, teacher_hints]
+            if part and part.strip()
+        )
+        if combined_key_text:
+            cleaned_key_text = filter_hindi_keep_english(combined_key_text)
+            prompt_parts.append(
+                f"\nOfficial Answer Key / Teacher Marking Guidelines:\n\"\"\"{cleaned_key_text}\"\"\""
+            )
 
         prompt_parts.extend(
             [
                 "\nINSTRUCTIONS FOR RUBRIC GENERATION:",
-                "CRITICAL BILINGUAL RULE: The exam paper may contain both Hindi and English. COMPLETELY IGNORE all Hindi (Devanagari) text and cover-page instructions. Extract and formulate all questions and model answers EXCLUSIVELY in English.",
+                "CRITICAL BILINGUAL RULE: The exam paper or answer key may contain both Hindi and English. COMPLETELY IGNORE all Hindi (Devanagari) text and cover-page instructions. Extract and formulate all questions and model answers EXCLUSIVELY in English.",
                 "1. Accurately extract each main question from the English portions of the paper, preserving its main numbering as Q1, Q2, Q3, etc.",
                 "2. If a main question (like Q1..Q5 in board papers) contains multiple sub-items (e.g. (i)..(vi) or (1)..(6) worth 1 mark each), keep it as ONE main question (e.g. Q1 with max_marks=6) and create 1 key_point per sub-item with its expected answer.",
                 "3. If a question has an internal '[OR]' choice, include both the main question and the '[OR]' option in question_text and model_answer so a student answering EITHER option gets full credit.",
@@ -158,7 +218,7 @@ class RubricGenerator:
                 "   - 'long_answer' : For Long descriptive/analytical questions (4+ marks). Provide 3-4 concise key points.",
                 "5. Keep question_text, model_answer, and key_point descriptions concise and clear so generation is fast.",
                 "6. Set requires_diagram = true ONLY if the question explicitly asks the student to draw/sketch a diagram or map.",
-                "7. Use the printed marks from the question paper if visible; otherwise distribute Target Total Marks.",
+                "7. Use the printed marks from the question paper/marking scheme if visible; otherwise distribute Target Total Marks.",
                 f"8. Set exam_title to '{subject} Examination Rubric'.",
                 "\nReturn strict JSON matching the ExamRubric schema.",
             ]
@@ -168,12 +228,24 @@ class RubricGenerator:
         contents: list[Any] = [full_prompt]
 
         if question_images:
+            contents.append("--- QUESTION PAPER / MARKING SCHEME PAGES ---")
             contents.extend(question_images)
         elif question_image_path:
             img_path = Path(question_image_path)
             if img_path.exists():
                 pil_img = Image.open(img_path).convert("RGB")
+                contents.append("--- QUESTION PAPER / MARKING SCHEME IMAGE ---")
                 contents.append(pil_img)
+
+        if answer_key_images:
+            contents.append("--- OFFICIAL ANSWER KEY PAGES ---")
+            contents.extend(answer_key_images)
+        elif answer_key_image_path:
+            ak_path = Path(answer_key_image_path)
+            if ak_path.exists():
+                ak_img = Image.open(ak_path).convert("RGB")
+                contents.append("--- OFFICIAL ANSWER KEY IMAGE ---")
+                contents.append(ak_img)
 
         response = client.models.generate_content(
             model=GEMINI_MODEL_NAME,
@@ -227,6 +299,8 @@ class RubricGenerator:
         question_image_path: str | Path | None,
         question_text: str | None,
         teacher_hints: str,
+        answer_key_image_path: str | Path | None = None,
+        answer_key_text: str = "",
     ) -> ExamRubric:
         """Deterministic offline fallback rubric generator using heuristics and OCR text."""
         raw_text = (question_text or "").strip()
@@ -244,6 +318,26 @@ class RubricGenerator:
                         raw_text = "\n".join([line[1].strip() for line in res if line[1].strip()])
                 except Exception as exc:
                     logger.warning("RapidOCR failed on question image: %s", exc)
+
+        raw_key_text = (answer_key_text or "").strip()
+        if not raw_key_text and answer_key_image_path:
+            ak_p = Path(answer_key_image_path)
+            if ak_p.exists():
+                try:
+                    from rapidocr_onnxruntime import RapidOCR
+
+                    engine = RapidOCR()
+                    res, _ = engine(str(ak_p))
+                    if res:
+                        raw_key_text = "\n".join([line[1].strip() for line in res if line[1].strip()])
+                except Exception as exc:
+                    logger.warning("RapidOCR failed on answer key image: %s", exc)
+
+        combined_hints = "\n".join(
+            p for p in [filter_hindi_keep_english(raw_key_text), teacher_hints.strip()] if p
+        ).strip()
+        from grader import parse_questions
+        parsed_key_map = parse_questions(combined_hints) if combined_hints else {}
 
         raw_text = filter_hindi_keep_english(raw_text)
         if not raw_text:
@@ -322,47 +416,49 @@ class RubricGenerator:
                 else ""
             )
 
+            specific_key = parsed_key_map.get(qid, "") or combined_hints
+
             # Detect question type
             if any(opt in lower_q for opt in ["(a)", "(b)", "choose the correct", "multiple choice", "mcq"]):
                 q_type = "mcq"
-                model_ans = teacher_hints.strip() if teacher_hints.strip() else "Correct option selected from given alternatives."
-                key_points = [KeyPoint(point_id="KP1", description="Correct option selected", weight=1.0)]
+                model_ans = specific_key if specific_key else "Correct option selected from given alternatives."
+                key_points = [KeyPoint(point_id="KP1", description=model_ans[:120], weight=1.0)]
             elif "____" in clean_q or "fill in" in lower_q or "blank" in lower_q:
                 q_type = "fill_blank"
-                model_ans = teacher_hints.strip() if teacher_hints.strip() else "Accurate missing scientific term or value."
-                key_points = [KeyPoint(point_id="KP1", description="Accurate missing term", weight=1.0)]
+                model_ans = specific_key if specific_key else "Accurate missing scientific term or value."
+                key_points = [KeyPoint(point_id="KP1", description=model_ans[:120], weight=1.0)]
             elif "one word" in lower_q or "name the" in lower_q or detected_q_marks <= 1.0:
                 q_type = "one_word"
-                model_ans = teacher_hints.strip() if teacher_hints.strip() else "Precise technical term or name."
-                key_points = [KeyPoint(point_id="KP1", description="Precise technical term", weight=1.0)]
+                model_ans = specific_key if specific_key else "Precise technical term or name."
+                key_points = [KeyPoint(point_id="KP1", description=model_ans[:120], weight=1.0)]
             elif detected_q_marks >= 4.0:
                 q_type = "long_answer"
             else:
                 q_type = "short_answer"
 
             if q_type in ("short_answer", "long_answer"):
-                # Heuristic key-point extraction for subjective questions
+                source_for_kp = specific_key if specific_key else clean_q
                 sentences = [
                     s.strip()
-                    for s in re.split(r"[.!?;\n]+", clean_q)
-                    if len(s.strip()) > 8
+                    for s in re.split(r"[.!?;\n]+", source_for_kp)
+                    if len(s.strip()) > 6
                 ]
                 if len(sentences) < 2:
                     key_points = [
                         KeyPoint(
                             point_id="KP1",
-                            description=f"Definition and core scientific concept of {clean_q[:60]}",
-                            weight=0.4 if needs_diagram else 0.4,
+                            description=specific_key if specific_key else f"Definition and core concept of {clean_q[:60]}",
+                            weight=0.4,
                         ),
                         KeyPoint(
                             point_id="KP2",
                             description="Detailed explanation of the process, key inputs, mechanism, and outcomes.",
-                            weight=0.35 if needs_diagram else 0.4,
+                            weight=0.4,
                         ),
                         KeyPoint(
                             point_id="KP3",
-                            description="Accurate scientific terminology, facts, and conclusions.",
-                            weight=0.25 if needs_diagram else 0.2,
+                            description="Accurate terminology, facts, and conclusions.",
+                            weight=0.2,
                         ),
                     ]
                 else:
@@ -370,15 +466,15 @@ class RubricGenerator:
                     key_points = [
                         KeyPoint(
                             point_id=f"KP{s_idx}",
-                            description=f"Address concept: {sent}",
+                            description=sent if specific_key else f"Address concept: {sent}",
                             weight=round(1.0 / total_s, 2),
                         )
-                        for s_idx, sent in enumerate(sentences, start=1)
+                        for s_idx, sent in enumerate(sentences[:6], start=1)
                     ]
 
                 model_ans = (
-                    teacher_hints.strip()
-                    if teacher_hints.strip()
+                    specific_key
+                    if specific_key
                     else f"Comprehensive model answer explaining {clean_q} with standard {subject} conventions."
                 )
 

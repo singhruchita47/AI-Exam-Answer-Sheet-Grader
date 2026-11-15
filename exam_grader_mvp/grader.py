@@ -60,6 +60,7 @@ class ExamRubric(BaseModel):
     """Top-level exam rubric loaded from JSON."""
 
     exam_title: str = "Automated Exam Grading"
+    reference_mode: Literal["dual_reference", "auto_inferred"] = "auto_inferred"
     questions: list[RubricQuestion]
 
 
@@ -99,6 +100,7 @@ class QuestionGradeResult(BaseModel):
     question_id: str
     question_type: str = "short_answer"
     student_answer: str
+    page_numbers: list[int] = Field(default_factory=list)
     semantic_similarity: float = Field(ge=0.0, le=1.0)
     diagram_path: str | None = None
     diagram_evaluation: DiagramEvaluation | None = None
@@ -114,6 +116,7 @@ class ExamGradingReport(BaseModel):
 
     exam_title: str
     mode: Literal["online_gemini", "offline_local"]
+    strictness_level: int = Field(default=5, ge=1, le=10)
     total_marks_awarded: float
     total_max_marks: float
     mapped_answers: dict[str, str]
@@ -156,10 +159,22 @@ _QUESTION_MARKER_PATTERNS: tuple[re.Pattern[str], ...] = (
 )
 
 
+_TROCR_HALLUCINATION_PATTERNS: tuple[re.Pattern[str], ...] = (
+    re.compile(r"Categories\s*\d{4}.*?(?:births|deaths|actors|state)", re.IGNORECASE),
+    re.compile(r"(?:American\s+male\s+(?:film|stage|television)\s+actors|People\s+from\s+New\s+Brunswick)", re.IGNORECASE),
+    re.compile(r"(?:e2){3,}|(?:0\s*){4,}", re.IGNORECASE),
+    re.compile(r"\b(\w+)(?:\s+\1){3,}\b", re.IGNORECASE),
+    re.compile(r"qualads\s+first\s+hugci.*?views\s+of\s+all\s+of\s+ten\s+centi", re.IGNORECASE),
+)
+
+
 def _clean_ocr_handwriting_text(text: str) -> str:
-    """Fix common OCR misrecognitions and strip Devanagari/Hindi characters."""
+    """Fix common OCR misrecognitions, strip Devanagari/Hindi characters, and filter TrOCR hallucinations."""
     # Strip any Hindi / Devanagari characters
     text = re.sub(r"[\u0900-\u097F]+", "", text)
+    # Strip known TrOCR Wikipedia/IAM noise patterns
+    for pat in _TROCR_HALLUCINATION_PATTERNS:
+        text = pat.sub(" ", text)
     # Fix IDhm's -> Ohm's
     text = re.sub(r"\bI?Dhm(?:'s)?\b", "Ohm's", text, flags=re.IGNORECASE)
     # Fix appropriational -> proportional
@@ -486,9 +501,35 @@ def _round_quarter(value: float) -> float:
     return round(value * 4.0) / 4.0
 
 
+def _get_strictness_instructions(strictness_level: int) -> str:
+    """Build dynamic grading prompt instructions for Strictness Level 1..10."""
+    lvl = max(1, min(10, int(strictness_level)))
+    if lvl <= 3:
+        return (
+            f"GLOBAL STRICTNESS LEVEL: {lvl}/10 (LENIENT MODE).\n"
+            "- Focus on basic concept understanding.\n"
+            "- Ignore minor spelling, grammar, or OCR errors and missing sub-steps.\n"
+            "- Award generous partial marks whenever the student conveys the core idea."
+        )
+    if lvl <= 7:
+        return (
+            f"GLOBAL STRICTNESS LEVEL: {lvl}/10 (BALANCED / STANDARD BOARD EVALUATION).\n"
+            "- Apply standard board/university evaluation.\n"
+            "- Check key terms, steps, and diagram labels fairly.\n"
+            "- Award proportional partial marks for partially complete answers."
+        )
+    return (
+        f"GLOBAL STRICTNESS LEVEL: {lvl}/10 (STRICT / RIGOROUS MODE).\n"
+        "- Enforce strict keyword matching and exact formula/step verification.\n"
+        "- Apply strict penalties for missing labels, vague explanations, or incomplete sub-steps.\n"
+        "- Only award full marks when every technical term and step is accurately stated."
+    )
+
+
 def _grade_objective_answer(
     question: RubricQuestion,
     student_answer: str,
+    strictness_level: int = 5,
 ) -> LLMGradeOutput:
     """Fast, accurate direct evaluation for objective questions (MCQ, Fill in blanks, One word)."""
     st_clean = student_answer.strip().lower()
@@ -516,6 +557,7 @@ def _grade_objective_answer(
 
     matched = False
     match_note = ""
+    typo_threshold = 0.68 if strictness_level <= 3 else (0.86 if strictness_level >= 8 else 0.78)
 
     if q_type == "mcq":
         # Extract option letter e.g. (b) or b from model answer
@@ -534,7 +576,7 @@ def _grade_objective_answer(
                 text_matched = True
             else:
                 sim = SequenceMatcher(None, expected_text, st_clean).ratio()
-                if sim >= 0.75:
+                if sim >= typo_threshold:
                     text_matched = True
 
         if opt_matched or text_matched:
@@ -556,7 +598,7 @@ def _grade_objective_answer(
             for tw in target_words:
                 if len(tw) > 3:
                     for sw in st_words:
-                        if SequenceMatcher(None, tw, sw).ratio() >= 0.78:
+                        if SequenceMatcher(None, tw, sw).ratio() >= typo_threshold:
                             matched = True
                             break
         if matched:
@@ -606,9 +648,11 @@ class ExamGrader:
     def __init__(
         self,
         offline: bool = False,
+        strictness_level: int = 5,
         cfg: GradingConfig = GRADING_CONFIG,
     ) -> None:
         self.cfg = cfg
+        self.strictness_level = max(1, min(10, int(strictness_level)))
         self.api_key = GEMINI_API_KEY
         self.offline = offline or not bool(self.api_key)
         if not offline and not self.api_key:
@@ -637,14 +681,16 @@ class ExamGrader:
         overall_sim: float,
         kp_sims: dict[str, float],
         diagram_eval: DiagramEvaluation | None,
+        strictness_level: int | None = None,
     ) -> LLMGradeOutput:
         """Deterministic local heuristic rubric scorer using MiniLM + diagram structure."""
+        lvl = max(1, min(10, int(strictness_level if strictness_level is not None else self.strictness_level)))
         if (
             question.question_type in ("mcq", "fill_blank", "one_word")
             and len(question.key_points) <= 1
             and question.max_marks <= 1.5
         ):
-            return _grade_objective_answer(question, student_answer)
+            return _grade_objective_answer(question, student_answer, strictness_level=lvl)
 
         text_budget = (
             question.max_marks * (1.0 - self.cfg.diagram_weight_when_required)
@@ -658,9 +704,13 @@ class ExamGrader:
         missing: list[str] = []
         text_awarded = 0.0
 
-        # Strict thresholds for subjective Short & Long answers
-        hit_threshold = max(0.65, self.cfg.keypoint_hit_threshold)
-        partial_threshold = max(0.42, self.cfg.keypoint_partial_threshold)
+        # Scale thresholds dynamically by strictness_level (1..10)
+        # Level 1 (Lenient): hit=0.48, partial=0.28, partial_credit=0.70
+        # Level 5 (Balanced): hit=0.62, partial=0.40, partial_credit=0.50
+        # Level 10 (Strict): hit=0.76, partial=0.55, partial_credit=0.35
+        hit_threshold = round(0.45 + (lvl * 0.031), 3)
+        partial_threshold = round(0.25 + (lvl * 0.030), 3)
+        partial_credit_factor = 0.70 if lvl <= 3 else (0.35 if lvl >= 8 else 0.50)
         word_count = len(student_answer.split())
 
         for kp in question.key_points:
@@ -670,23 +720,23 @@ class ExamGrader:
                 self.cfg.semantic_blend_weight * overall_sim
             )
 
-            # Strict penalty if answer is too short for a multi-mark question
-            if question.max_marks >= 3.0 and word_count < 6:
-                blended_sim *= 0.5
+            # Penalty if answer is too short for a multi-mark question (stronger at higher strictness)
+            if question.max_marks >= 3.0 and word_count < 6 and lvl >= 4:
+                blended_sim *= 0.45 if lvl >= 8 else 0.6
 
             if blended_sim >= hit_threshold:
                 status: Literal["Hit", "Partial", "Missed"] = "Hit"
                 awarded = kp_max
-                note = f"Key concept matched (similarity {sim:.2f})."
+                note = f"Key concept matched (similarity {sim:.2f}, strictness {lvl}/10)."
             elif blended_sim >= partial_threshold:
                 status = "Partial"
-                awarded = _round_quarter(kp_max * 0.50)
-                note = f"Partially addressed (similarity {sim:.2f})."
+                awarded = _round_quarter(kp_max * partial_credit_factor)
+                note = f"Partially addressed (similarity {sim:.2f}, strictness {lvl}/10)."
                 missing.append(f"Elaborate further on: {kp.description}")
             else:
                 status = "Missed"
                 awarded = 0.0
-                note = f"Not clearly detected in answer (similarity {sim:.2f})."
+                note = f"Not clearly detected in answer (similarity {sim:.2f}, strictness {lvl}/10)."
                 missing.append(kp.description)
 
             awarded = min(kp_max, max(0.0, awarded))
@@ -718,7 +768,7 @@ class ExamGrader:
             hit_count = sum(1 for item in breakdown if item.status == "Hit")
             feedback_parts = [
                 f"Covered {hit_count}/{len(breakdown)} rubric key points "
-                f"(semantic similarity: {overall_sim:.2f})."
+                f"(Strictness {lvl}/10, similarity: {overall_sim:.2f})."
             ]
             if missing:
                 feedback_parts.append(f"Focus on: {missing[0]}")
@@ -743,14 +793,16 @@ class ExamGrader:
         overall_sim: float,
         kp_sims: dict[str, float],
         diagram_eval: DiagramEvaluation | None,
+        strictness_level: int | None = None,
     ) -> LLMGradeOutput:
         """Use Gemini Flash Lite with Pydantic structured output for step-wise grading."""
+        lvl = max(1, min(10, int(strictness_level if strictness_level is not None else self.strictness_level)))
         if (
             question.question_type in ("mcq", "fill_blank", "one_word")
             and len(question.key_points) <= 1
             and question.max_marks <= 1.5
         ):
-            return _grade_objective_answer(question, student_answer)
+            return _grade_objective_answer(question, student_answer, strictness_level=lvl)
 
         from google import genai
         from google.genai import types
@@ -780,8 +832,11 @@ class ExamGrader:
             else ("MISSING (required by rubric)" if question.requires_diagram else "Not required")
         )
 
+        strictness_block = _get_strictness_instructions(lvl)
+
         prompt = (
-            "You are a strict and accurate board exam evaluator grading a student's OCR-transcribed handwritten answer.\n"
+            "You are an expert board exam evaluator grading a student's OCR-transcribed handwritten answer.\n"
+            f"{strictness_block}\n\n"
             "CRITICAL GRADING RULES:\n"
             "1. OBJECTIVE QUESTIONS & MULTI-PART OBJECTIVE GROUPS (MCQ, Fill in blanks, One word/sentence, True/False, Match pairs):\n"
             "   - Grade each sub-item directly based on correctness of the selected option or target term.\n"
@@ -789,10 +844,10 @@ class ExamGrader:
             "2. INTERNAL '[OR]' CHOICES:\n"
             "   - If the question has an '[OR]' option, the student only needs to answer ONE of the options. Award full credit if their chosen option is answered accurately.\n"
             "3. SUBJECTIVE QUESTIONS (Short Answer, Long Answer):\n"
-            "   - Grade strictly based on conceptual accuracy, required points, and technical terms.\n\n"
+            f"   - Grade according to the Global Strictness Level ({lvl}/10) above.\n\n"
             f"Question Type: {question.question_type.upper()}\n"
             f"Question ({question.question_id}, Max Marks = {question.max_marks}):\n{question.question_text}\n\n"
-            f"Model Answer:\n{question.model_answer}\n\n"
+            f"Official Model Answer / Answer Key:\n{question.model_answer}\n\n"
             f"Rubric Key Points (Text budget = {round(text_budget, 2)} marks):\n"
             + "\n".join(kp_lines)
             + f"\n\nStudent Transcribed Answer (Overall MiniLM cosine similarity = {overall_sim:.3f}):\n"
@@ -833,7 +888,6 @@ class ExamGrader:
         used_diagrams: set[str],
     ) -> Path | None:
         """Associate an unused detected diagram on the question's page(s) with the question."""
-        # Prefer diagrams on the exact pages where this question's text appeared
         for page in ocr_result.pages:
             if q_pages and page.page_number not in q_pages:
                 continue
@@ -843,7 +897,6 @@ class ExamGrader:
                     used_diagrams.add(key)
                     return diag.crop_path
 
-        # Fallback: if question requires a diagram and none matched its exact page, pick next unused diagram
         if question.requires_diagram:
             for page in ocr_result.pages:
                 for diag in page.diagrams:
@@ -858,6 +911,7 @@ class ExamGrader:
         batch_items: list[
             tuple[RubricQuestion, str, float, dict[str, float], DiagramEvaluation | None]
         ],
+        strictness_level: int | None = None,
     ) -> dict[str, LLMGradeOutput]:
         """Grade a batch of up to 12 questions in a SINGLE Gemini API call to stay well within 15 RPM limits."""
         from google import genai
@@ -865,6 +919,7 @@ class ExamGrader:
 
         assert self.api_key is not None
         client = genai.Client(api_key=self.api_key)
+        lvl = max(1, min(10, int(strictness_level if strictness_level is not None else self.strictness_level)))
 
         class BatchQuestionGrade(BaseModel):
             question_id: str
@@ -873,12 +928,15 @@ class ExamGrader:
         class BatchGradeResponse(BaseModel):
             results: list[BatchQuestionGrade]
 
+        strictness_block = _get_strictness_instructions(lvl)
+
         blocks: list[str] = [
-            "You are a strict and accurate board exam evaluator grading a batch of student answers.\n"
+            "You are an expert board exam evaluator grading a batch of student answers.\n"
+            f"{strictness_block}\n\n"
             "RULES:\n"
             "1. For OBJECTIVE questions / 6-item objective blocks: award full marks for each correct item and 0 for wrong/missing items.\n"
             "2. For '[OR]' internal choices: award full credit if the student accurately answered EITHER option.\n"
-            "3. For SUBJECTIVE questions (Short/Long Answer): grade strictly based on conceptual accuracy and required points.\n"
+            f"3. For SUBJECTIVE questions (Short/Long Answer): evaluate according to Global Strictness Level ({lvl}/10).\n"
             "4. Keep notes and student_feedback concise (1 sentence).\n"
             "Return strict JSON with a result for every question_id below:\n"
         ]
@@ -897,7 +955,7 @@ class ExamGrader:
             blocks.append(
                 f"=== {question.question_id} ({question.question_type}, Max={question.max_marks}M) ===\n"
                 f"Q: {question.question_text}\n"
-                f"Model Answer: {question.model_answer}\n"
+                f"Official Model Answer: {question.model_answer}\n"
                 f"Key Points:\n{kp_str}\n"
                 f"Student Answer: {student_answer if student_answer.strip() else '[NO ANSWER]'}\n"
             )
@@ -926,18 +984,61 @@ class ExamGrader:
             out[item.question_id] = item.grade
         return out
 
+    def grade_single_question(
+        self,
+        question: RubricQuestion,
+        student_answer: str,
+        strictness_level: int | None = None,
+        page_numbers: list[int] | None = None,
+    ) -> QuestionGradeResult:
+        """Re-evaluate a single question after teacher edits its OCR text."""
+        lvl = max(1, min(10, int(strictness_level if strictness_level is not None else self.strictness_level)))
+        overall_sim, kp_sims = self.semantic_scorer.score_answer(student_answer, question)
+        grade_output: LLMGradeOutput | None = None
+        if not self.offline and self.api_key and student_answer.strip():
+            try:
+                grade_output = self._grade_with_gemini(
+                    question, student_answer, overall_sim, kp_sims, None, strictness_level=lvl
+                )
+            except Exception as exc:
+                logger.warning("Single question Gemini regrade fallback: %s", exc)
+        if grade_output is None:
+            grade_output = self._grade_offline(
+                question, student_answer, overall_sim, kp_sims, None, strictness_level=lvl
+            )
+        return QuestionGradeResult(
+            question_id=question.question_id,
+            question_type=question.question_type,
+            student_answer=student_answer,
+            page_numbers=page_numbers or [1],
+            semantic_similarity=overall_sim,
+            diagram_path=None,
+            diagram_evaluation=None,
+            step_wise_breakdown=grade_output.step_wise_breakdown,
+            missing_key_points=grade_output.missing_key_points,
+            marks_awarded=grade_output.marks_awarded,
+            max_marks=question.max_marks,
+            student_feedback=grade_output.student_feedback,
+        )
+
     def grade_exam(
-        self, ocr_result: "OCRPipelineResult", rubric: ExamRubric
+        self,
+        ocr_result: "OCRPipelineResult",
+        rubric: ExamRubric,
+        strictness_level: int | None = None,
     ) -> ExamGradingReport:
         """Map OCR text to rubric questions, evaluate diagrams, and grade in fast batches."""
         from concurrent.futures import ThreadPoolExecutor
+
+        lvl = max(1, min(10, int(strictness_level if strictness_level is not None else self.strictness_level)))
+        self.strictness_level = lvl
 
         mapped_answers, question_pages = parse_questions_with_pages(ocr_result.pages)
         used_diagrams: set[str] = set()
         is_short_submission = len(ocr_result.pages) <= 2
 
         prepared_items: list[
-            tuple[RubricQuestion, str, float, dict[str, float], Path | None, DiagramEvaluation | None]
+            tuple[RubricQuestion, str, float, dict[str, float], Path | None, DiagramEvaluation | None, list[int]]
         ] = []
         fast_ocr = None
 
@@ -947,7 +1048,7 @@ class ExamGrader:
             q_pages = question_pages.get(qid, [])
 
             diagram_path: Path | None = None
-            if (question.requires_diagram and is_short_submission) or (
+            if question.requires_diagram or (
                 is_short_submission
                 and any(p.page_number in q_pages and p.diagrams for p in ocr_result.pages)
             ):
@@ -966,7 +1067,7 @@ class ExamGrader:
                         diag_text = " ".join(r[1].strip() for r in d_res if r[1].strip())
                         if diag_text:
                             diag_clean = _clean_ocr_handwriting_text(diag_text)
-                            if diag_clean not in student_answer:
+                            if diag_clean and diag_clean not in student_answer:
                                 student_answer = f"{student_answer} {diag_clean}".strip()
                                 mapped_answers[qid] = student_answer
                 except Exception as exc:
@@ -990,21 +1091,21 @@ class ExamGrader:
 
             overall_sim, kp_sims = self.semantic_scorer.score_answer(student_answer, question)
             prepared_items.append(
-                (question, student_answer, overall_sim, kp_sims, diagram_path, diagram_eval)
+                (question, student_answer, overall_sim, kp_sims, diagram_path, diagram_eval, q_pages)
             )
 
         batch_grades: dict[str, LLMGradeOutput] = {}
         if not self.offline and self.api_key:
             to_grade_online = [
                 (q, ans, osim, ksims, deval)
-                for q, ans, osim, ksims, _, deval in prepared_items
+                for q, ans, osim, ksims, _, deval, _ in prepared_items
                 if ans.strip() or deval is not None
             ]
             if len(to_grade_online) <= 3:
                 for q, ans, osim, ksims, deval in to_grade_online:
                     try:
                         batch_grades[q.question_id] = self._grade_with_gemini(
-                            q, ans, osim, ksims, deval
+                            q, ans, osim, ksims, deval, strictness_level=lvl
                         )
                     except Exception as exc:
                         logger.warning("Gemini single grading fallback for %s: %s", q.question_id, exc)
@@ -1015,7 +1116,10 @@ class ExamGrader:
                     for i in range(0, len(to_grade_online), chunk_size)
                 ]
                 with ThreadPoolExecutor(max_workers=min(3, len(chunks))) as pool:
-                    futures = [pool.submit(self._grade_batch_with_gemini, chunk) for chunk in chunks]
+                    futures = [
+                        pool.submit(self._grade_batch_with_gemini, chunk, lvl)
+                        for chunk in chunks
+                    ]
                     for fut in futures:
                         try:
                             batch_grades.update(fut.result())
@@ -1023,18 +1127,19 @@ class ExamGrader:
                             logger.warning("Gemini batch grading fallback triggered: %s", exc)
 
         results: list[QuestionGradeResult] = []
-        for question, student_answer, overall_sim, kp_sims, diagram_path, diagram_eval in prepared_items:
+        for question, student_answer, overall_sim, kp_sims, diagram_path, diagram_eval, q_pages in prepared_items:
             qid = question.question_id
             grade_output = batch_grades.get(qid)
             if grade_output is None:
                 grade_output = self._grade_offline(
-                    question, student_answer, overall_sim, kp_sims, diagram_eval
+                    question, student_answer, overall_sim, kp_sims, diagram_eval, strictness_level=lvl
                 )
             results.append(
                 QuestionGradeResult(
                     question_id=qid,
                     question_type=question.question_type,
                     student_answer=student_answer,
+                    page_numbers=q_pages if q_pages else [1],
                     semantic_similarity=overall_sim,
                     diagram_path=str(diagram_path) if diagram_path else None,
                     diagram_evaluation=diagram_eval,
@@ -1052,6 +1157,7 @@ class ExamGrader:
         return ExamGradingReport(
             exam_title=rubric.exam_title,
             mode="offline_local" if self.offline else "online_gemini",
+            strictness_level=lvl,
             total_marks_awarded=total_awarded,
             total_max_marks=total_max,
             mapped_answers=mapped_answers,

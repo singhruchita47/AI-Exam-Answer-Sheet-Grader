@@ -5,19 +5,16 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Literal
+from typing import Any, Callable, Literal
 
 import cv2
 import numpy as np
-import torch
 from PIL import Image
-from transformers import TrOCRProcessor, VisionEncoderDecoderModel
 
 from config import (
     SEGMENTATION_CONFIG,
     TROCR_MODEL_NAME,
     SegmentationConfig,
-    get_device_and_dtype,
 )
 
 logger = logging.getLogger(__name__)
@@ -216,6 +213,7 @@ def _suppress_ruled_lines(
     deskewed_bgr: np.ndarray,
     deskewed_gray: np.ndarray,
     cfg: SegmentationConfig,
+    need_inpaint: bool = False,
 ) -> tuple[np.ndarray, np.ndarray]:
     """Remove horizontal ruled notebook lines and margin lines while preserving handwriting."""
     h, w = deskewed_gray.shape[:2]
@@ -264,11 +262,11 @@ def _suppress_ruled_lines(
         if col_ink[cx] > h * 0.18:
             clean_binary[:, max(0, cx - 4) : min(w, cx + 5)] = 0
 
-    # Inpaint erased line pixels on the color image for clean TrOCR line crops
-    if np.any(lines_to_remove > 0):
+    # Inpaint erased line pixels on the color image only when saving line crops for local TrOCR
+    if need_inpaint and np.any(lines_to_remove > 0):
         clean_for_ocr = cv2.inpaint(deskewed_bgr, lines_to_remove, 2, cv2.INPAINT_TELEA)
     else:
-        clean_for_ocr = deskewed_bgr.copy()
+        clean_for_ocr = deskewed_bgr
 
     return clean_binary, clean_for_ocr
 
@@ -365,12 +363,9 @@ def _segment_regions(
 ) -> tuple[list[BoundingBox], list[BoundingBox]]:
     """Segment foreground into sorted `text_line` and `diagram` bounding boxes.
     
-    Robust layout analysis:
-    1. Mask outer 2.5% image borders to eliminate scanner edge shadows.
-    2. Uses horizontal line projection across the body to detect individual text line baselines.
-    3. Distinguishes text sentence lines (high line width and ink density) from diagram drawing elements.
-    4. Clusters diagram drawings (circuits, leaves, organs) into unified diagrams.
-    5. Returns strictly sorted text lines and diagrams.
+    Eliminates false diagram detections on normal handwritten lines, underlined headings,
+    top printed page header frames, and notebook margin columns while accurately detecting
+    true non-text visual structures (leaves, circuits, graphs, maps).
     """
     page_h, page_w = clean_binary.shape[:2]
 
@@ -390,12 +385,12 @@ def _segment_regions(
     row_ink = np.sum(body_bin > 0, axis=1).astype(np.float32)
     sm = np.convolve(row_ink, np.ones(15, dtype=np.float32) / 15.0, mode="same")
     peaks, _ = scipy.signal.find_peaks(
-        sm, distance=int(page_h * 0.015), prominence=18
+        sm, distance=int(page_h * 0.015), prominence=15
     )
 
     row_boxes: list[tuple[int, int, int, int, int, float]] = []
     for pk in peaks:
-        if sm[pk] < 20:
+        if sm[pk] < 18:
             continue
         y1 = pk
         while y1 > 0 and sm[y1] > max(10.0, sm[pk] * 0.15) and pk - y1 < int(page_h * 0.025):
@@ -406,7 +401,7 @@ def _segment_regions(
 
         line_strip = masked_bin[y1:y2, 50 : page_w - 50]
         nz_cols = np.where(np.sum(line_strip > 0, axis=0) > 0)[0]
-        if len(nz_cols) >= 30:
+        if len(nz_cols) >= 25:
             lx = 50 + int(nz_cols[0])
             lw = int(nz_cols[-1] - nz_cols[0])
             lh = y2 - y1
@@ -418,7 +413,7 @@ def _segment_regions(
 
     for lx, ly, lw, lh, ink, peak_val in row_boxes:
         density = ink / float(lw * lh) if lw * lh > 0 else 0.0
-        # Sentence text line: wide line with solid ink density
+        # Wide sentence text line
         is_sentence = (lw >= int(page_w * 0.40) and peak_val >= 120) or (
             lw >= 250 and peak_val >= 80 and density >= 0.075
         )
@@ -431,68 +426,72 @@ def _segment_regions(
                 BoundingBox(x=lx, y=ly, w=lw, h=lh, stroke_density=density)
             )
 
-    # Cluster diagram strips into unified diagram boxes
+    # Cluster non-sentence strips and validate whether they form a TRUE 2D diagram
+    # vs short handwritten lines (headings like 'Answer no. - 01', MCQ options, True/False)
     unified_diagrams: list[BoundingBox] = []
+    clusters: list[list[BoundingBox]] = []
     if diagram_strips:
-        curr_d: list[BoundingBox] = [diagram_strips[0]]
+        curr_c: list[BoundingBox] = [diagram_strips[0]]
         for s in diagram_strips[1:]:
-            prev = curr_d[-1]
-            if s.y - prev.y2 <= int(page_h * 0.08):
-                curr_d.append(s)
+            if s.y - curr_c[-1].y2 <= int(page_h * 0.08):
+                curr_c.append(s)
             else:
-                d_h = curr_d[-1].y2 - curr_d[0].y
-                if d_h >= max(90, int(page_h * 0.08)):
-                    min_y = min(b.y for b in curr_d)
-                    max_y = max(b.y2 for b in curr_d)
-                    crop_d = masked_bin[min_y:max_y, 50 : page_w - 50]
-                    if np.count_nonzero(crop_d) >= 1000:
-                        row_p = np.sum(crop_d > 0, axis=1)
-                        act_r = np.where(row_p > 20)[0]
-                        if len(act_r) >= 40:
-                            ay1 = min_y + int(act_r[0])
-                            ay2 = min_y + int(act_r[-1])
-                            col_p = np.sum(masked_bin[ay1:ay2, 50 : page_w - 50] > 0, axis=0)
-                            act_c = np.where(col_p > 15)[0]
-                            if len(act_c) >= 60:
-                                min_x = 50 + int(act_c[0])
-                                max_x = 50 + int(act_c[-1])
-                                pad = 20
-                                if (max_x - min_x) >= max(320, int(page_w * 0.22)):
-                                    dw = (max_x - min_x) + 2 * pad
-                                    dh = (ay2 - ay1) + 2 * pad
-                                    dx = max(0, min_x - pad)
-                                    dy = max(0, ay1 - pad)
-                                    unified_diagrams.append(
-                                        BoundingBox(
-                                            x=dx,
-                                            y=dy,
-                                            w=min(page_w - dx, dw),
-                                            h=min(page_h - dy, dh),
-                                            stroke_density=float(np.count_nonzero(crop_d)) / max(dw * dh, 1),
-                                        )
-                                    )
-                curr_d = [s]
-        if curr_d:
-            d_h = curr_d[-1].y2 - curr_d[0].y
-            if d_h >= max(90, int(page_h * 0.08)):
-                min_y = min(b.y for b in curr_d)
-                max_y = max(b.y2 for b in curr_d)
-                crop_d = masked_bin[min_y:max_y, 50 : page_w - 50]
-                if np.count_nonzero(crop_d) >= 1000:
-                    row_p = np.sum(crop_d > 0, axis=1)
-                    act_r = np.where(row_p > 20)[0]
-                    if len(act_r) >= 40:
-                        ay1 = min_y + int(act_r[0])
-                        ay2 = min_y + int(act_r[-1])
-                        col_p = np.sum(masked_bin[ay1:ay2, 50 : page_w - 50] > 0, axis=0)
-                        act_c = np.where(col_p > 15)[0]
-                        if len(act_c) >= 60:
-                            min_x = 50 + int(act_c[0])
-                            max_x = 50 + int(act_c[-1])
-                            pad = 20
-                            if (max_x - min_x) >= max(320, int(page_w * 0.22)):
-                                dw = (max_x - min_x) + 2 * pad
-                                dh = (ay2 - ay1) + 2 * pad
+                clusters.append(curr_c)
+                curr_c = [s]
+        clusters.append(curr_c)
+
+    margin_x_cut = max(70, int(page_w * 0.13))
+
+    for curr_d in clusters:
+        min_y = min(b.y for b in curr_d)
+        max_y = max(b.y2 for b in curr_d)
+        d_h = max_y - min_y
+        is_valid_diagram = False
+
+        # True diagrams must not start in the top printed header zone and must have 2D height
+        if d_h >= max(160, int(page_h * 0.20)) and min_y >= int(page_h * 0.15):
+            crop_d = masked_bin[min_y:max_y, margin_x_cut : page_w - 50]
+            if np.count_nonzero(crop_d) >= 1200:
+                row_p = np.sum(crop_d > 0, axis=1)
+                act_r = np.where(row_p > 20)[0]
+                if len(act_r) >= 60:
+                    ay1 = min_y + int(act_r[0])
+                    ay2 = min_y + int(act_r[-1])
+                    span_h = max(1, ay2 - ay1)
+                    # Check vertical row continuity: stacked short text lines have blank valleys (<0.36)
+                    active_rows = np.sum(np.sum(masked_bin[ay1:ay2, margin_x_cut : page_w - 50] > 0, axis=1) > 5)
+                    vert_continuity = float(active_rows) / float(span_h)
+
+                    col_p = np.sum(masked_bin[ay1:ay2, margin_x_cut : page_w - 50] > 0, axis=0)
+                    act_c = np.where(col_p > 15)[0]
+                    if len(act_c) >= 80 and vert_continuity >= 0.38:
+                        min_x = margin_x_cut + int(act_c[0])
+                        max_x = margin_x_cut + int(act_c[-1])
+                        pad = 20
+                        dw = (max_x - min_x) + 2 * pad
+                        dh = (ay2 - ay1) + 2 * pad
+                        ar = dw / float(max(dh, 1))
+                        # Reject wide text paragraphs/tables (ar > 1.95 or full page width)
+                        if (
+                            0.30 <= ar <= 1.95
+                            and dw >= max(300, int(page_w * 0.22))
+                            and dw <= int(page_w * 0.78)
+                            and dh >= int(page_h * 0.22)
+                        ):
+                            dil_d = cv2.dilate(
+                                masked_bin[ay1:ay2, min_x:max_x],
+                                np.ones((9, 9), np.uint8),
+                                iterations=1,
+                            )
+                            num_cc, _, stats_cc, _ = cv2.connectedComponentsWithStats(
+                                dil_d, connectivity=8
+                            )
+                            has_tall_stroke = any(
+                                stats_cc[i, cv2.CC_STAT_HEIGHT] >= 85
+                                and stats_cc[i, cv2.CC_STAT_WIDTH] >= 75
+                                for i in range(1, num_cc)
+                            )
+                            if has_tall_stroke:
                                 dx = max(0, min_x - pad)
                                 dy = max(0, ay1 - pad)
                                 unified_diagrams.append(
@@ -504,13 +503,51 @@ def _segment_regions(
                                         stroke_density=float(np.count_nonzero(crop_d)) / max(dw * dh, 1),
                                     )
                                 )
+                                is_valid_diagram = True
 
-    # Final Text Lines: Retain lines NOT inside diagram boxes (check vertical span)
+        # Promote short handwritten text lines (headings, MCQ options, True/False) to text_candidates!
+        if not is_valid_diagram:
+            for b in curr_d:
+                if b.y >= int(page_h * 0.11) and b.w >= 55:
+                    text_candidates.append(b)
+
+    # Also detect single-component large 2D drawings (e.g. full-page maps/charts on portrait pages)
+    if not unified_diagrams and page_h > page_w:
+        x_start = int(page_w * 0.10)
+        x_end = int(page_w * 0.92)
+        dil_full = cv2.dilate(
+            masked_bin[:, x_start:x_end], np.ones((7, 7), np.uint8), iterations=1
+        )
+        num_f, _, stats_f, _ = cv2.connectedComponentsWithStats(dil_full, connectivity=8)
+        for i in range(1, num_f):
+            cw = int(stats_f[i, cv2.CC_STAT_WIDTH])
+            ch = int(stats_f[i, cv2.CC_STAT_HEIGHT])
+            carea = int(stats_f[i, cv2.CC_STAT_AREA])
+            cx = int(stats_f[i, cv2.CC_STAT_LEFT]) + x_start
+            cy = int(stats_f[i, cv2.CC_STAT_TOP])
+            ar_f = cw / float(max(ch, 1))
+            if (
+                ch >= int(page_h * 0.35)
+                and cw >= int(page_w * 0.45)
+                and 0.60 <= ar_f <= 1.65
+                and cy >= int(page_h * 0.15)
+            ):
+                unified_diagrams.append(
+                    BoundingBox(
+                        x=cx,
+                        y=cy,
+                        w=cw,
+                        h=ch,
+                        stroke_density=float(carea) / max(cw * ch, 1),
+                    )
+                )
+
+    # Final Text Lines: Retain lines NOT inside diagram boxes (check vertical & horizontal overlap)
     final_text_lines: list[BoundingBox] = []
     for l in text_candidates:
         l_cy = l.y + l.h / 2.0
         inside = any(
-            (d.y - 5 <= l_cy <= d.y2 + 5)
+            (d.y - 5 <= l_cy <= d.y2 + 5) and (_intersection_over_box_area(l, d) > 0.35)
             for d in unified_diagrams
         )
         if not inside:
@@ -648,9 +685,10 @@ class OCREngine:
     ) -> None:
         self.trocr_model_name = trocr_model_name
         self.cfg = cfg
-        self.device, self.dtype = get_device_and_dtype()
-        self._processor: TrOCRProcessor | None = None
-        self._model: VisionEncoderDecoderModel | None = None
+        self.device: str | None = None
+        self.dtype: Any = None
+        self._processor: Any = None
+        self._model: Any = None
         self._rapid_ocr: Any = None
 
     def _get_rapid_ocr(self) -> Any:
@@ -663,9 +701,13 @@ class OCREngine:
                 logger.warning("RapidOCR initialization failed: %s", exc)
         return self._rapid_ocr
 
-    def _ensure_model_loaded(self) -> tuple[TrOCRProcessor, VisionEncoderDecoderModel]:
+    def _ensure_model_loaded(self) -> tuple[Any, Any]:
         """Lazy-load TrOCR processor and model onto the detected compute device."""
         if self._processor is None or self._model is None:
+            from transformers import TrOCRProcessor, VisionEncoderDecoderModel
+            from config import get_device_and_dtype
+
+            self.device, self.dtype = get_device_and_dtype()
             logger.info(
                 "Loading TrOCR model '%s' on %s (%s)...",
                 self.trocr_model_name,
@@ -724,7 +766,7 @@ class OCREngine:
             deskewed_gray = denoised
 
         clean_binary, clean_for_ocr = _suppress_ruled_lines(
-            deskewed_bgr, deskewed_gray, self.cfg
+            deskewed_bgr, deskewed_gray, self.cfg, need_inpaint=save_line_crops
         )
         line_boxes, diagram_boxes = _segment_regions(clean_binary, self.cfg)
 
@@ -823,8 +865,13 @@ class OCREngine:
         lines = [r[1].strip() for r in res if r[1] and len(r[1].strip()) >= 2]
         return "\n".join(lines)
 
-    def _transcribe_pages_gemini(self, pages: list[PageOCRResult]) -> bool:
-        """Parallel multi-page Vision OCR using Gemini Flash Lite (~4-5s for 20 pages)."""
+    def _transcribe_pages_gemini(
+        self,
+        pages: list[PageOCRResult],
+        progress_callback: Callable[[dict[str, Any]], None] | None = None,
+    ) -> bool:
+        """Parallel multi-page Vision OCR using Gemini with retry and per-batch resilience."""
+        import time
         from concurrent.futures import ThreadPoolExecutor
         from pydantic import BaseModel
         from google import genai
@@ -847,36 +894,44 @@ class OCREngine:
 
         def _process_batch(batch: list[PageOCRResult]) -> dict[int, str]:
             contents: list[Any] = [
-                "Transcribe the student's handwritten English answers from each attached exam sheet page.\n"
+                "Transcribe the student's handwritten English answers from each attached exam sheet page into clean, accurate digital text.\n"
                 "CRITICAL RULES:\n"
-                "1. Ignore printed Hindi headers/stamps/cover tables completely.\n"
+                "1. Ignore printed Hindi headers/stamps/cover tables and any crossed-out (struck-through) words completely.\n"
                 "2. Whenever the student writes a main question/answer heading (such as 'Answer no. - 01', 'Answer no.-06 [or]', 'Ans 1.', 'Q2'), write it on its own line starting with 'Q1:', 'Q2:', 'Q6:', etc.\n"
-                "3. Preserve sub-items like (1), (2), (i), (ii), (a), (b), formulas, and diagram labels inside that question's text.\n"
+                "3. Accurately transcribe messy cursive handwriting, scientific formulas (e.g. V = IR, CO2, 6CO2 + 6H2O -> C6H12O6 + 6O2), short MCQ options ((a), (b)), True/False, fill-in-the-blanks, and diagram labels in exact top-to-bottom reading order.\n"
                 "4. Return strict JSON mapping each page_number to its transcript."
             ]
             for p in batch:
                 pil_img = Image.open(p.source_path).convert("RGB")
-                if pil_img.width > 850:
-                    ratio = 850.0 / float(pil_img.width)
-                    pil_img = pil_img.resize((850, int(pil_img.height * ratio)))
+                if pil_img.width > 900:
+                    ratio = 900.0 / float(pil_img.width)
+                    pil_img = pil_img.resize((900, int(pil_img.height * ratio)))
                 contents.append(f"--- PAGE {p.page_number} ---")
                 contents.append(pil_img)
 
-            resp = client.models.generate_content(
-                model=GEMINI_MODEL_NAME,
-                contents=contents,
-                config=types.GenerateContentConfig(
-                    response_mime_type="application/json",
-                    response_schema=BatchTranscript,
-                    temperature=0.0,
-                ),
-            )
-            parsed = (
-                BatchTranscript.model_validate(resp.parsed)
-                if resp.parsed is not None
-                else BatchTranscript.model_validate_json(resp.text)
-            )
-            return {item.page_number: item.transcript.strip() for item in parsed.pages}
+            for attempt in range(2):
+                try:
+                    resp = client.models.generate_content(
+                        model=GEMINI_MODEL_NAME,
+                        contents=contents,
+                        config=types.GenerateContentConfig(
+                            response_mime_type="application/json",
+                            response_schema=BatchTranscript,
+                            temperature=0.0,
+                        ),
+                    )
+                    parsed = (
+                        BatchTranscript.model_validate(resp.parsed)
+                        if resp.parsed is not None
+                        else BatchTranscript.model_validate_json(resp.text)
+                    )
+                    return {item.page_number: item.transcript.strip() for item in parsed.pages}
+                except Exception as exc:
+                    if attempt == 0:
+                        time.sleep(0.8)
+                    else:
+                        logger.warning("Gemini OCR batch failed: %s", exc)
+            return {}
 
         page_map: dict[int, str] = {}
         try:
@@ -885,7 +940,6 @@ class OCREngine:
                     page_map.update(batch_res)
         except Exception as exc:
             logger.warning("Gemini multi-page Vision OCR fallback triggered: %s", exc)
-            return False
 
         for p in pages:
             p.transcript = page_map.get(p.page_number, "")
@@ -917,6 +971,8 @@ class OCREngine:
         hit_count = sum(1 for t in transcripts if t)
         if needs_trocr_indices and len(crop_paths) <= 20 and hit_count < len(crop_paths) // 2:
             try:
+                import torch
+
                 processor, model = self._ensure_model_loaded()
                 batch_size = self.cfg.trocr_batch_size
                 for start in range(0, len(needs_trocr_indices), batch_size):
@@ -945,41 +1001,107 @@ class OCREngine:
         page_paths: list[str | Path],
         debug_dir: str | Path = "debug_crops",
         online_fast: bool = True,
+        progress_callback: Callable[[dict[str, Any]], None] | None = None,
     ) -> OCRPipelineResult:
-        """Segment all input pages and run fast Vision/RapidOCR transcription."""
+        """Segment all input pages and run fast Vision/RapidOCR/TrOCR transcription."""
         debug_root = Path(debug_dir)
         debug_root.mkdir(parents=True, exist_ok=True)
 
-        is_single_or_pair = len(page_paths) <= 2
+        total_pages = len(page_paths)
+        is_single_or_pair = total_pages <= 2
         save_crops = is_single_or_pair and not online_fast
-        fast_layout = online_fast and len(page_paths) > 3
 
         pages: list[PageOCRResult] = []
         all_line_regions: list[SegmentedRegion] = []
 
         for idx, page_path in enumerate(page_paths, start=1):
+            if progress_callback:
+                pct = int(5 + ((idx - 1) / max(total_pages, 1)) * 45)
+                msg = (
+                    f"Evaluating Page {idx} of {total_pages}..."
+                    if idx == 1
+                    else f"Page {idx - 1} Done ✔ → Now Evaluating Page {idx} of {total_pages}..."
+                )
+                progress_callback(
+                    {
+                        "type": "progress",
+                        "step": "page_segment",
+                        "page": idx,
+                        "total_pages": total_pages,
+                        "percent": pct,
+                        "message": msg,
+                    }
+                )
+
             page_result = self.segment_page(
                 page_path,
                 page_number=idx,
                 debug_dir=debug_root,
                 save_line_crops=save_crops,
-                fast_layout_only=fast_layout,
+                fast_layout_only=False,
             )
             pages.append(page_result)
             all_line_regions.extend(page_result.text_lines)
 
+            if progress_callback:
+                pct = int(5 + (idx / max(total_pages, 1)) * 45)
+                next_part = (
+                    f" → Now Evaluating Page {idx + 1} of {total_pages}..."
+                    if idx < total_pages
+                    else " → Layout Segmentation Complete!"
+                )
+                progress_callback(
+                    {
+                        "type": "progress",
+                        "step": "page_done",
+                        "page": idx,
+                        "total_pages": total_pages,
+                        "percent": pct,
+                        "lines_detected": len(page_result.text_lines),
+                        "diagrams_detected": len(page_result.diagrams),
+                        "message": f"Page {idx} of {total_pages} Done ✔ ({len(page_result.text_lines)} lines, {len(page_result.diagrams)} diagram){next_part}",
+                    }
+                )
+
         # Path 1: Fast Parallel Gemini Vision OCR (Online)
-        if online_fast and self._transcribe_pages_gemini(pages):
-            full_transcript = "\n".join(p.transcript for p in pages if p.transcript)
-            return OCRPipelineResult(
-                pages=pages,
-                full_transcript=full_transcript,
-                debug_dir=debug_root,
-            )
+        if online_fast:
+            if progress_callback:
+                progress_callback(
+                    {
+                        "type": "progress",
+                        "step": "ocr_vision",
+                        "page": total_pages,
+                        "total_pages": total_pages,
+                        "percent": 58,
+                        "message": f"Running Multimodal Vision Handwriting OCR across {total_pages} page(s)...",
+                    }
+                )
+            if self._transcribe_pages_gemini(pages, progress_callback=progress_callback):
+                # Fill any single missed page with RapidOCR if needed
+                for page in pages:
+                    if not page.transcript.strip() and page.text_lines:
+                        page.transcript = self._transcribe_page_rapidocr(page.source_path)
+                full_transcript = "\n".join(p.transcript for p in pages if p.transcript)
+                return OCRPipelineResult(
+                    pages=pages,
+                    full_transcript=full_transcript,
+                    debug_dir=debug_root,
+                )
 
         # Path 2: Offline Multi-page Whole-Page RapidOCR (1 pass per page instead of 200 crop calls)
         if not save_crops:
-            for page in pages:
+            for idx, page in enumerate(pages, start=1):
+                if progress_callback:
+                    progress_callback(
+                        {
+                            "type": "progress",
+                            "step": "ocr_local",
+                            "page": idx,
+                            "total_pages": total_pages,
+                            "percent": int(55 + (idx / max(total_pages, 1)) * 20),
+                            "message": f"Transcribing Page {idx} of {total_pages} (Local OCR)...",
+                        }
+                    )
                 page.transcript = self._transcribe_page_rapidocr(page.source_path)
             full_transcript = "\n".join(p.transcript for p in pages if p.transcript)
             return OCRPipelineResult(
