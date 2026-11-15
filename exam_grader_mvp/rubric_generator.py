@@ -83,6 +83,7 @@ class RubricGenerator:
         subject: str = "Science",
         total_marks: float = 5.0,
         question_image_path: str | Path | None = None,
+        question_images: list[Image.Image] | None = None,
         question_text: str | None = None,
         teacher_hints: str = "",
         force_offline: bool = False,
@@ -94,6 +95,7 @@ class RubricGenerator:
                     subject=subject,
                     total_marks=total_marks,
                     question_image_path=question_image_path,
+                    question_images=question_images,
                     question_text=question_text,
                     teacher_hints=teacher_hints,
                 )
@@ -116,10 +118,11 @@ class RubricGenerator:
         subject: str,
         total_marks: float,
         question_image_path: str | Path | None,
+        question_images: list[Image.Image] | None,
         question_text: str | None,
         teacher_hints: str,
     ) -> ExamRubric:
-        """Call Gemini 2.5 Flash with structured Pydantic output to create the rubric."""
+        """Call Gemini Flash with structured Pydantic output to create the rubric."""
         from google import genai
         from google.genai import types
 
@@ -128,7 +131,7 @@ class RubricGenerator:
 
         prompt_parts: list[str] = [
             f"You are a Chief Academic Examiner and Curriculum Specialist in '{subject}'.",
-            "The teacher has provided an exam question (via attached image and/or text), the subject, and total marks.",
+            "The teacher has provided an exam question paper (via attached image(s) and/or text), the subject, and target marks.",
             f"Subject: {subject}",
             f"Target Total Marks: {total_marks}",
         ]
@@ -143,22 +146,20 @@ class RubricGenerator:
         prompt_parts.extend(
             [
                 "\nINSTRUCTIONS FOR RUBRIC GENERATION:",
-                "CRITICAL BILINGUAL RULE: The exam paper contains both Hindi and English. COMPLETELY IGNORE all Hindi (Devanagari) text. Formulate, transcribe, and generate all questions and model answers EXCLUSIVELY in English.",
-                "1. Accurately transcribe or extract each question from the English portions of the image or text.",
-                "2. Assign question_id sequentially: Q1, Q2, etc.",
-                "3. Classify and set the question_type for EACH question accurately:",
-                "   - 'mcq' : For Multiple Choice Questions with options (a), (b), (c), (d). Set model_answer to include the correct option letter & text e.g. '(B) Mitochondria', with 1 key point (weight 1.0).",
-                "   - 'fill_blank' : For Fill in the Blanks questions (with '_____'). Set model_answer to the missing target word/phrase, with 1 key point (weight 1.0).",
-                "   - 'one_word' : For One Word / Very Short Questions. Set model_answer to the concise target term, with 1 key point (weight 1.0).",
-                "   - 'short_answer' : For Short conceptual questions (2-3 marks). Provide 2-3 detailed key points.",
-                "   - 'long_answer' : For Long descriptive/analytical questions (4-5+ marks). Provide 3-5 comprehensive key points.",
-                "4. Write a comprehensive, gold-standard model_answer for each question.",
-                "5. Detect whether the question asks the student to draw/sketch/construct any visual element (diagram, circuit, graph, chart, labeled anatomy, etc.):",
-                "   - Set requires_diagram = true if drawing is requested or essential.",
-                "   - If true, specify precise diagram_criteria detailing required components, standard symbols, and expected labels.",
-                "   - If false, set requires_diagram = false and diagram_criteria = ''.",
-                "6. Distribute max_marks across questions so their sum equals exactly the Target Total Marks.",
-                f"7. Set exam_title to '{subject} Examination Rubric'.",
+                "CRITICAL BILINGUAL RULE: The exam paper may contain both Hindi and English. COMPLETELY IGNORE all Hindi (Devanagari) text and cover-page instructions. Extract and formulate all questions and model answers EXCLUSIVELY in English.",
+                "1. Accurately extract each main question from the English portions of the paper, preserving its main numbering as Q1, Q2, Q3, etc.",
+                "2. If a main question (like Q1..Q5 in board papers) contains multiple sub-items (e.g. (i)..(vi) or (1)..(6) worth 1 mark each), keep it as ONE main question (e.g. Q1 with max_marks=6) and create 1 key_point per sub-item with its expected answer.",
+                "3. If a question has an internal '[OR]' choice, include both the main question and the '[OR]' option in question_text and model_answer so a student answering EITHER option gets full credit.",
+                "4. Classify question_type for EACH question:",
+                "   - 'mcq' : For Multiple Choice Questions.",
+                "   - 'fill_blank' : For Fill in the Blanks questions.",
+                "   - 'one_word' : For One Word / One Sentence / True-False / Match-column objective questions.",
+                "   - 'short_answer' : For Short conceptual questions (2-3 marks). Provide 2-3 concise key points.",
+                "   - 'long_answer' : For Long descriptive/analytical questions (4+ marks). Provide 3-4 concise key points.",
+                "5. Keep question_text, model_answer, and key_point descriptions concise and clear so generation is fast.",
+                "6. Set requires_diagram = true ONLY if the question explicitly asks the student to draw/sketch a diagram or map.",
+                "7. Use the printed marks from the question paper if visible; otherwise distribute Target Total Marks.",
+                f"8. Set exam_title to '{subject} Examination Rubric'.",
                 "\nReturn strict JSON matching the ExamRubric schema.",
             ]
         )
@@ -166,7 +167,9 @@ class RubricGenerator:
         full_prompt = "\n".join(prompt_parts)
         contents: list[Any] = [full_prompt]
 
-        if question_image_path:
+        if question_images:
+            contents.extend(question_images)
+        elif question_image_path:
             img_path = Path(question_image_path)
             if img_path.exists():
                 pil_img = Image.open(img_path).convert("RGB")
@@ -187,9 +190,13 @@ class RubricGenerator:
         else:
             rubric = ExamRubric.model_validate_json(response.text)
 
-        # Ensure total marks match requested target marks
+        # Ensure total marks match requested target marks unless a multi-question paper defines its own total
         current_sum = sum(q.max_marks for q in rubric.questions)
-        if current_sum > 0 and abs(current_sum - total_marks) > 0.01:
+        if (
+            current_sum > 0
+            and abs(current_sum - total_marks) > 0.01
+            and not (len(rubric.questions) >= 4 and total_marks <= 10.0 and current_sum > 15.0)
+        ):
             ratio = total_marks / current_sum
             for q in rubric.questions:
                 q.max_marks = round(q.max_marks * ratio, 2)

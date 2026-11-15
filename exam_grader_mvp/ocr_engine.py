@@ -639,7 +639,7 @@ def _crop_with_padding(
 
 
 class OCREngine:
-    """Handles OpenCV layout segmentation and batched TrOCR handwriting transcription."""
+    """Handles OpenCV layout segmentation and fast hybrid handwriting transcription."""
 
     def __init__(
         self,
@@ -651,6 +651,17 @@ class OCREngine:
         self.device, self.dtype = get_device_and_dtype()
         self._processor: TrOCRProcessor | None = None
         self._model: VisionEncoderDecoderModel | None = None
+        self._rapid_ocr: Any = None
+
+    def _get_rapid_ocr(self) -> Any:
+        if self._rapid_ocr is None:
+            try:
+                from rapidocr_onnxruntime import RapidOCR
+
+                self._rapid_ocr = RapidOCR()
+            except Exception as exc:
+                logger.warning("RapidOCR initialization failed: %s", exc)
+        return self._rapid_ocr
 
     def _ensure_model_loaded(self) -> tuple[TrOCRProcessor, VisionEncoderDecoderModel]:
         """Lazy-load TrOCR processor and model onto the detected compute device."""
@@ -671,7 +682,12 @@ class OCREngine:
         return self._processor, self._model
 
     def segment_page(
-        self, page_path: str | Path, page_number: int, debug_dir: Path
+        self,
+        page_path: str | Path,
+        page_number: int,
+        debug_dir: Path,
+        save_line_crops: bool = True,
+        fast_layout_only: bool = False,
     ) -> PageOCRResult:
         """Preprocess one page, suppress ruled lines, segment regions, and save debug crops."""
         src_path = Path(page_path)
@@ -679,14 +695,25 @@ class OCREngine:
         if bgr is None:
             raise FileNotFoundError(f"Could not read page image: {src_path}")
 
+        if fast_layout_only:
+            h, w = bgr.shape[:2]
+            if w > 900:
+                scale = 900.0 / float(w)
+                bgr = cv2.resize(bgr, (900, int(round(h * scale))), interpolation=cv2.INTER_AREA)
+            layout_path = debug_dir / f"page_{page_number}_layout.png"
+            cv2.imwrite(str(layout_path), bgr)
+            return PageOCRResult(
+                page_number=page_number,
+                source_path=src_path,
+                layout_image_path=layout_path,
+                skew_angle_deg=0.0,
+                text_lines=[],
+                diagrams=[],
+            )
+
         bgr = _resize_if_needed(bgr, self.cfg)
         gray = cv2.cvtColor(bgr, cv2.COLOR_BGR2GRAY)
-        denoised = cv2.bilateralFilter(
-            gray,
-            d=self.cfg.bilateral_d,
-            sigmaColor=self.cfg.bilateral_sigma_color,
-            sigmaSpace=self.cfg.bilateral_sigma_space,
-        )
+        denoised = cv2.GaussianBlur(gray, (3, 3), 0)
 
         skew_angle = _estimate_skew_angle(denoised, self.cfg)
         if abs(skew_angle) > 0.0:
@@ -714,8 +741,9 @@ class OCREngine:
         for idx, box in enumerate(line_boxes, start=1):
             region_id = f"line_{idx:03d}"
             crop_path = page_crop_dir / f"{region_id}.png"
-            crop = _crop_with_padding(clean_for_ocr, box, self.cfg.text_line_padding_px)
-            cv2.imwrite(str(crop_path), crop)
+            if save_line_crops:
+                crop = _crop_with_padding(clean_for_ocr, box, self.cfg.text_line_padding_px)
+                cv2.imwrite(str(crop_path), crop)
 
             text_regions.append(
                 SegmentedRegion(
@@ -777,23 +805,103 @@ class OCREngine:
             diagrams=diagram_regions,
         )
 
+    def _transcribe_page_rapidocr(self, page_path: str | Path) -> str:
+        """Whole-page RapidOCR transcription (runs 1 pass per page instead of 20 passes on crops)."""
+        fast_ocr = self._get_rapid_ocr()
+        if fast_ocr is None:
+            return ""
+        bgr = cv2.imread(str(page_path))
+        if bgr is None:
+            return ""
+        h, w = bgr.shape[:2]
+        if w > 1100:
+            scale = 1100.0 / float(w)
+            bgr = cv2.resize(bgr, (1100, int(round(h * scale))), interpolation=cv2.INTER_AREA)
+        res, _ = fast_ocr(bgr)
+        if not res:
+            return ""
+        lines = [r[1].strip() for r in res if r[1] and len(r[1].strip()) >= 2]
+        return "\n".join(lines)
+
+    def _transcribe_pages_gemini(self, pages: list[PageOCRResult]) -> bool:
+        """Parallel multi-page Vision OCR using Gemini Flash Lite (~4-5s for 20 pages)."""
+        from concurrent.futures import ThreadPoolExecutor
+        from pydantic import BaseModel
+        from google import genai
+        from google.genai import types
+        from config import GEMINI_API_KEY, GEMINI_MODEL_NAME
+
+        if not GEMINI_API_KEY:
+            return False
+
+        class PageItem(BaseModel):
+            page_number: int
+            transcript: str
+
+        class BatchTranscript(BaseModel):
+            pages: list[PageItem]
+
+        client = genai.Client(api_key=GEMINI_API_KEY)
+        batch_size = 10
+        batches = [pages[i : i + batch_size] for i in range(0, len(pages), batch_size)]
+
+        def _process_batch(batch: list[PageOCRResult]) -> dict[int, str]:
+            contents: list[Any] = [
+                "Transcribe the student's handwritten English answers from each attached exam sheet page.\n"
+                "CRITICAL RULES:\n"
+                "1. Ignore printed Hindi headers/stamps/cover tables completely.\n"
+                "2. Whenever the student writes a main question/answer heading (such as 'Answer no. - 01', 'Answer no.-06 [or]', 'Ans 1.', 'Q2'), write it on its own line starting with 'Q1:', 'Q2:', 'Q6:', etc.\n"
+                "3. Preserve sub-items like (1), (2), (i), (ii), (a), (b), formulas, and diagram labels inside that question's text.\n"
+                "4. Return strict JSON mapping each page_number to its transcript."
+            ]
+            for p in batch:
+                pil_img = Image.open(p.source_path).convert("RGB")
+                if pil_img.width > 850:
+                    ratio = 850.0 / float(pil_img.width)
+                    pil_img = pil_img.resize((850, int(pil_img.height * ratio)))
+                contents.append(f"--- PAGE {p.page_number} ---")
+                contents.append(pil_img)
+
+            resp = client.models.generate_content(
+                model=GEMINI_MODEL_NAME,
+                contents=contents,
+                config=types.GenerateContentConfig(
+                    response_mime_type="application/json",
+                    response_schema=BatchTranscript,
+                    temperature=0.0,
+                ),
+            )
+            parsed = (
+                BatchTranscript.model_validate(resp.parsed)
+                if resp.parsed is not None
+                else BatchTranscript.model_validate_json(resp.text)
+            )
+            return {item.page_number: item.transcript.strip() for item in parsed.pages}
+
+        page_map: dict[int, str] = {}
+        try:
+            with ThreadPoolExecutor(max_workers=min(3, len(batches))) as pool:
+                for batch_res in pool.map(_process_batch, batches):
+                    page_map.update(batch_res)
+        except Exception as exc:
+            logger.warning("Gemini multi-page Vision OCR fallback triggered: %s", exc)
+            return False
+
+        for p in pages:
+            p.transcript = page_map.get(p.page_number, "")
+        return any(bool(p.transcript) for p in pages)
+
     def transcribe_lines(self, crop_paths: list[Path]) -> list[str]:
-        """Fast hybrid line transcription: RapidOCR (C++ ONNX, ~10ms/line) with TrOCR fallback."""
+        """Fast hybrid line transcription: cached RapidOCR with selective TrOCR fallback."""
         if not crop_paths:
             return []
 
-        try:
-            from rapidocr_onnxruntime import RapidOCR
-
-            fast_ocr = RapidOCR()
-        except Exception:
-            fast_ocr = None
-
+        fast_ocr = self._get_rapid_ocr()
         transcripts: list[str] = [""] * len(crop_paths)
         needs_trocr_indices: list[int] = []
 
         for idx, path in enumerate(crop_paths):
-            if fast_ocr is not None:
+            if fast_ocr is not None and path.exists():
                 try:
                     res, _ = fast_ocr(str(path))
                     if res:
@@ -805,8 +913,9 @@ class OCREngine:
                     pass
             needs_trocr_indices.append(idx)
 
-        # If any lines were missed by RapidOCR, run TrOCR on those remaining lines
-        if needs_trocr_indices:
+        # Only invoke heavy CPU TrOCR if RapidOCR missed most lines on a short 1-2 page submission
+        hit_count = sum(1 for t in transcripts if t)
+        if needs_trocr_indices and len(crop_paths) <= 20 and hit_count < len(crop_paths) // 2:
             try:
                 processor, model = self._ensure_model_loaded()
                 batch_size = self.cfg.trocr_batch_size
@@ -832,20 +941,54 @@ class OCREngine:
         return transcripts
 
     def process_pages(
-        self, page_paths: list[str | Path], debug_dir: str | Path = "debug_crops"
+        self,
+        page_paths: list[str | Path],
+        debug_dir: str | Path = "debug_crops",
+        online_fast: bool = True,
     ) -> OCRPipelineResult:
-        """Segment all input pages and run batched TrOCR on all detected text lines."""
+        """Segment all input pages and run fast Vision/RapidOCR transcription."""
         debug_root = Path(debug_dir)
         debug_root.mkdir(parents=True, exist_ok=True)
+
+        is_single_or_pair = len(page_paths) <= 2
+        save_crops = is_single_or_pair and not online_fast
+        fast_layout = online_fast and len(page_paths) > 3
 
         pages: list[PageOCRResult] = []
         all_line_regions: list[SegmentedRegion] = []
 
         for idx, page_path in enumerate(page_paths, start=1):
-            page_result = self.segment_page(page_path, page_number=idx, debug_dir=debug_root)
+            page_result = self.segment_page(
+                page_path,
+                page_number=idx,
+                debug_dir=debug_root,
+                save_line_crops=save_crops,
+                fast_layout_only=fast_layout,
+            )
             pages.append(page_result)
             all_line_regions.extend(page_result.text_lines)
 
+        # Path 1: Fast Parallel Gemini Vision OCR (Online)
+        if online_fast and self._transcribe_pages_gemini(pages):
+            full_transcript = "\n".join(p.transcript for p in pages if p.transcript)
+            return OCRPipelineResult(
+                pages=pages,
+                full_transcript=full_transcript,
+                debug_dir=debug_root,
+            )
+
+        # Path 2: Offline Multi-page Whole-Page RapidOCR (1 pass per page instead of 200 crop calls)
+        if not save_crops:
+            for page in pages:
+                page.transcript = self._transcribe_page_rapidocr(page.source_path)
+            full_transcript = "\n".join(p.transcript for p in pages if p.transcript)
+            return OCRPipelineResult(
+                pages=pages,
+                full_transcript=full_transcript,
+                debug_dir=debug_root,
+            )
+
+        # Path 3: Offline 1-2 page crop-level RapidOCR + TrOCR fallback
         if all_line_regions:
             line_texts = self.transcribe_lines([r.crop_path for r in all_line_regions])
             for region, text in zip(all_line_regions, line_texts):

@@ -107,6 +107,7 @@ async def api_generate_rubric(
 ) -> dict[str, Any]:
     """Generate structured grading rubric automatically from teacher's question photo or text."""
     image_path: Path | None = None
+    question_images: list[Any] | None = None
     if use_sample_question:
         image_path = BASE_DIR / "sample_question_paper.jpg"
         if not image_path.exists():
@@ -121,7 +122,6 @@ async def api_generate_rubric(
         if file_ext == ".pdf":
             import numpy as np
             import pypdfium2 as pdfium
-            from rapidocr_onnxruntime import RapidOCR
 
             pdf_path = q_dir / f"question{file_ext}"
             with pdf_path.open("wb") as f:
@@ -129,29 +129,33 @@ async def api_generate_rubric(
             doc = pdfium.PdfDocument(pdf_path)
 
             extracted_chunks: list[str] = []
-            rapid_ocr: RapidOCR | None = None
-
-            # Scan up to 30 question pages (handles full board booklets)
-            max_p = min(len(doc), 30)
+            max_p = min(len(doc), 25)
             for p_idx in range(max_p):
-                page = doc[p_idx]
-                tp = page.get_textpage()
+                tp = doc[p_idx].get_textpage()
                 p_text = tp.get_text_range().strip()
                 if len(p_text) > 40:
                     extracted_chunks.append(p_text)
-                else:
-                    if rapid_ocr is None:
-                        rapid_ocr = RapidOCR()
-                    pil_img = page.render(scale=1.5).to_pil()
-                    res, _ = rapid_ocr(np.array(pil_img))
-                    if res:
-                        lines = [r[1].strip() for r in res if r[1].strip()]
-                        extracted_chunks.append("\n".join(lines))
 
             if len(doc) > 0:
-                first_page = doc[0].render(scale=1.5).to_pil()
+                first_page = doc[0].render(scale=1.2).to_pil()
                 image_path = q_dir / "question_page_1.jpg"
-                first_page.save(image_path, "JPEG", quality=90)
+                first_page.save(image_path, "JPEG", quality=88)
+
+            # If scanned PDF (no embedded text): pass page images directly to Gemini VLM (saves 60s of CPU OCR)
+            if not extracted_chunks:
+                if not offline and GEMINI_API_KEY:
+                    question_images = [doc[p_idx].render(scale=1.0).to_pil() for p_idx in range(max_p)]
+                else:
+                    from rapidocr_onnxruntime import RapidOCR
+
+                    rapid_ocr = RapidOCR()
+                    for p_idx in range(min(max_p, 8)):
+                        pil_img = doc[p_idx].render(scale=1.0).to_pil()
+                        res, _ = rapid_ocr(np.array(pil_img))
+                        if res:
+                            lines = [r[1].strip() for r in res if r[1].strip()]
+                            extracted_chunks.append("\n".join(lines))
+
             doc.close()
 
             if not question_text and extracted_chunks:
@@ -169,6 +173,7 @@ async def api_generate_rubric(
             subject=subject,
             total_marks=total_marks,
             question_image_path=image_path,
+            question_images=question_images,
             question_text=question_text,
             teacher_hints=teacher_hints,
             force_offline=offline,
@@ -233,9 +238,9 @@ async def api_grade(
                 try:
                     doc = pdfium.PdfDocument(pdf_dest)
                     for page_idx in range(len(doc)):
-                        page_img = doc[page_idx].render(scale=2.0).to_pil()
+                        page_img = doc[page_idx].render(scale=1.3).to_pil()
                         img_path = session_upload_dir / f"page_{page_counter}.jpg"
-                        page_img.save(img_path, "JPEG", quality=95)
+                        page_img.save(img_path, "JPEG", quality=88)
                         page_paths.append(img_path)
                         page_counter += 1
                     doc.close()
@@ -254,7 +259,10 @@ async def api_grade(
 
     try:
         engine = get_ocr_engine()
-        ocr_result = engine.process_pages(page_paths, debug_dir=session_crops_dir)
+        online_fast = not offline and bool(GEMINI_API_KEY)
+        ocr_result = engine.process_pages(
+            page_paths, debug_dir=session_crops_dir, online_fast=online_fast
+        )
 
         grader = ExamGrader(offline=offline)
         grader.semantic_scorer = get_semantic_scorer()

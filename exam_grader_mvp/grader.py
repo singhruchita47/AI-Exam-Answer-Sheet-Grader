@@ -123,28 +123,36 @@ class ExamGradingReport(BaseModel):
 # ---------------------------------------------------------------------------
 # Regex Question Boundary Segmentation
 # ---------------------------------------------------------------------------
-_QUESTION_MARKER_PATTERNS: tuple[re.Pattern[str], ...] = (
-    # Matches: Q1, Q.1, Q 1:, Q1), Q. 2 -, Question 1:, Q!, Question 1.
+_EXPLICIT_MARKER_PATTERNS: tuple[re.Pattern[str], ...] = (
+    # Matches: Q1, Q.1, Q. No. 1, Question no. - 01, Q1), Question 1:
     re.compile(
-        r"^\s*Q(?:uestion)?\s*[\.\-:#]?\s*([0-9]{1,2}|[!lI|])\s*[\)\.\-:#]*(?:\s+(.*))?$",
+        r"^\s*Q(?:uestion)?\s*(?:no\.?|number)?\s*[\.\-:#]?\s*0*([0-9]{1,2}|[!lI|])\s*(?:\[?\s*or\s*\]?|\(\s*or\s*\))?\s*[\)\.\-:#]*(?:\s+(.*))?$",
         re.IGNORECASE,
     ),
-    # Matches: Ans 1, Ans. 1, Answer 2, Ans1., ns 1, ins 2, as 1, ms 1, s 1, A1, A.1
+    # Matches: Answer no. - 01, Answer no.-06 [or], Ans. No. 2, Ans 1, ns 1, ins 2
     re.compile(
-        r"^\s*(?:ans(?:wer)?|[a-z]{0,2}[ns]|[a-z]?s|[Aa])\s*[\.\-:#\s]\s*([0-9]{1,2}|[!lI|])\s*(?:[\.\-:#]\s*(?:[0-9]{1,2}\b)?)?\s*[\)\.\-:#]*(?:\s*(.*))?$",
+        r"^\s*(?:ans(?:wer)?|an[a-z]{2,5}|[a-z]{0,2}[ns]|[a-z]?s|[Aa])\s*(?:no\.?|m?no\.?|number)?\s*[\.\-:#\s]+\s*0*([0-9]{1,2}|[!lI|])\s*(?:\[?\s*or\s*\]?|\(\s*or\s*\))?\s*(?:[\.\-:#]\s*(?:[0-9]{1,2}\b)?)?\s*[\)\.\-:#]*(?:\s*(.*))?$",
         re.IGNORECASE,
     ),
     # Also matches Ans1, Ans2 (no space) with digits
     re.compile(
-        r"^\s*(?:ans(?:wer)?|[a-z]{0,2}[ns]|[a-z]?s|[Aa])([0-9]{1,2})\s*(?:[\.\-:#]\s*(?:[0-9]{1,2}\b)?)?\s*[\)\.\-:#]*(?:\s*(.*))?$",
+        r"^\s*(?:ans(?:wer)?|[a-z]{0,2}[ns]|[a-z]?s|[Aa])0*([0-9]{1,2})\s*(?:\[?\s*or\s*\]?)?\s*(?:[\.\-:#]\s*(?:[0-9]{1,2}\b)?)?\s*[\)\.\-:#]*(?:\s*(.*))?$",
         re.IGNORECASE,
     ),
+)
+
+_BARE_MARKER_PATTERNS: tuple[re.Pattern[str], ...] = (
     # Matches: (1), (2), (10)
-    re.compile(r"^\s*\(([0-9]{1,2}|[!lI|])\)\s*(.*)$"),
+    re.compile(r"^\s*\(0*([0-9]{1,2}|[!lI|])\)\s*(.*)$"),
     # Matches: 1), 2:, 1 ) or 1 - Text
-    re.compile(r"^\s*([0-9]{1,2})\s*[\)\:\-–]\s*(.*)$"),
+    re.compile(r"^\s*0*([0-9]{1,2})\s*[\)\:\-–]\s*(.*)$"),
     # Matches: 1. Text... (requires dot + space to avoid decimals like 1.5)
-    re.compile(r"^\s*([0-9]{1,2})\.\s+(.*)$"),
+    re.compile(r"^\s*0*([0-9]{1,2})\.\s+(.*)$"),
+)
+
+_QUESTION_MARKER_PATTERNS: tuple[re.Pattern[str], ...] = (
+    *_EXPLICIT_MARKER_PATTERNS,
+    *_BARE_MARKER_PATTERNS,
 )
 
 
@@ -164,12 +172,15 @@ def _clean_ocr_handwriting_text(text: str) -> str:
     return text
 
 
-def _match_question_marker(line: str) -> tuple[str, str] | None:
+def _match_question_marker(
+    line: str, explicit_only: bool = False
+) -> tuple[str, str] | None:
     """Return normalized (question_id, remainder_text) if line starts with a marker."""
     stripped = line.strip()
     if not stripped:
         return None
-    for pattern in _QUESTION_MARKER_PATTERNS:
+    patterns = _EXPLICIT_MARKER_PATTERNS if explicit_only else _QUESTION_MARKER_PATTERNS
+    for pattern in patterns:
         match = pattern.match(stripped)
         if match:
             raw_num = match.group(1).strip()
@@ -182,7 +193,12 @@ def _match_question_marker(line: str) -> tuple[str, str] | None:
                     continue
             if 1 <= q_num <= 50:
                 remainder = (match.group(2) or "").strip()
-                remainder = re.sub(r"^[\.\(\)\-–!|:\s]+(?:\d{1,2}\s*[\.\)]\s*)?", "", remainder).strip()
+                remainder = re.sub(
+                    r"^(?:\[?\s*or\s*\]?|\(\s*or\s*\)|[\.\(\)\-–!|:\s])+(?:\d{1,2}\s*[\.\)]\s*)?",
+                    "",
+                    remainder,
+                    flags=re.IGNORECASE,
+                ).strip()
                 remainder = _clean_ocr_handwriting_text(remainder)
                 return f"Q{q_num}", remainder
     return None
@@ -192,12 +208,11 @@ def parse_questions(full_text: str) -> dict[str, str]:
     """Split continuous reconstructed OCR text into a {question_id: answer_text} map."""
     mapped: dict[str, list[str]] = {}
     current_qid: str = "Q1"  # Default start to Q1 so top text is never discarded
+    lines = [raw.strip() for raw in full_text.splitlines() if raw.strip()]
+    has_explicit = any(_match_question_marker(l, explicit_only=True) is not None for l in lines)
 
-    for raw_line in full_text.splitlines():
-        line = raw_line.strip()
-        if not line:
-            continue
-        marker = _match_question_marker(line)
+    for line in lines:
+        marker = _match_question_marker(line, explicit_only=has_explicit)
         if marker is not None:
             current_qid, remainder = marker
             mapped.setdefault(current_qid, [])
@@ -205,10 +220,11 @@ def parse_questions(full_text: str) -> dict[str, str]:
                 mapped[current_qid].append(remainder)
         else:
             cleaned_line = _clean_ocr_handwriting_text(line)
-            mapped.setdefault(current_qid, []).append(cleaned_line)
+            if cleaned_line:
+                mapped.setdefault(current_qid, []).append(cleaned_line)
 
     if not mapped and full_text.strip():
-        return {"Q1": _clean_ocr_handwriting_text(" ".join([l.strip() for l in full_text.splitlines() if l.strip()]))}
+        return {"Q1": _clean_ocr_handwriting_text(" ".join(lines))}
 
     return {qid: " ".join(parts).strip() for qid, parts in mapped.items()}
 
@@ -221,12 +237,22 @@ def parse_questions_with_pages(
     question_pages: dict[str, list[int]] = {}
     current_qid: str = "Q1"  # Default start to Q1 so opening text is NEVER lost
 
+    all_lines = [
+        raw.strip()
+        for page in pages
+        for raw in page.transcript.splitlines()
+        if raw.strip()
+    ]
+    has_explicit = any(
+        _match_question_marker(l, explicit_only=True) is not None for l in all_lines
+    )
+
     for page in pages:
         for raw_line in page.transcript.splitlines():
             line = raw_line.strip()
             if not line:
                 continue
-            marker = _match_question_marker(line)
+            marker = _match_question_marker(line, explicit_only=has_explicit)
             if marker is not None:
                 current_qid, remainder = marker
                 mapped.setdefault(current_qid, [])
@@ -237,6 +263,8 @@ def parse_questions_with_pages(
                     mapped[current_qid].append(remainder)
             else:
                 cleaned_line = _clean_ocr_handwriting_text(line)
+                if not cleaned_line:
+                    continue
                 mapped.setdefault(current_qid, [])
                 question_pages.setdefault(current_qid, [])
                 if page.page_number not in question_pages[current_qid]:
@@ -611,7 +639,11 @@ class ExamGrader:
         diagram_eval: DiagramEvaluation | None,
     ) -> LLMGradeOutput:
         """Deterministic local heuristic rubric scorer using MiniLM + diagram structure."""
-        if question.question_type in ("mcq", "fill_blank", "one_word"):
+        if (
+            question.question_type in ("mcq", "fill_blank", "one_word")
+            and len(question.key_points) <= 1
+            and question.max_marks <= 1.5
+        ):
             return _grade_objective_answer(question, student_answer)
 
         text_budget = (
@@ -712,8 +744,12 @@ class ExamGrader:
         kp_sims: dict[str, float],
         diagram_eval: DiagramEvaluation | None,
     ) -> LLMGradeOutput:
-        """Use Gemini 2.5 Flash with Pydantic structured output for step-wise grading."""
-        if question.question_type in ("mcq", "fill_blank", "one_word"):
+        """Use Gemini Flash Lite with Pydantic structured output for step-wise grading."""
+        if (
+            question.question_type in ("mcq", "fill_blank", "one_word")
+            and len(question.key_points) <= 1
+            and question.max_marks <= 1.5
+        ):
             return _grade_objective_answer(question, student_answer)
 
         from google import genai
@@ -745,16 +781,15 @@ class ExamGrader:
         )
 
         prompt = (
-            "You are a strict and rigorous STEM examiner grading a student's OCR-transcribed handwritten answer.\n"
-            "CRITICAL GRADING RULES BY QUESTION TYPE:\n"
-            "1. OBJECTIVE QUESTIONS (MCQ, Fill in blanks, One word):\n"
-            "   - Grade directly based on correctness of the selected option letter or target keyword.\n"
-            "   - If correct, award FULL marks. If incorrect or missing, award 0 marks.\n"
-            "2. SUBJECTIVE QUESTIONS (Short Answer, Long Answer):\n"
-            "   - GRADE WITH HIGH ACADEMIC RIGOR AND STRICTNESS.\n"
-            "   - Award marks ONLY when the student explicitly demonstrates clear conceptual understanding and mentions required technical terms/principles.\n"
-            "   - Do NOT give generous marks for vague, circular, or superficial answers.\n"
-            "   - For Long Answers, check that all necessary sub-points, mechanisms, formulas, or diagrams are present. Deduct marks for omitted steps.\n\n"
+            "You are a strict and accurate board exam evaluator grading a student's OCR-transcribed handwritten answer.\n"
+            "CRITICAL GRADING RULES:\n"
+            "1. OBJECTIVE QUESTIONS & MULTI-PART OBJECTIVE GROUPS (MCQ, Fill in blanks, One word/sentence, True/False, Match pairs):\n"
+            "   - Grade each sub-item directly based on correctness of the selected option or target term.\n"
+            "   - Award full marks for each correct sub-item and 0 for incorrect/missing sub-items.\n"
+            "2. INTERNAL '[OR]' CHOICES:\n"
+            "   - If the question has an '[OR]' option, the student only needs to answer ONE of the options. Award full credit if their chosen option is answered accurately.\n"
+            "3. SUBJECTIVE QUESTIONS (Short Answer, Long Answer):\n"
+            "   - Grade strictly based on conceptual accuracy, required points, and technical terms.\n\n"
             f"Question Type: {question.question_type.upper()}\n"
             f"Question ({question.question_id}, Max Marks = {question.max_marks}):\n{question.question_text}\n\n"
             f"Model Answer:\n{question.model_answer}\n\n"
@@ -768,7 +803,7 @@ class ExamGrader:
             "status ('Hit', 'Partial', or 'Missed'), max_point_marks, awarded_point_marks, and concise notes.\n"
             "- missing_key_points: list of missed or incomplete concepts.\n"
             f"- marks_awarded: total marks out of {question.max_marks} (sum of awarded_point_marks + diagram marks if required), rounded to nearest 0.25.\n"
-            "- student_feedback: 1-3 short, actionable, constructive sentences."
+            "- student_feedback: 1-2 short, actionable, constructive sentences."
         )
 
         response = client.models.generate_content(
@@ -818,57 +853,133 @@ class ExamGrader:
                         return diag.crop_path
         return None
 
+    def _grade_batch_with_gemini(
+        self,
+        batch_items: list[
+            tuple[RubricQuestion, str, float, dict[str, float], DiagramEvaluation | None]
+        ],
+    ) -> dict[str, LLMGradeOutput]:
+        """Grade a batch of up to 12 questions in a SINGLE Gemini API call to stay well within 15 RPM limits."""
+        from google import genai
+        from google.genai import types
+
+        assert self.api_key is not None
+        client = genai.Client(api_key=self.api_key)
+
+        class BatchQuestionGrade(BaseModel):
+            question_id: str
+            grade: LLMGradeOutput
+
+        class BatchGradeResponse(BaseModel):
+            results: list[BatchQuestionGrade]
+
+        blocks: list[str] = [
+            "You are a strict and accurate board exam evaluator grading a batch of student answers.\n"
+            "RULES:\n"
+            "1. For OBJECTIVE questions / 6-item objective blocks: award full marks for each correct item and 0 for wrong/missing items.\n"
+            "2. For '[OR]' internal choices: award full credit if the student accurately answered EITHER option.\n"
+            "3. For SUBJECTIVE questions (Short/Long Answer): grade strictly based on conceptual accuracy and required points.\n"
+            "4. Keep notes and student_feedback concise (1 sentence).\n"
+            "Return strict JSON with a result for every question_id below:\n"
+        ]
+
+        for question, student_answer, overall_sim, kp_sims, diagram_eval in batch_items:
+            text_budget = (
+                question.max_marks * (1.0 - self.cfg.diagram_weight_when_required)
+                if question.requires_diagram
+                else question.max_marks
+            )
+            total_weight = sum(kp.weight for kp in question.key_points) or 1.0
+            kp_str = "\n".join(
+                f"  * {kp.point_id} (max {round((kp.weight / total_weight) * text_budget, 2)}M, sim={kp_sims.get(kp.point_id, 0.0):.2f}): {kp.description}"
+                for kp in question.key_points
+            )
+            blocks.append(
+                f"=== {question.question_id} ({question.question_type}, Max={question.max_marks}M) ===\n"
+                f"Q: {question.question_text}\n"
+                f"Model Answer: {question.model_answer}\n"
+                f"Key Points:\n{kp_str}\n"
+                f"Student Answer: {student_answer if student_answer.strip() else '[NO ANSWER]'}\n"
+            )
+
+        response = client.models.generate_content(
+            model=GEMINI_MODEL_NAME,
+            contents=["\n".join(blocks)],
+            config=types.GenerateContentConfig(
+                response_mime_type="application/json",
+                response_schema=BatchGradeResponse,
+                temperature=0.1,
+            ),
+        )
+        parsed = (
+            BatchGradeResponse.model_validate(response.parsed)
+            if response.parsed is not None
+            else BatchGradeResponse.model_validate_json(response.text)
+        )
+        out: dict[str, LLMGradeOutput] = {}
+        q_max_map = {q.question_id: q.max_marks for q, _, _, _, _ in batch_items}
+        for item in parsed.results:
+            max_m = q_max_map.get(item.question_id, 5.0)
+            item.grade.marks_awarded = _round_quarter(
+                max(0.0, min(max_m, item.grade.marks_awarded))
+            )
+            out[item.question_id] = item.grade
+        return out
+
     def grade_exam(
         self, ocr_result: "OCRPipelineResult", rubric: ExamRubric
     ) -> ExamGradingReport:
-        """Map OCR text to rubric questions, evaluate diagrams, and grade step-by-step."""
+        """Map OCR text to rubric questions, evaluate diagrams, and grade in fast batches."""
+        from concurrent.futures import ThreadPoolExecutor
+
         mapped_answers, question_pages = parse_questions_with_pages(ocr_result.pages)
         used_diagrams: set[str] = set()
-        results: list[QuestionGradeResult] = []
+        is_short_submission = len(ocr_result.pages) <= 2
+
+        prepared_items: list[
+            tuple[RubricQuestion, str, float, dict[str, float], Path | None, DiagramEvaluation | None]
+        ] = []
+        fast_ocr = None
 
         for question in rubric.questions:
             qid = question.question_id
             student_answer = mapped_answers.get(qid, "")
             q_pages = question_pages.get(qid, [])
 
-            overall_sim, kp_sims = self.semantic_scorer.score_answer(student_answer, question)
-
             diagram_path: Path | None = None
-            diagram_eval: DiagramEvaluation | None = None
-            if question.requires_diagram or any(
-                p.page_number in q_pages and p.diagrams for p in ocr_result.pages
+            if (question.requires_diagram and is_short_submission) or (
+                is_short_submission
+                and any(p.page_number in q_pages and p.diagrams for p in ocr_result.pages)
             ):
                 diagram_path = self._select_diagram_for_question(
                     question, q_pages, ocr_result, used_diagrams
                 )
 
-            if diagram_path is not None:
-                # Extract text/labels/formulas inside diagram crop using RapidOCR
+            if diagram_path is not None and is_short_submission:
                 try:
-                    from rapidocr_onnxruntime import RapidOCR
+                    if fast_ocr is None:
+                        from rapidocr_onnxruntime import RapidOCR
 
-                    fast_ocr = RapidOCR()
+                        fast_ocr = RapidOCR()
                     d_res, _ = fast_ocr(str(diagram_path))
                     if d_res:
                         diag_text = " ".join(r[1].strip() for r in d_res if r[1].strip())
                         if diag_text:
                             diag_clean = _clean_ocr_handwriting_text(diag_text)
-                            student_answer = f"{student_answer} {diag_clean}".strip()
-                            mapped_answers[qid] = student_answer
+                            if diag_clean not in student_answer:
+                                student_answer = f"{student_answer} {diag_clean}".strip()
+                                mapped_answers[qid] = student_answer
                 except Exception as exc:
                     logger.debug("RapidOCR diagram text extraction skipped for %s: %s", qid, exc)
 
-                if not self.offline and self.api_key:
+            diagram_eval: DiagramEvaluation | None = None
+            if diagram_path is not None:
+                if not self.offline and self.api_key and question.requires_diagram and is_short_submission:
                     try:
                         diagram_eval = _evaluate_diagram_gemini(
                             diagram_path, question, self.api_key
                         )
-                    except Exception as exc:
-                        logger.warning(
-                            "Gemini diagram evaluation failed for %s (%s); using LocalVLMFallback.",
-                            qid,
-                            exc,
-                        )
+                    except Exception:
                         diagram_eval = self.local_vlm.evaluate_diagram(
                             diagram_path, question.question_text, question.diagram_criteria
                         )
@@ -877,29 +988,48 @@ class ExamGrader:
                         diagram_path, question.question_text, question.diagram_criteria
                     )
 
-            if not student_answer.strip() and diagram_eval is None:
-                grade_output = self._grade_offline(
-                    question, student_answer, overall_sim, kp_sims, diagram_eval
-                )
-            elif not self.offline and self.api_key:
-                try:
-                    grade_output = self._grade_with_gemini(
-                        question, student_answer, overall_sim, kp_sims, diagram_eval
-                    )
-                except Exception as exc:
-                    logger.warning(
-                        "Gemini grading failed for %s (%s); falling back to offline scorer.",
-                        qid,
-                        exc,
-                    )
-                    grade_output = self._grade_offline(
-                        question, student_answer, overall_sim, kp_sims, diagram_eval
-                    )
-            else:
-                grade_output = self._grade_offline(
-                    question, student_answer, overall_sim, kp_sims, diagram_eval
-                )
+            overall_sim, kp_sims = self.semantic_scorer.score_answer(student_answer, question)
+            prepared_items.append(
+                (question, student_answer, overall_sim, kp_sims, diagram_path, diagram_eval)
+            )
 
+        batch_grades: dict[str, LLMGradeOutput] = {}
+        if not self.offline and self.api_key:
+            to_grade_online = [
+                (q, ans, osim, ksims, deval)
+                for q, ans, osim, ksims, _, deval in prepared_items
+                if ans.strip() or deval is not None
+            ]
+            if len(to_grade_online) <= 3:
+                for q, ans, osim, ksims, deval in to_grade_online:
+                    try:
+                        batch_grades[q.question_id] = self._grade_with_gemini(
+                            q, ans, osim, ksims, deval
+                        )
+                    except Exception as exc:
+                        logger.warning("Gemini single grading fallback for %s: %s", q.question_id, exc)
+            else:
+                chunk_size = 12
+                chunks = [
+                    to_grade_online[i : i + chunk_size]
+                    for i in range(0, len(to_grade_online), chunk_size)
+                ]
+                with ThreadPoolExecutor(max_workers=min(3, len(chunks))) as pool:
+                    futures = [pool.submit(self._grade_batch_with_gemini, chunk) for chunk in chunks]
+                    for fut in futures:
+                        try:
+                            batch_grades.update(fut.result())
+                        except Exception as exc:
+                            logger.warning("Gemini batch grading fallback triggered: %s", exc)
+
+        results: list[QuestionGradeResult] = []
+        for question, student_answer, overall_sim, kp_sims, diagram_path, diagram_eval in prepared_items:
+            qid = question.question_id
+            grade_output = batch_grades.get(qid)
+            if grade_output is None:
+                grade_output = self._grade_offline(
+                    question, student_answer, overall_sim, kp_sims, diagram_eval
+                )
             results.append(
                 QuestionGradeResult(
                     question_id=qid,
