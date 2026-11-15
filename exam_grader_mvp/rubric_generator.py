@@ -209,18 +209,26 @@ class RubricGenerator:
             [
                 "\nINSTRUCTIONS FOR RUBRIC GENERATION:",
                 "CRITICAL BILINGUAL RULE: The exam paper or answer key may contain both Hindi and English. COMPLETELY IGNORE all Hindi (Devanagari) text and cover-page instructions. Extract and formulate all questions and model answers EXCLUSIVELY in English.",
-                "1. Accurately extract each main question from the English portions of the paper, preserving its main numbering as Q1, Q2, Q3, etc.",
-                "2. If a main question (like Q1..Q5 in board papers) contains multiple sub-items (e.g. (i)..(vi) or (1)..(6) worth 1 mark each), keep it as ONE main question (e.g. Q1 with max_marks=6) and create 1 key_point per sub-item with its expected answer.",
-                "3. If a question has an internal '[OR]' choice, include both the main question and the '[OR]' option in question_text and model_answer so a student answering EITHER option gets full credit.",
+                "1. QUESTION NUMBERING & MULTI-PART PAPERS:",
+                "   - If the paper has a single continuous numbering sequence (Q1, Q2, Q3 ... Q23), name question_id as 'Q1', 'Q2', 'Q3', etc.",
+                "   - If the paper is divided into Parts (e.g. Part I, Part II, Part III) where question numbering restarts at Q.1 inside each Part:",
+                "     * For Part I with Q.1(A) and Q.1(B), use question_id 'Q1A' and 'Q1B'.",
+                "     * For Part II questions (Q.1, Q.2, Q.3, Q.4, Q.5, Q.6...), use question_id 'P2_Q1', 'P2_Q2', 'P2_Q3', 'P2_Q4', 'P2_Q5', 'P2_Q6', etc.",
+                "     * For Part III questions (Q.1, Q.2, Q.3...), use question_id 'P3_Q1', 'P3_Q2', 'P3_Q3', etc.",
+                "     * Extract EVERY SINGLE numbered question printed in Part I, Part II, and Part III as its own separate RubricQuestion item (never skip or merge the last question of a section, such as Part III Q.3).",
+                "2. MULTI-ITEM OBJECTIVE / SMALL ANSWER BLOCKS:",
+                "   - If a main question (such as Q1..Q5 in board papers, or Q1A / Q1B in university papers) contains multiple sub-items ((i)..(v) or (i)..(vi) worth 1 mark each), keep it as ONE RubricQuestion (e.g. Q1A with max_marks=5, Q1B with max_marks=5) and create 1 key_point per sub-item in exact order with its expected answer.",
+                "3. INTERNAL '[OR]' CHOICES:",
+                "   - If a question has an internal '[OR]' choice, include both the main question and the '[OR]' option in question_text and model_answer so a student answering EITHER option gets full credit.",
                 "4. Classify question_type for EACH question:",
                 "   - 'mcq' : For Multiple Choice Questions.",
                 "   - 'fill_blank' : For Fill in the Blanks questions.",
                 "   - 'one_word' : For One Word / One Sentence / True-False / Match-column objective questions.",
-                "   - 'short_answer' : For Short conceptual questions (2-3 marks). Provide 2-3 concise key points.",
-                "   - 'long_answer' : For Long descriptive/analytical questions (4+ marks). Provide 3-4 concise key points.",
-                "5. Keep question_text, model_answer, and key_point descriptions concise and clear so generation is fast.",
+                "   - 'short_answer' : For Short conceptual questions or blocks of short definitions (2-5 marks).",
+                "   - 'long_answer' : For Long descriptive/analytical questions (6+ marks). Provide 3-5 concise key points.",
+                "5. Keep question_text, model_answer, and key_point descriptions concise, accurate, and clear.",
                 "6. Set requires_diagram = true ONLY if the question explicitly asks the student to draw/sketch a diagram or map.",
-                "7. Use the printed marks from the question paper/marking scheme if visible; otherwise distribute Target Total Marks.",
+                "7. EXACT PRINTED MARKS: Use the exact per-question marks printed on the question paper (e.g. 5 marks for Q1A, 5 marks for Q1B, 6 marks for each Part II question, 10 marks for each Part III question). Only distribute Target Total Marks if no marks are printed on the paper.",
                 f"8. Set exam_title to '{subject} Examination Rubric'.",
                 "\nReturn strict JSON matching the ExamRubric schema.",
             ]
@@ -276,12 +284,22 @@ class RubricGenerator:
         else:
             rubric = ExamRubric.model_validate_json(response.text)
 
-        # Ensure total marks match requested target marks unless a multi-question paper defines its own total
+        # Normalize question IDs (e.g. PartII_Q1 -> P2_Q1, PartIII_Q2 -> P3_Q2, PartI_Q1A -> Q1A)
+        for q in rubric.questions:
+            qid_clean = q.question_id.strip()
+            qid_clean = re.sub(r"^(?:Part|Section)[\s_\-]*I(?:I|1)?[\s_\-]*Q\.?\s*1\s*\(?\s*([AB])\s*\)?$", r"Q1\1", qid_clean, flags=re.IGNORECASE)
+            qid_clean = re.sub(r"^Q\.?\s*1\s*\(?\s*([AB])\s*\)?$", r"Q1\1", qid_clean, flags=re.IGNORECASE)
+            qid_clean = re.sub(r"^(?:Part|Section|P)[\s_\-]*(?:II|2)[\s_\-]*Q(?:uestion)?[\s_\-\.]*(\d+)$", r"P2_Q\1", qid_clean, flags=re.IGNORECASE)
+            qid_clean = re.sub(r"^(?:Part|Section|P)[\s_\-]*(?:III|3)[\s_\-]*Q(?:uestion)?[\s_\-\.]*(\d+)$", r"P3_Q\1", qid_clean, flags=re.IGNORECASE)
+            q.question_id = qid_clean.upper()
+
+        # Preserve printed per-question marks on multi-question exam papers; only rescale single/custom rubrics
         current_sum = sum(q.max_marks for q in rubric.questions)
         if (
             current_sum > 0
             and abs(current_sum - total_marks) > 0.01
-            and not (len(rubric.questions) >= 4 and total_marks <= 10.0 and current_sum > 15.0)
+            and len(rubric.questions) < 3
+            and current_sum < 15.0
         ):
             ratio = total_marks / current_sum
             for q in rubric.questions:

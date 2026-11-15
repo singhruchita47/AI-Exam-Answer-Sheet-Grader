@@ -130,12 +130,22 @@ class ExamGradingReport(BaseModel):
 # Regex Question Boundary Segmentation
 # ---------------------------------------------------------------------------
 _EXPLICIT_MARKER_PATTERNS: tuple[re.Pattern[str], ...] = (
+    # Matches: P2_Q1, P3_Q2, PartII_Q1, Part-II Q.1, Part III Q2:
+    re.compile(
+        r"^\s*(?:P(?:art)?[\s_\-]*(II|III|I|2|3|1)[\s_\-]*)Q(?:uestion)?\s*(?:no\.?|number)?\s*[\.\-:#]?\s*0*([0-9]{1,2}[ABab]?)\s*[\)\.\-:#]*(?:\s+(.*))?$",
+        re.IGNORECASE,
+    ),
+    # Matches: Q1A, Q1B, Q.1(A), Q.1 (B):
+    re.compile(
+        r"^\s*Q(?:uestion)?\s*[\.\-:#]?\s*0*1\s*\(?\s*([ABab])\s*\)?\s*[\)\.\-:#]*(?:\s+(.*))?$",
+        re.IGNORECASE,
+    ),
     # Matches: Q1, Q.1, Q. No. 1, Question no. - 01, Q1), Question 1:
     re.compile(
         r"^\s*Q(?:uestion)?\s*(?:no\.?|number)?\s*[\.\-:#]?\s*0*([0-9]{1,2}|[!lI|])\s*(?:\[?\s*or\s*\]?|\(\s*or\s*\))?\s*[\)\.\-:#]*(?:\s+(.*))?$",
         re.IGNORECASE,
     ),
-    # Matches: Answer no. - 01, Answer no.-06 [or], Ans. No. 2, Ans 1, ns 1, ins 2
+    # Matches: Answer no. - 01, Answer no.-06 [or], Ans. No. 2, Ans 1, A-1, A-2
     re.compile(
         r"^\s*(?:ans(?:wer)?|an[a-z]{2,5}|[a-z]{0,2}[ns]|[a-z]?s|[Aa])\s*(?:no\.?|m?no\.?|number)?\s*[\.\-:#\s]+\s*0*([0-9]{1,2}|[!lI|])\s*(?:\[?\s*or\s*\]?|\(\s*or\s*\))?\s*(?:[\.\-:#]\s*(?:[0-9]{1,2}\b)?)?\s*[\)\.\-:#]*(?:\s*(.*))?$",
         re.IGNORECASE,
@@ -168,7 +178,33 @@ _TROCR_HALLUCINATION_PATTERNS: tuple[re.Pattern[str], ...] = (
     re.compile(r"(?:e2){3,}|(?:0\s*){4,}", re.IGNORECASE),
     re.compile(r"\b(\w+)(?:\s+\1){3,}\b", re.IGNORECASE),
     re.compile(r"qualads\s+first\s+hugci.*?views\s+of\s+all\s+of\s+ten\s+centi", re.IGNORECASE),
+    re.compile(r"(?:SCOPE\s+GLOBAL\s+SKILLS\s+UNIVERSITY|CENTRAL\s+INDIA'S\s+1st\s+SKILLS\s+UNIVERSITY|ANSWER\s+BOOK\s+FOR\s+MST|Marks\s+Awared|Marks\s+Obtained|Invigilators\s*/\s*Internal|Examiner\s+Name)", re.IGNORECASE),
 )
+
+
+def _normalize_qid(qid: str) -> str:
+    """Normalize question IDs across rubric and OCR parser (e.g. PartII_Q1 -> P2_Q1, Q.1(A) -> Q1A)."""
+    q = qid.strip()
+    q = re.sub(
+        r"^(?:Part|Section|P)[\s_\-]*I(?:1)?[\s_\-]*Q\.?\s*1\s*\(?\s*([AB])\s*\)?$",
+        r"Q1\1",
+        q,
+        flags=re.IGNORECASE,
+    )
+    q = re.sub(r"^Q\.?\s*1\s*\(?\s*([AB])\s*\)?$", r"Q1\1", q, flags=re.IGNORECASE)
+    q = re.sub(
+        r"^(?:Part|Section|P)[\s_\-]*(?:II|2)[\s_\-]*Q(?:uestion)?[\s_\-\.]*0*(\d+)$",
+        r"P2_Q\1",
+        q,
+        flags=re.IGNORECASE,
+    )
+    q = re.sub(
+        r"^(?:Part|Section|P)[\s_\-]*(?:III|3)[\s_\-]*Q(?:uestion)?[\s_\-\.]*0*(\d+)$",
+        r"P3_Q\1",
+        q,
+        flags=re.IGNORECASE,
+    )
+    return q.upper()
 
 
 def _clean_ocr_handwriting_text(text: str) -> str:
@@ -198,9 +234,26 @@ def _match_question_marker(
     if not stripped:
         return None
     patterns = _EXPLICIT_MARKER_PATTERNS if explicit_only else _QUESTION_MARKER_PATTERNS
-    for pattern in patterns:
+    for idx_p, pattern in enumerate(patterns):
         match = pattern.match(stripped)
         if match:
+            # Pattern 0: Part-prefixed (P2_Q1, P3_Q2, PartII_Q1)
+            if idx_p == 0 and match.lastindex and match.lastindex >= 2:
+                part_raw = (match.group(1) or "").strip().upper()
+                q_raw = (match.group(2) or "").strip().upper()
+                rem_raw = (match.group(3) or "").strip() if match.lastindex >= 3 else ""
+                part_num = 3 if part_raw in ("III", "3") else (2 if part_raw in ("II", "2") else 1)
+                rem_clean = _clean_ocr_handwriting_text(rem_raw)
+                if part_num == 1 and q_raw in ("1A", "1B"):
+                    return f"Q{q_raw}", rem_clean
+                return f"P{part_num}_Q{q_raw}", rem_clean
+
+            # Pattern 1: Q1A / Q1B / Q.1(A) / Q.1(B)
+            if idx_p == 1:
+                sub_ab = (match.group(1) or "").strip().upper()
+                rem_raw = (match.group(2) or "").strip() if match.lastindex and match.lastindex >= 2 else ""
+                return f"Q1{sub_ab}", _clean_ocr_handwriting_text(rem_raw)
+
             raw_num = match.group(1).strip()
             if raw_num in ("!", "l", "I", "|"):
                 q_num = 1
@@ -255,7 +308,22 @@ def parse_questions_with_page_texts(
     question_pages: dict[str, list[int]] = {}
     page_texts_list: dict[str, dict[str, list[str]]] = {}
     current_qid: str = "Q1"  # Default start to Q1 so opening text is NEVER lost
+    current_part: int | None = None
     explicit_opened: set[str] = set()
+    int_to_roman = {1: "i", 2: "ii", 3: "iii", 4: "iv", 5: "v", 6: "vi"}
+
+    part_header_re = re.compile(
+        r"^\s*\[?\s*(?:Part|Section)[\s\-_]*([I123V]+)\s*\]?\s*$",
+        re.IGNORECASE,
+    )
+    sub_b_header_re = re.compile(
+        r"^\s*(?:Q\.?\s*1\s*)?\(\s*([AB])\s*\)\s*(.*)$",
+        re.IGNORECASE,
+    )
+    sub_roman_ans_re = re.compile(
+        r"^\s*A[\s\-_]*\(\s*([ivx]{1,4})\s*\)\s*(.*)$",
+        re.IGNORECASE,
+    )
 
     all_lines = [
         raw.strip()
@@ -273,15 +341,90 @@ def parse_questions_with_page_texts(
             line = raw_line.strip()
             if not line:
                 continue
+
+            # Detect Part-I / Part-II / Part-III section headers
+            pm = part_header_re.match(line)
+            if pm:
+                p_tok = pm.group(1).strip().upper()
+                if p_tok in ("I", "1"):
+                    current_part = 1
+                elif p_tok in ("II", "2"):
+                    current_part = 2
+                elif p_tok in ("III", "3"):
+                    current_part = 3
+                continue
+
+            # Detect (A) or (B) sub-headers under Part-I
+            sbm = sub_b_header_re.match(line)
+            if sbm and (current_part == 1 or current_qid in ("Q1", "Q1A", "Q1B")):
+                sub_letter = sbm.group(1).upper()
+                rem_sub = _clean_ocr_handwriting_text(sbm.group(2) or "")
+                current_part = 1
+                current_qid = f"Q1{sub_letter}"
+                explicit_opened.add(current_qid)
+                mapped.setdefault(current_qid, [])
+                question_pages.setdefault(current_qid, [])
+                page_texts_list.setdefault(current_qid, {})
+                if page.page_number not in question_pages[current_qid]:
+                    question_pages[current_qid].append(page.page_number)
+                if rem_sub:
+                    mapped[current_qid].append(rem_sub)
+                    page_texts_list[current_qid].setdefault(p_str, []).append(rem_sub)
+                continue
+
+            # Detect A-(i), A-(ii), A-(iii) sub-item lines under Q1B
+            srm = sub_roman_ans_re.match(line)
+            if srm:
+                r_tok = srm.group(1).lower()
+                rem_r = _clean_ocr_handwriting_text(srm.group(2) or "")
+                if current_qid in ("Q1", "Q1A"):
+                    current_qid = "Q1B"
+                formatted_sub = f"({r_tok}) {rem_r}".strip()
+                mapped.setdefault(current_qid, [])
+                question_pages.setdefault(current_qid, [])
+                page_texts_list.setdefault(current_qid, {})
+                if page.page_number not in question_pages[current_qid]:
+                    question_pages[current_qid].append(page.page_number)
+                mapped[current_qid].append(formatted_sub)
+                page_texts_list[current_qid].setdefault(p_str, []).append(formatted_sub)
+                continue
+
             marker = _match_question_marker(line, explicit_only=has_explicit)
             if marker is not None:
                 marker_qid, remainder = marker
+                # Track part state from explicit P2_Q* / P3_Q* / Q1A / Q1B tags
+                if marker_qid.startswith("P2_"):
+                    current_part = 2
+                elif marker_qid.startswith("P3_"):
+                    current_part = 3
+                elif marker_qid in ("Q1A", "Q1B"):
+                    current_part = 1
+                elif marker_qid.startswith("Q") and marker_qid[1:].isdigit():
+                    q_num_val = int(marker_qid[1:])
+                    # If inside Q1A (Part-I MCQ block) and student wrote A-1..A-5, keep inside Q1A as (i)..(v)!
+                    if (
+                        current_qid == "Q1A"
+                        and 1 <= q_num_val <= 6
+                        and re.match(r"^\s*A[\s\-_]*0*[1-6]\b", line, flags=re.IGNORECASE)
+                    ):
+                        r_lbl = int_to_roman.get(q_num_val, str(q_num_val))
+                        sub_line = f"({r_lbl}) {remainder}".strip()
+                        if page.page_number not in question_pages[current_qid]:
+                            question_pages[current_qid].append(page.page_number)
+                        mapped[current_qid].append(sub_line)
+                        page_texts_list[current_qid].setdefault(p_str, []).append(sub_line)
+                        continue
+                    elif current_part == 2:
+                        marker_qid = f"P2_Q{q_num_val}"
+                    elif current_part == 3:
+                        marker_qid = f"P3_Q{q_num_val}"
+
                 # If Q1 was only opened implicitly on an earlier cover page and now
                 # explicitly starts on a later page, clear pre-marker cover noise.
                 if (
                     has_explicit
-                    and marker_qid == "Q1"
-                    and "Q1" not in explicit_opened
+                    and marker_qid in ("Q1", "Q1A")
+                    and marker_qid not in explicit_opened
                     and question_pages.get("Q1")
                     and all(p < page.page_number for p in question_pages["Q1"])
                 ):
@@ -408,7 +551,7 @@ class SemanticScorer:
 
     @staticmethod
     def _compute_lexical_kp_similarity(
-        kp: RubricKeyPoint,
+        kp: KeyPoint,
         kp_idx: int,
         total_kps: int,
         student_answer: str,
@@ -430,6 +573,11 @@ class SemanticScorer:
         st_lower = student_answer.lower()
         pos_sub = sub_items.get(kp_idx + 1, "").strip()
         pos_lower = pos_sub.lower().strip(" .,;:()")
+
+        # 0. Symbolic answer check (e.g. ".." for parent directory, "/" for root, "~" for home)
+        for sym in ("..", "~", "/"):
+            if sym in clean_desc and (sym in pos_sub or sym in student_answer):
+                return 0.98
 
         # 1. True / False positional check
         if kp_lower in ("true", "false"):
@@ -1296,43 +1444,112 @@ class ExamGrader:
         used_diagrams: set[str] = set()
         is_short_submission = len(ocr_result.pages) <= 2
 
-        effective_questions: list[RubricQuestion] = list(rubric.questions)
+        # Normalize question IDs in rubric so PartII_Q1 / P2_Q1 / Q.1(A) always align with parser output
+        for rq in rubric.questions:
+            rq.question_id = _normalize_qid(rq.question_id)
+
+        # Smart within-Part alignment for optional choice sections (P2_*, P3_*):
+        # If a student (or OCR) numbered chosen optional answers sequentially (e.g. P3_Q1, P3_Q2)
+        # when she actually answered P3_Q2 and P3_Q3, align each Part's answers to the best-matching rubric question in that Part.
+        for prefix in ("P2_", "P3_"):
+            part_rqs = [q for q in rubric.questions if q.question_id.startswith(prefix)]
+            part_ans_qids = [
+                qid for qid in list(mapped_answers.keys())
+                if qid.startswith(prefix) and mapped_answers.get(qid, "").strip()
+            ]
+            if len(part_rqs) >= 2 and 1 <= len(part_ans_qids) <= len(part_rqs):
+                rq_by_id = {q.question_id: q for q in part_rqs}
+                # Check if re-mapping improves similarity significantly
+                reassigned_ans: dict[str, str] = {}
+                reassigned_pages: dict[str, list[int]] = {}
+                reassigned_ptexts: dict[str, dict[str, str]] = {}
+                used_target_qids: set[str] = set()
+                changed_any = False
+
+                for src_qid in part_ans_qids:
+                    ans_txt = mapped_answers[src_qid]
+                    cur_q = rq_by_id.get(src_qid)
+                    cur_sim = self.semantic_scorer.score_answer(ans_txt, cur_q)[0] if cur_q else 0.0
+                    best_qid = src_qid
+                    best_sim = cur_sim
+                    for cand_q in part_rqs:
+                        if cand_q.question_id in used_target_qids:
+                            continue
+                        cand_sim = self.semantic_scorer.score_answer(ans_txt, cand_q)[0]
+                        if cand_sim > best_sim + 0.15:
+                            best_sim = cand_sim
+                            best_qid = cand_q.question_id
+                    if best_qid != src_qid:
+                        changed_any = True
+                    used_target_qids.add(best_qid)
+                    reassigned_ans[best_qid] = ans_txt
+                    reassigned_pages[best_qid] = question_pages.get(src_qid, [])
+                    reassigned_ptexts[best_qid] = question_page_texts.get(src_qid, {})
+
+                if changed_any and len(reassigned_ans) == len(part_ans_qids):
+                    for old_k in part_ans_qids:
+                        mapped_answers.pop(old_k, None)
+                        question_pages.pop(old_k, None)
+                        question_page_texts.pop(old_k, None)
+                    mapped_answers.update(reassigned_ans)
+                    question_pages.update(reassigned_pages)
+                    question_page_texts.update(reassigned_ptexts)
+
+        # In multi-part university papers with optional choice sections (e.g. P2_Q1..P2_Q6 "Attempt Any 4/5",
+        # P3_Q1..P3_Q3 "Attempt Any 2"), omit unattempted optional questions when other questions in that Part are attempted.
+        part2_attempted = any(
+            q.question_id.startswith("P2_") and mapped_answers.get(q.question_id, "").strip()
+            for q in rubric.questions
+        )
+        part3_attempted = any(
+            q.question_id.startswith("P3_") and mapped_answers.get(q.question_id, "").strip()
+            for q in rubric.questions
+        )
+        effective_questions: list[RubricQuestion] = []
+        for rq in rubric.questions:
+            if rq.question_id.startswith("P2_") and part2_attempted and not mapped_answers.get(rq.question_id, "").strip():
+                continue
+            if rq.question_id.startswith("P3_") and part3_attempted and not mapped_answers.get(rq.question_id, "").strip():
+                continue
+            effective_questions.append(rq)
+
         existing_qids = {q.question_id for q in effective_questions}
 
-        # Ensure any additional questions detected on multi-page student sheets are also graded & shown on their page
+        # Only auto-create extra questions if the teacher provided a tiny 1-2 question rubric for a multi-question sheet
         def _qid_sort_key(q_str: str) -> int:
             m = re.search(r"\d+", q_str)
             return int(m.group(0)) if m else 999
 
-        for extra_qid in sorted(mapped_answers.keys(), key=_qid_sort_key):
-            if extra_qid in existing_qids:
-                continue
-            extra_ans = mapped_answers.get(extra_qid, "").strip()
-            if not extra_ans:
-                continue
-            words = extra_ans.split()
-            q_type: Literal["mcq", "fill_blank", "one_word", "short_answer", "long_answer"] = (
-                "one_word" if len(words) <= 12 else ("long_answer" if len(words) >= 65 else "short_answer")
-            )
-            default_max = 1.0 if q_type == "one_word" else (4.0 if q_type == "long_answer" else 2.0)
-            effective_questions.append(
-                RubricQuestion(
-                    question_id=extra_qid,
-                    question_type=q_type,
-                    question_text=f"Answer evaluation for {extra_qid} (Detected on Page {', '.join(str(p) for p in question_pages.get(extra_qid, [1]))})",
-                    max_marks=default_max,
-                    model_answer=extra_ans,
-                    key_points=[
-                        RubricKeyPoint(
-                            point_id=f"{extra_qid}_P1",
-                            description=f"Core concepts, accuracy, and completeness for {extra_qid}",
-                            weight=1.0,
-                            keywords=[w.lower().strip(".,;:()") for w in words[:8] if len(w) > 3],
-                        )
-                    ],
+        if len(rubric.questions) <= 2:
+            for extra_qid in sorted(mapped_answers.keys(), key=_qid_sort_key):
+                if extra_qid in existing_qids:
+                    continue
+                extra_ans = mapped_answers.get(extra_qid, "").strip()
+                if not extra_ans:
+                    continue
+                words = extra_ans.split()
+                q_type: Literal["mcq", "fill_blank", "one_word", "short_answer", "long_answer"] = (
+                    "one_word" if len(words) <= 12 else ("long_answer" if len(words) >= 65 else "short_answer")
                 )
-            )
-            existing_qids.add(extra_qid)
+                default_max = 1.0 if q_type == "one_word" else (4.0 if q_type == "long_answer" else 2.0)
+                effective_questions.append(
+                    RubricQuestion(
+                        question_id=extra_qid,
+                        question_type=q_type,
+                        question_text=f"Answer evaluation for {extra_qid} (Detected on Page {', '.join(str(p) for p in question_pages.get(extra_qid, [1]))})",
+                        max_marks=default_max,
+                        model_answer=extra_ans,
+                        key_points=[
+                            KeyPoint(
+                                point_id=f"{extra_qid}_P1",
+                                description=f"Core concepts, accuracy, and completeness for {extra_qid}",
+                                weight=1.0,
+                                keywords=[w.lower().strip(".,;:()") for w in words[:8] if len(w) > 3],
+                            )
+                        ],
+                    )
+                )
+                existing_qids.add(extra_qid)
 
         prepared_items: list[
             tuple[RubricQuestion, str, float, dict[str, float], Path | None, DiagramEvaluation | None, list[int]]

@@ -375,18 +375,44 @@ def _intersection_over_box_area(inner: BoundingBox, outer: BoundingBox) -> float
 
 
 def _segment_regions(
-    clean_binary: np.ndarray, cfg: SegmentationConfig
+    clean_binary: np.ndarray,
+    cfg: SegmentationConfig,
+    deskewed_gray: np.ndarray | None = None,
+    page_number: int = 1,
 ) -> tuple[list[BoundingBox], list[BoundingBox]]:
     """Segment foreground into sorted `text_line` and `diagram` bounding boxes.
     
     Eliminates false diagram detections on normal handwritten lines, underlined headings,
-    top printed page header frames, and notebook margin columns while accurately detecting
-    true non-text visual structures (leaves, circuits, graphs, maps).
+    top printed page header frames, university/college cover introduction blocks, and
+    notebook margin columns while accurately detecting true non-text visual structures.
     """
     page_h, page_w = clean_binary.shape[:2]
 
-    # Mask top printed header zone (~15.5% height) and outer frame to avoid printed header/border boxes
-    top_header_y = max(25, int(page_h * 0.155))
+    # Determine top_header_y dynamically:
+    # - On portrait pages (page_h > page_w), check if the top half is an unruled University/College Cover Introduction block
+    #   (like Scope Global Skills University Answer Book on Page 1); if so, mask down to the first full-width divider line (~48%).
+    #   Otherwise, on normal portrait continuation pages, start near the top (3.5%).
+    # - On landscape board booklet pages (page_w >= page_h), mask the top 15.5% board header zone.
+    if page_h > page_w:
+        top_header_y = max(20, int(page_h * 0.035))
+        if deskewed_gray is not None:
+            _, b_rule = cv2.threshold(deskewed_gray, 190, 255, cv2.THRESH_BINARY_INV)
+            b_dil = cv2.dilate(b_rule, np.ones((3, 5), np.uint8), iterations=1)
+            hl = cv2.morphologyEx(
+                b_dil, cv2.MORPH_OPEN, cv2.getStructuringElement(cv2.MORPH_RECT, (50, 1))
+            )
+            row_w = np.sum(hl > 0, axis=1) / float(page_w)
+            top_rules_rows = int(np.sum(row_w[int(page_h * 0.04) : int(page_h * 0.35)] > 0.55))
+            mid_div = [
+                int(y)
+                for y in np.where(row_w > 0.65)[0]
+                if int(page_h * 0.38) <= y <= int(page_h * 0.58)
+            ]
+            if top_rules_rows <= 12 and mid_div:
+                top_header_y = mid_div[0]
+    else:
+        top_header_y = max(25, int(page_h * 0.155))
+
     pad_y = max(15, int(page_h * 0.025))
     pad_x = max(15, int(page_w * 0.025))
     masked_bin = clean_binary.copy()
@@ -397,15 +423,17 @@ def _segment_regions(
 
     import scipy.signal
 
-    # Exclude left notebook margin column (~11.5% width) and right edge border when detecting text lines
-    x_left_body = max(70, int(page_w * 0.115))
+    # Exclude left notebook margin column and right edge border when detecting text lines
+    x_left_body = (
+        max(60, int(page_w * 0.102)) if page_h > page_w else max(70, int(page_w * 0.115))
+    )
     x_right_body = page_w - max(35, int(page_w * 0.035))
     body_bin = masked_bin[:, x_left_body:x_right_body]
 
     row_ink = np.sum(body_bin > 0, axis=1).astype(np.float32)
     sm = np.convolve(row_ink, np.ones(13, dtype=np.float32) / 13.0, mode="same")
     peaks, _ = scipy.signal.find_peaks(
-        sm, distance=int(page_h * 0.014), prominence=5.5
+        sm, distance=max(28, int(page_h * 0.023)), prominence=6.5
     )
 
     row_boxes: list[tuple[int, int, int, int, int, float]] = []
@@ -571,7 +599,7 @@ def _segment_regions(
         # Promote short handwritten text lines (headings, MCQ options, True/False) to text_candidates!
         if not is_valid_diagram:
             for b in curr_d:
-                if b.y >= int(page_h * 0.11) and b.w >= 55:
+                if b.y >= top_header_y - 8 and b.w >= 45:
                     text_candidates.append(b)
 
     # Also detect single-component large 2D drawings (e.g. full-page maps/charts on portrait pages)
@@ -831,7 +859,9 @@ class OCREngine:
         clean_binary, clean_for_ocr = _suppress_ruled_lines(
             deskewed_bgr, deskewed_gray, self.cfg, need_inpaint=save_line_crops
         )
-        line_boxes, diagram_boxes = _segment_regions(clean_binary, self.cfg)
+        line_boxes, diagram_boxes = _segment_regions(
+            clean_binary, self.cfg, deskewed_gray=deskewed_gray, page_number=page_number
+        )
 
         page_crop_dir = debug_dir / f"page_{page_number}"
         if page_crop_dir.exists():
@@ -960,11 +990,16 @@ class OCREngine:
             contents: list[Any] = [
                 "You are an expert handwriting recognition specialist. Transcribe the student's handwritten English answers from each attached exam sheet page into clean, accurate, properly spelled digital text.\n"
                 "CRITICAL RULES:\n"
-                "1. Ignore printed Hindi headers/stamps/cover tables and any crossed-out (struck-through) words completely.\n"
-                "2. Whenever the student writes a main question/answer heading (such as 'Answer no. - 01', 'Answer no. - 03', 'Answer no.-06 [or]', 'Answer no. - 21', 'Ans 1.', 'Q2'), write it on its own line starting with 'Q1:', 'Q3:', 'Q6:', 'Q21:', etc.\n"
-                "3. Convert messy cursive handwriting into clean, readable digital English words using context (for example, 'Federal', 'Kanha National Park Kisli', 'cattle plague', 'primary', 'Road Transport', 'Rail Transport'). Do NOT output garbled OCR character noise.\n"
-                "4. Preserve sub-item markers ((i), (ii), (iii), (iv), (v), (vi), (1), (2), (a), (b)), scientific formulas (e.g. V = IR, CO2, 6CO2 + 6H2O -> C6H12O6 + 6O2), True/False, fill-in-the-blanks, comparison tables, and diagram labels in exact top-to-bottom reading order.\n"
-                "5. Return strict JSON mapping each page_number to its clean digital transcript."
+                "1. IGNORE COVER / INTRODUCTION / COLLEGE METADATA: Completely ignore all cover page sections, university/college/school names (e.g. 'SCOPE GLOBAL SKILLS UNIVERSITY', 'ANSWER BOOK FOR MST / PUT EXAMINATION', 'MP Board'), student introduction/metadata fields (Roll No., Name, Course, Branch, Year/Sem, Subject Code, Date, Marks Awarded, Examiner/Invigilator Signature), printed Hindi headers, and crossed-out words. Focus ONLY on the student's main handwritten exam answers.\n"
+                "2. QUESTION & PART NUMBERING:\n"
+                "   - Standard sequential exams (Answer no. 01, Q2, Ans 3, etc.): start each main question on its own line with 'Q1:', 'Q2:', 'Q3:', etc.\n"
+                "   - Multi-part exams with 'Part-I', 'Part-II', 'Part-III' headings where question numbers restart in each part:\n"
+                "     * Under Part-I: start Q.1(A) on its own line with 'Q1A:' and write its sub-answers as '(i) ...', '(ii) ...', '(iii) ...', '(iv) ...', '(v) ...' (even if the student wrote A-1..A-5). Start Q.1(B) / (B) on its own line with 'Q1B:' and write its sub-answers as '(i) ...', '(ii) ...', '(iii) ...', '(iv) ...', '(v) ...' (if (iii)..(v) continue at the top of the next page before Part-II, write them as '(iii) ...', '(iv) ...', '(v) ...' without a new main question tag so they continue Q1B).\n"
+                "     * Under Part-II: start each main answer ('A-1', 'A-2', 'A-3', 'A-4', 'A-5', 'Q.1', etc.) on its own line with 'P2_Q1:', 'P2_Q2:', 'P2_Q3:', 'P2_Q4:', 'P2_Q5:', 'P2_Q6:', preserving the exact number written by the student.\n"
+                "     * Under Part-III: start each main answer ('A-1', 'A-2', 'A-3', 'Q.1', 'Q.2', 'Q.3') on its own line with 'P3_Q1:', 'P3_Q2:', 'P3_Q3:' preserving the EXACT number written in the margin by the student (e.g., if the student writes 'A-2', output 'P3_Q2:' — NEVER renumber 'A-2' to 'P3_Q1:'; if the student writes 'A-3', output 'P3_Q3:'). Keep numbered sub-items inside an answer like '1-> Echo', '2-> printf', '3-> who', '4-> date', '5-> cal' formatted as '(1) Echo...', '(2) printf...', etc.\n"
+                "   - If a page starts with a continuation of an answer from the previous page before any new question marker appears, transcribe the continuation lines first before starting the next question tag.\n"
+                "3. Convert messy cursive handwriting into clean, readable digital English words using context. Do NOT output garbled OCR noise.\n"
+                "4. Return strict JSON mapping each page_number to its clean digital transcript."
             ]
             for p in batch:
                 pil_img = Image.open(p.source_path).convert("RGB")
