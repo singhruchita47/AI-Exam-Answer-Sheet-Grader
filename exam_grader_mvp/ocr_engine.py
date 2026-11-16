@@ -396,19 +396,21 @@ def _segment_regions(
     if page_h > page_w:
         top_header_y = max(20, int(page_h * 0.035))
         if deskewed_gray is not None:
-            _, b_rule = cv2.threshold(deskewed_gray, 190, 255, cv2.THRESH_BINARY_INV)
+            # Use strict dark black threshold (125) and wide (80px) horizontal kernel for solid printed
+            # University Cover dividers so pale-blue notebook rules NEVER trigger false top-half masking.
+            _, b_rule = cv2.threshold(deskewed_gray, 125, 255, cv2.THRESH_BINARY_INV)
             b_dil = cv2.dilate(b_rule, np.ones((3, 5), np.uint8), iterations=1)
             hl = cv2.morphologyEx(
-                b_dil, cv2.MORPH_OPEN, cv2.getStructuringElement(cv2.MORPH_RECT, (50, 1))
+                b_dil, cv2.MORPH_OPEN, cv2.getStructuringElement(cv2.MORPH_RECT, (80, 1))
             )
             row_w = np.sum(hl > 0, axis=1) / float(page_w)
             top_rules_rows = int(np.sum(row_w[int(page_h * 0.04) : int(page_h * 0.35)] > 0.55))
             mid_div = [
                 int(y)
-                for y in np.where(row_w > 0.65)[0]
+                for y in np.where(row_w > 0.68)[0]
                 if int(page_h * 0.38) <= y <= int(page_h * 0.58)
             ]
-            if top_rules_rows <= 12 and mid_div:
+            if page_number == 1 and top_rules_rows <= 12 and mid_div:
                 top_header_y = mid_div[0]
     else:
         top_header_y = max(25, int(page_h * 0.155))
@@ -993,19 +995,21 @@ class OCREngine:
                 "1. IGNORE COVER / INTRODUCTION / COLLEGE METADATA: Completely ignore all cover page sections, university/college/school names (e.g. 'SCOPE GLOBAL SKILLS UNIVERSITY', 'ANSWER BOOK FOR MST / PUT EXAMINATION', 'MP Board'), student introduction/metadata fields (Roll No., Name, Course, Branch, Year/Sem, Subject Code, Date, Marks Awarded, Examiner/Invigilator Signature), printed Hindi headers, and crossed-out words. Focus ONLY on the student's main handwritten exam answers.\n"
                 "2. QUESTION & PART NUMBERING:\n"
                 "   - Standard sequential exams (Answer no. 01, Q2, Ans 3, etc.): start each main question on its own line with 'Q1:', 'Q2:', 'Q3:', etc.\n"
+                "   - OBJECTIVE / MULTI-ITEM SUB-ANSWERS (MCQ, Fill in blanks, True/False, One-word items): put EACH sub-item on its OWN separate line in strict top-to-bottom order using '(i) ...', '(ii) ...', '(iii) ...', etc. (never merge multiple objective answers onto a single line).\n"
+                "   - SHORT / LONG DESCRIPTIVE ANSWERS: keep each sentence/paragraph flowing naturally in clean continuous English text without breaking every visual line unnecessarily.\n"
                 "   - Multi-part exams with 'Part-I', 'Part-II', 'Part-III' headings where question numbers restart in each part:\n"
-                "     * Under Part-I: start Q.1(A) on its own line with 'Q1A:' and write its sub-answers as '(i) ...', '(ii) ...', '(iii) ...', '(iv) ...', '(v) ...' (even if the student wrote A-1..A-5). Start Q.1(B) / (B) on its own line with 'Q1B:' and write its sub-answers as '(i) ...', '(ii) ...', '(iii) ...', '(iv) ...', '(v) ...' (if (iii)..(v) continue at the top of the next page before Part-II, write them as '(iii) ...', '(iv) ...', '(v) ...' without a new main question tag so they continue Q1B).\n"
+                "     * Under Part-I: start Q.1(A) on its own line with 'Q1A:' and write its sub-answers line-by-line top-to-bottom as '(i) ...', '(ii) ...', '(iii) ...', '(iv) ...', '(v) ...' (even if the student wrote A-1..A-5). Start Q.1(B) / (B) on its own line with 'Q1B:' and write its sub-answers line-by-line as '(i) ...', '(ii) ...', '(iii) ...', '(iv) ...', '(v) ...' (if (iii)..(v) continue at the top of the next page before Part-II, write them as '(iii) ...', '(iv) ...', '(v) ...' without a new main question tag so they continue Q1B).\n"
                 "     * Under Part-II: start each main answer ('A-1', 'A-2', 'A-3', 'A-4', 'A-5', 'Q.1', etc.) on its own line with 'P2_Q1:', 'P2_Q2:', 'P2_Q3:', 'P2_Q4:', 'P2_Q5:', 'P2_Q6:', preserving the exact number written by the student.\n"
-                "     * Under Part-III: start each main answer ('A-1', 'A-2', 'A-3', 'Q.1', 'Q.2', 'Q.3') on its own line with 'P3_Q1:', 'P3_Q2:', 'P3_Q3:' preserving the EXACT number written in the margin by the student (e.g., if the student writes 'A-2', output 'P3_Q2:' — NEVER renumber 'A-2' to 'P3_Q1:'; if the student writes 'A-3', output 'P3_Q3:'). Keep numbered sub-items inside an answer like '1-> Echo', '2-> printf', '3-> who', '4-> date', '5-> cal' formatted as '(1) Echo...', '(2) printf...', etc.\n"
+                "     * Under Part-III: start each main answer ('A-1', 'A-2', 'A-3', 'Q.1', 'Q.2', 'Q.3') on its own line with 'P3_Q1:', 'P3_Q2:', 'P3_Q3:' preserving the EXACT number written in the margin by the student (e.g., if the student writes 'A-2', output 'P3_Q2:' — NEVER renumber 'A-2' to 'P3_Q1:'; if the student writes 'A-3', output 'P3_Q3:'). Keep numbered sub-items inside an answer like '1-> Echo', '2-> printf', '3-> who', '4-> date', '5-> cal' on separate lines formatted as '(1) Echo...', '(2) printf...', etc.\n"
                 "   - If a page starts with a continuation of an answer from the previous page before any new question marker appears, transcribe the continuation lines first before starting the next question tag.\n"
-                "3. Convert messy cursive handwriting into clean, readable digital English words using context. Do NOT output garbled OCR noise.\n"
+                "3. Convert messy cursive handwriting carefully into clean, accurate digital English words, numbers, and scientific formulas (e.g., V = IR, CO2, H2O). Do NOT hallucinate or invent words not written on the page.\n"
                 "4. Return strict JSON mapping each page_number to its clean digital transcript."
             ]
             for p in batch:
                 pil_img = Image.open(p.source_path).convert("RGB")
-                if pil_img.width > 1250:
-                    ratio = 1250.0 / float(pil_img.width)
-                    pil_img = pil_img.resize((1250, int(pil_img.height * ratio)))
+                if pil_img.width > 1500:
+                    ratio = 1500.0 / float(pil_img.width)
+                    pil_img = pil_img.resize((1500, int(pil_img.height * ratio)))
                 contents.append(f"--- PAGE {p.page_number} ---")
                 contents.append(pil_img)
 

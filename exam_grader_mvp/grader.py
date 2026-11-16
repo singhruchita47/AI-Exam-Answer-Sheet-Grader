@@ -300,6 +300,44 @@ def parse_questions(full_text: str) -> dict[str, str]:
     return {qid: " ".join(parts).strip() for qid, parts in mapped.items()}
 
 
+def _join_answer_parts(parts: list[str]) -> str:
+    """Format answer text: keep objective sub-items line-by-line top-to-bottom; keep prose continuous."""
+    non_empty = [p.strip() for p in parts if p and p.strip()]
+    if not non_empty:
+        return ""
+
+    # Already split line-by-line by OCR (e.g., (i) ..., (ii) ..., 1) ..., a) ...)
+    line_start_re = re.compile(
+        r"^\s*(?:\(\s*(?:[ivx]{1,4}|\d{1,2}|[a-f])\s*\)|(?:[ivx]{1,4}|\d{1,2}|[a-f])\s*[\)\.])\s+",
+        re.IGNORECASE,
+    )
+    sub_line_count = sum(1 for ln in non_empty if line_start_re.match(ln))
+    if sub_line_count >= 2:
+        return "\n".join(non_empty)
+
+    # Inline objective sequence split: require strict paren markers (i)/(ii)/(1)/(2)/(a)/(b)
+    # or sequential numbered markers starting with (1)/1) and (2)/2) so prose years/numbers aren't split.
+    inline_paren_re = re.compile(
+        r"(?:^|\s)(\(\s*(?:[ivx]{1,4}|\d{1,2}|[a-f])\s*\))\s+",
+        re.IGNORECASE,
+    )
+    joined_space = " ".join(non_empty)
+    paren_matches = list(inline_paren_re.finditer(joined_space))
+    if len(paren_matches) >= 2:
+        first_tok = paren_matches[0].group(1).strip("() ").lower()
+        second_tok = paren_matches[1].group(1).strip("() ").lower()
+        looks_sequential = (
+            (first_tok in ("i", "1", "a"))
+            or (first_tok in ("ii", "2", "b") and second_tok in ("iii", "3", "c"))
+        )
+        if looks_sequential:
+            formatted = inline_paren_re.sub(lambda m: f"\n{m.group(1).strip()} ", joined_space)
+            clean_lines = [ln.strip() for ln in formatted.splitlines() if ln.strip()]
+            return "\n".join(clean_lines)
+
+    return joined_space.strip()
+
+
 def parse_questions_with_page_texts(
     pages: list["PageOCRResult"],
 ) -> tuple[dict[str, str], dict[str, list[int]], dict[str, dict[str, str]]]:
@@ -455,15 +493,15 @@ def parse_questions_with_page_texts(
                 page_texts_list[current_qid].setdefault(p_str, []).append(cleaned_line)
 
     clean_answers = {
-        qid: " ".join(parts).strip()
+        qid: _join_answer_parts(parts)
         for qid, parts in mapped.items()
-        if " ".join(parts).strip()
+        if _join_answer_parts(parts)
     }
     clean_page_texts = {
         qid: {
-            p_str: " ".join(p_lines).strip()
+            p_str: _join_answer_parts(p_lines)
             for p_str, p_lines in p_map.items()
-            if " ".join(p_lines).strip()
+            if _join_answer_parts(p_lines)
         }
         for qid, p_map in page_texts_list.items()
     }
@@ -566,6 +604,11 @@ class SemanticScorer:
             raw_desc,
             flags=re.IGNORECASE,
         ).strip()
+        # Also handle "Label / Blank (i): 100" style key points by extracting value after ":"
+        if ":" in clean_desc and len(clean_desc.split(":", 1)[1].strip()) >= 1:
+            after_colon = clean_desc.split(":", 1)[1].strip()
+            if len(after_colon) < len(clean_desc):
+                clean_desc = after_colon
         if not clean_desc:
             clean_desc = raw_desc
 
@@ -1065,7 +1108,7 @@ class ExamGrader:
         for kp in question.key_points:
             kp_max = round((kp.weight / total_weight) * text_budget, 2)
             sim = kp_sims.get(kp.point_id, 0.0)
-            if sim >= 0.85:
+            if is_objective_group or sim >= 0.85:
                 blended_sim = sim
             else:
                 blended_sim = (1.0 - self.cfg.semantic_blend_weight) * sim + (
@@ -1076,7 +1119,8 @@ class ExamGrader:
             if not is_objective_group and question.max_marks >= 3.0 and word_count < 6 and lvl >= 4 and sim < 0.85:
                 blended_sim *= 0.45 if lvl >= 8 else 0.6
 
-            if blended_sim >= hit_threshold:
+            eff_hit_thresh = (0.72 if lvl <= 7 else 0.80) if is_objective_group else hit_threshold
+            if blended_sim >= eff_hit_thresh:
                 status: Literal["Hit", "Partial", "Missed"] = "Hit"
                 awarded = kp_max
                 note = f"Correctly matched in answer (confidence {sim:.2f}, strictness {lvl}/10)."
@@ -1152,9 +1196,10 @@ class ExamGrader:
             for kp in question.key_points
         }
         updated_any = False
+        hit_floor = 0.85 if question.question_type in ("mcq", "fill_blank", "one_word") else 0.90
         for step in grade_out.step_wise_breakdown:
             sim_val = kp_sims.get(step.point_id, step.similarity_score)
-            if sim_val >= 0.90 and step.status != "Hit":
+            if sim_val >= hit_floor and step.status != "Hit":
                 max_m = kp_max_map.get(step.point_id, step.max_point_marks)
                 step.status = "Hit"
                 step.awarded_point_marks = max_m
@@ -1607,6 +1652,27 @@ class ExamGrader:
                     diagram_eval = self.local_vlm.evaluate_diagram(
                         diagram_path, question.question_text, question.diagram_criteria
                     )
+            elif (
+                question.requires_diagram
+                and not self.offline
+                and self.api_key
+                and ocr_result.pages
+                and student_answer.strip()
+            ):
+                # Fallback: inspect full answer page with Gemini Vision in case OpenCV bbox missed a clean hand-drawn diagram
+                target_pnum = q_pages[0] if q_pages else ocr_result.pages[0].page_number
+                target_page_obj = next(
+                    (p for p in ocr_result.pages if p.page_number == target_pnum),
+                    ocr_result.pages[0],
+                )
+                try:
+                    full_page_diag = _evaluate_diagram_gemini(
+                        target_page_obj.source_path, question, self.api_key
+                    )
+                    if full_page_diag.is_relevant and full_page_diag.structure_score >= 0.25:
+                        diagram_eval = full_page_diag
+                except Exception as exc:
+                    logger.debug("Full-page Gemini diagram check skipped for %s: %s", qid, exc)
 
             overall_sim, kp_sims = self.semantic_scorer.score_answer(student_answer, question)
             prepared_items.append(

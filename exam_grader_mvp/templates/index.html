@@ -1723,6 +1723,101 @@
       }
     }
 
+    function isObjectiveQuestionType(qType) {
+      return ['mcq', 'fill_blank', 'one_word'].includes(String(qType || '').toLowerCase());
+    }
+
+    function extractObjectiveSubItems(rawText, qType) {
+      const text = String(rawText || '').trim();
+      if (!text) return [];
+
+      // Split already line-by-line entries or sequential inline (i)/(ii)/(a)/(b)/(1)/(2) items
+      let working = text;
+      const inlineMarkerRe = /(?:^|\s)(\(\s*(?:[ivx]{1,4}|\d{1,2}|[a-f])\s*\))\s+/gi;
+      const inlineMatches = [...working.matchAll(inlineMarkerRe)];
+      if (inlineMatches.length >= 2) {
+        const t1 = inlineMatches[0][1].replace(/[()\s]/g, '').toLowerCase();
+        const t2 = inlineMatches[1][1].replace(/[()\s]/g, '').toLowerCase();
+        if (t1 === 'i' || t1 === '1' || t1 === 'a' || (t1 === 'ii' && t2 === 'iii')) {
+          working = working.replace(inlineMarkerRe, (_, m) => `\n${m.replace(/\s+/g, '')} `).trim();
+        }
+      }
+
+      const rawLines = working.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+      const itemLineRe = /^\s*(\(\s*(?:[ivx]{1,4}|\d{1,2}|[a-f])\s*\)|(?:[ivx]{1,4}|\d{1,2}|[a-f])[\)\.:])\s*(.+)$/i;
+
+      const parsed = [];
+      for (const ln of rawLines) {
+        const m = ln.match(itemLineRe);
+        if (m) {
+          parsed.push({ marker: m[1].replace(/\s+/g, ''), value: m[2].trim() });
+        } else if (isObjectiveQuestionType(qType) && rawLines.length >= 2) {
+          parsed.push({ marker: `(${parsed.length + 1})`, value: ln });
+        }
+      }
+
+      if (parsed.length >= 2 || (isObjectiveQuestionType(qType) && parsed.length >= 1)) {
+        return parsed;
+      }
+      return [];
+    }
+
+    function formatDisplayStudentAnswer(rawText, qType) {
+      const subItems = extractObjectiveSubItems(rawText, qType);
+      if (subItems.length >= 2) {
+        return subItems.map(it => `${it.marker} ${it.value}`).join('\n');
+      }
+      // Short / Long Q&A: leave natural readable paragraph text as written
+      return String(rawText || '').trim();
+    }
+
+    function renderAnswerContentHtml(rawText, qType, steps = [], showStepStatus = false) {
+      const subItems = extractObjectiveSubItems(rawText, qType);
+      if (subItems.length >= 2) {
+        return `
+          <div class="space-y-1.5" data-objective-lines="true">
+            ${subItems.map((it, idx) => {
+              let statusBadge = '';
+              if (showStepStatus && Array.isArray(steps) && steps.length === subItems.length && steps[idx]) {
+                const st = steps[idx].status;
+                if (st === 'Hit') {
+                  statusBadge = `<span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200 shrink-0">✓ Correct</span>`;
+                } else if (st === 'Partial') {
+                  statusBadge = `<span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-200 shrink-0">~ Partial</span>`;
+                } else if (st === 'Missed') {
+                  statusBadge = `<span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-100 text-rose-800 border border-rose-200 shrink-0">✗ Incorrect</span>`;
+                }
+              }
+              return `
+                <div class="flex items-start justify-between gap-2.5 px-3 py-2 rounded-lg bg-slate-50 border border-slate-200/80">
+                  <div class="flex items-start gap-2.5 min-w-0">
+                    <span class="px-2 py-0.5 rounded-md bg-indigo-100 text-indigo-800 font-bold text-xs mono-font shrink-0">${escapeHtmlSafe(it.marker)}</span>
+                    <span class="text-xs sm:text-sm font-semibold text-slate-900 leading-snug break-words">${escapeHtmlSafe(it.value)}</span>
+                  </div>
+                  ${statusBadge}
+                </div>
+              `;
+            }).join('')}
+          </div>
+        `;
+      }
+      // Regular Short / Long Answer: keep natural clean paragraph as written
+      return `
+        <div class="px-3.5 py-3 rounded-xl bg-slate-50 border border-slate-200/80 text-xs sm:text-sm text-slate-800 font-medium leading-relaxed whitespace-pre-line">${escapeHtmlSafe(String(rawText || '').trim())}</div>
+      `;
+    }
+
+    function toggleOcrEditor(qIdx) {
+      const editorWrap = document.getElementById(`qOcrEditorWrap_${qIdx}`);
+      const btn = document.getElementById(`toggleOcrEditBtn_${qIdx}`);
+      if (!editorWrap) return;
+      const isHidden = editorWrap.classList.contains('hidden');
+      editorWrap.classList.toggle('hidden', !isHidden);
+      if (btn) {
+        btn.innerHTML = isHidden ? '<span>✓</span> <span>Done Editing</span>' : '<span>✏️</span> <span>Edit Text</span>';
+      }
+    }
+
     function buildStudentAnswerSummary(res) {
       const steps = res.step_wise_breakdown || [];
       const hits = steps.filter(s => s.status === 'Hit');
@@ -2021,12 +2116,12 @@
         // 3. UNATTEMPTED CASE vs ATTEMPTED CASE
         if (!isAttempted) {
           const modelAnsHtml = res.model_answer ? `
-            <div class="rounded-xl bg-emerald-50/50 border border-emerald-200 p-3.5 space-y-1">
+            <div class="rounded-xl bg-emerald-50/50 border border-emerald-200 p-3.5 space-y-2">
               <div class="flex items-center justify-between gap-2">
-                <span class="text-[11px] font-extrabold uppercase tracking-wider text-emerald-800">✅ Model / Correct Answer</span>
+                <span class="text-[11px] font-extrabold uppercase tracking-wider text-emerald-800">✅ Expected / Correct Answer</span>
                 <span class="text-[10px] font-semibold text-emerald-700">${expectedAnswerOrigin}</span>
               </div>
-              <p class="text-xs sm:text-sm text-slate-700 leading-relaxed">${escapeHtmlSafe(res.model_answer)}</p>
+              ${renderAnswerContentHtml(res.model_answer, res.question_type, [], false)}
             </div>
           ` : '';
 
@@ -2123,12 +2218,23 @@
         }
 
         const studentSummaryText = buildStudentAnswerSummary(res);
+        const formattedOcrValue = formatDisplayStudentAnswer(res.student_answer || '', res.question_type);
+        const studentAnswerViewHtml = renderAnswerContentHtml(
+          formattedOcrValue,
+          res.question_type,
+          res.step_wise_breakdown || [],
+          true
+        );
+        const modelAnswerViewHtml = res.model_answer
+          ? renderAnswerContentHtml(res.model_answer, res.question_type, [], false)
+          : '';
+        const isObjLayout = extractObjectiveSubItems(formattedOcrValue, res.question_type).length >= 2;
         const multiPageNote = (pageNums.length > 1 && res.page_texts && res.page_texts[String(activePageNum)]) ? `
           <div class="p-3 bg-indigo-50/60 border border-indigo-200 rounded-xl text-xs space-y-1">
             <span class="text-[10px] font-extrabold uppercase tracking-wider text-indigo-800 block">
               📍 Portion Written on Page ${activePageNum}:
             </span>
-            <p class="text-slate-800 leading-relaxed">${escapeHtmlSafe(res.page_texts[String(activePageNum)])}</p>
+            <p class="text-slate-800 leading-relaxed whitespace-pre-line">${escapeHtmlSafe(res.page_texts[String(activePageNum)])}</p>
           </div>
         ` : '';
 
@@ -2136,28 +2242,50 @@
           ${headerHtml}
           ${questionAskedHtml}
 
-          <!-- Section 2: OCR Extracted Text (Editable) -->
-          <div class="rounded-xl bg-white border border-slate-200 p-3.5 space-y-2">
+          <!-- Section 2: What Student Wrote (Clean Line-by-Line for Objectives, Natural Prose for Q&A) -->
+          <div class="rounded-xl bg-white border-2 border-indigo-100 p-4 space-y-3">
             <div class="flex flex-wrap items-center justify-between gap-2">
-              <label for="qOcrInput_${qIdx}" class="text-[11px] font-extrabold uppercase tracking-wider text-slate-600 flex items-center gap-1.5">
-                <span>✍️</span> <span>OCR Extracted Text (Editable)</span>
-              </label>
-              <button type="button" id="regradeBtn_${qIdx}" onclick="regradeSingleQuestion(${qIdx})"
-                class="text-[11px] font-bold px-2.5 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 transition cursor-pointer flex items-center gap-1">
-                <span>🔄</span> <span>Re-Grade Edited Text</span>
-              </button>
+              <div class="flex flex-wrap items-center gap-2">
+                <span class="text-[11px] font-extrabold uppercase tracking-wider text-indigo-900 flex items-center gap-1.5">
+                  <span>📝</span> <span>What Student Wrote</span>
+                </span>
+                <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
+                  ${isObjLayout ? 'Objective • Line-by-Line Top to Bottom' : `From Page ${pageNums.join(', ')}`}
+                </span>
+              </div>
+              <div class="flex items-center gap-1.5">
+                <button type="button" id="toggleOcrEditBtn_${qIdx}" onclick="toggleOcrEditor(${qIdx})"
+                  class="text-[11px] font-bold px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 transition cursor-pointer flex items-center gap-1">
+                  <span>✏️</span> <span>Edit Text</span>
+                </button>
+                <button type="button" id="regradeBtn_${qIdx}" onclick="regradeSingleQuestion(${qIdx})"
+                  class="text-[11px] font-bold px-2.5 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 transition cursor-pointer flex items-center gap-1">
+                  <span>🔄</span> <span>Re-Grade</span>
+                </button>
+              </div>
             </div>
+
             ${multiPageNote}
-            <textarea id="qOcrInput_${qIdx}" rows="4"
-              oninput="onQuestionOcrTextChanged(${qIdx}, this.value)"
-              placeholder="No handwriting detected for this question. Edit or type here if needed..."
-              class="w-full text-xs sm:text-sm p-3 bg-slate-50 focus:bg-white rounded-xl border border-slate-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 text-slate-800 font-medium leading-relaxed">${escapeHtmlSafe(res.student_answer || '')}</textarea>
+            <div id="qStudentPrettyView_${qIdx}">
+              ${studentAnswerViewHtml}
+            </div>
+
+            <!-- Inline Editable OCR Box (Toggled by "Edit Text") -->
+            <div id="qOcrEditorWrap_${qIdx}" class="hidden pt-2 border-t border-slate-100 space-y-1.5">
+              <label for="qOcrInput_${qIdx}" class="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 block">
+                Edit Extracted OCR Text (updates preview above &amp; lets you re-grade):
+              </label>
+              <textarea id="qOcrInput_${qIdx}" rows="${isObjLayout ? 6 : 4}"
+                oninput="onQuestionOcrTextChanged(${qIdx}, this.value)"
+                placeholder="No handwriting detected for this question. Edit or type here if needed..."
+                class="w-full text-xs sm:text-sm p-3 bg-slate-50 focus:bg-white rounded-xl border border-indigo-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 text-slate-800 font-medium leading-relaxed">${escapeHtmlSafe(formattedOcrValue)}</textarea>
+            </div>
           </div>
 
-          <!-- Section 3: Student's Answer Summary / Interpretation -->
+          <!-- Section 3: Student Answer Evaluation Summary + Diagram Check -->
           <div class="rounded-xl bg-sky-50/60 border border-sky-200 p-3.5 space-y-2">
             <span class="text-[11px] font-extrabold uppercase tracking-wider text-sky-900 block">
-              🧠 Student's Answer Summary / Interpretation
+              🧠 Evaluation Summary (At a Glance)
             </span>
             <p class="text-xs sm:text-sm text-slate-700 leading-relaxed">
               ${escapeHtmlSafe(studentSummaryText)}
@@ -2167,12 +2295,12 @@
 
           <!-- Section 4: Model / Correct Answer -->
           ${res.model_answer ? `
-            <div class="rounded-xl bg-emerald-50/50 border border-emerald-200 p-3.5 space-y-1.5">
+            <div class="rounded-xl bg-emerald-50/45 border border-emerald-200 p-3.5 space-y-2">
               <div class="flex flex-wrap items-center justify-between gap-2">
-                <span class="text-[11px] font-extrabold uppercase tracking-wider text-emerald-900">✅ Model / Correct Answer</span>
+                <span class="text-[11px] font-extrabold uppercase tracking-wider text-emerald-900">✅ Expected / Correct Answer</span>
                 <span class="text-[10px] font-semibold text-emerald-700 bg-white px-2 py-0.5 rounded border border-emerald-200">${expectedAnswerOrigin}</span>
               </div>
-              <p class="text-xs sm:text-sm text-slate-800 leading-relaxed">${escapeHtmlSafe(res.model_answer)}</p>
+              ${modelAnswerViewHtml}
             </div>
           ` : ''}
 
@@ -2203,6 +2331,16 @@
       qRes.is_attempted = Boolean(newText.trim() || qRes.diagram_path);
       if (currentGradingReport.mapped_answers) {
         currentGradingReport.mapped_answers[qRes.question_id] = newText;
+      }
+
+      const prettyEl = document.getElementById(`qStudentPrettyView_${qIdx}`);
+      if (prettyEl) {
+        prettyEl.innerHTML = renderAnswerContentHtml(
+          formatDisplayStudentAnswer(newText, qRes.question_type),
+          qRes.question_type,
+          qRes.step_wise_breakdown || [],
+          false
+        );
       }
 
       const editBadge = document.getElementById(`qEditBadge_${qIdx}`);
