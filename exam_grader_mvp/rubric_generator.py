@@ -234,28 +234,37 @@ class RubricGenerator:
             ]
         )
 
+        import io
+
+        def _to_jpeg_part(pil_img: Image.Image, max_w: int = 1400, quality: int = 84) -> Any:
+            rgb = pil_img.convert("RGB")
+            if rgb.width > max_w:
+                ratio = max_w / float(rgb.width)
+                rgb = rgb.resize((max_w, int(round(rgb.height * ratio))))
+            buf = io.BytesIO()
+            rgb.save(buf, format="JPEG", quality=quality, optimize=True)
+            return types.Part.from_bytes(data=buf.getvalue(), mime_type="image/jpeg")
+
         full_prompt = "\n".join(prompt_parts)
         contents: list[Any] = [full_prompt]
 
         if question_images:
             contents.append("--- QUESTION PAPER / MARKING SCHEME PAGES ---")
-            contents.extend(question_images)
+            contents.extend(_to_jpeg_part(img) for img in question_images)
         elif question_image_path:
             img_path = Path(question_image_path)
             if img_path.exists():
-                pil_img = Image.open(img_path).convert("RGB")
                 contents.append("--- QUESTION PAPER / MARKING SCHEME IMAGE ---")
-                contents.append(pil_img)
+                contents.append(_to_jpeg_part(Image.open(img_path)))
 
         if answer_key_images:
             contents.append("--- OFFICIAL ANSWER KEY PAGES ---")
-            contents.extend(answer_key_images)
+            contents.extend(_to_jpeg_part(img) for img in answer_key_images)
         elif answer_key_image_path:
             ak_path = Path(answer_key_image_path)
             if ak_path.exists():
-                ak_img = Image.open(ak_path).convert("RGB")
                 contents.append("--- OFFICIAL ANSWER KEY IMAGE ---")
-                contents.append(ak_img)
+                contents.append(_to_jpeg_part(Image.open(ak_path)))
 
         import time
 
@@ -269,13 +278,13 @@ class RubricGenerator:
                     config=types.GenerateContentConfig(
                         response_mime_type="application/json",
                         response_schema=ExamRubric,
-                        temperature=0.1,
+                        temperature=0.0,
                     ),
                 )
                 break
             except Exception as exc:
                 last_err = exc
-                time.sleep(0.6)
+                time.sleep(0.25)
         if response is None:
             raise RuntimeError(f"Gemini rubric generation failed across fallback models: {last_err}")
 

@@ -77,6 +77,19 @@ def get_semantic_scorer() -> SemanticScorer:
     return _semantic_scorer
 
 
+@app.on_event("startup")
+def _prewarm_models_background() -> None:
+    """Pre-load embedding scorer in a background thread so the first grading request is instant."""
+    def _warm() -> None:
+        try:
+            get_semantic_scorer()._ensure_loaded()
+            get_ocr_engine()._get_rapid_ocr()
+        except Exception as exc:
+            logger.debug("Background pre-warm skipped: %s", exc)
+
+    threading.Thread(target=_warm, daemon=True).start()
+
+
 @app.get("/", response_class=HTMLResponse)
 def index() -> HTMLResponse:
     """Serve the testing web UI HTML file."""
@@ -281,9 +294,9 @@ def _prepare_student_pages(
                 try:
                     doc = pdfium.PdfDocument(pdf_dest)
                     for page_idx in range(len(doc)):
-                        page_img = doc[page_idx].render(scale=1.3).to_pil()
+                        page_img = doc[page_idx].render(scale=1.15).to_pil()
                         img_path = session_upload_dir / f"page_{page_counter}.jpg"
-                        page_img.save(img_path, "JPEG", quality=88)
+                        page_img.save(img_path, "JPEG", quality=85)
                         page_paths.append(img_path)
                         page_counter += 1
                     doc.close()

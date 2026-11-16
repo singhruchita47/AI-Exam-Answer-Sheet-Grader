@@ -974,7 +974,7 @@
           </div>
         `;
         container.classList.remove('hidden');
-        triggerSilentRubricPrep(true);
+        scheduleSilentRubricPrep();
       } else {
         container.classList.add('hidden');
         currentRubric = null;
@@ -1020,7 +1020,7 @@
       }
       updateDualRefBadge();
       if (hasQuestionPaperInput()) {
-        triggerSilentRubricPrep(true);
+        scheduleSilentRubricPrep();
       }
     }
 
@@ -1032,7 +1032,7 @@
       container.innerHTML = '';
       updateDualRefBadge();
       if (hasQuestionPaperInput()) {
-        triggerSilentRubricPrep(true);
+        scheduleSilentRubricPrep();
       }
     }
 
@@ -1150,7 +1150,7 @@
       setSilentRubricStatus('loading', 'Preparing questions & expected answers silently...');
       rubricDebounceTimer = setTimeout(() => {
         triggerSilentRubricPrep(false);
-      }, 650);
+      }, 950);
     }
 
     function triggerSilentRubricPrep(immediate = false) {

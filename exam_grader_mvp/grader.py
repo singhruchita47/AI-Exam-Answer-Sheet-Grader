@@ -19,6 +19,7 @@ from config import (
     EMBEDDING_MODEL_NAME,
     GEMINI_API_KEY,
     GEMINI_FALLBACK_MODELS,
+    GEMINI_FAST_GRADING_MODELS,
     GEMINI_MODEL_NAME,
     GRADING_CONFIG,
     LOCAL_VLM_MODEL_NAME,
@@ -543,7 +544,10 @@ class SemanticScorer:
     def _ensure_loaded(self) -> SentenceTransformer:
         if self._model is None:
             logger.info("Loading sentence-transformer '%s'...", self.model_name)
-            self._model = SentenceTransformer(self.model_name)
+            try:
+                self._model = SentenceTransformer(self.model_name, local_files_only=True)
+            except Exception:
+                self._model = SentenceTransformer(self.model_name)
         return self._model
 
     @staticmethod
@@ -852,11 +856,18 @@ def _evaluate_diagram_gemini(
     api_key: str,
 ) -> DiagramEvaluation:
     """Evaluate a cropped hand-drawn diagram using Gemini 2.5 Flash structured output."""
+    import io
     from google import genai
     from google.genai import types
 
     client = genai.Client(api_key=api_key)
     pil_image = Image.open(diagram_path).convert("RGB")
+    if pil_image.width > 1200:
+        ratio = 1200.0 / float(pil_image.width)
+        pil_image = pil_image.resize((1200, int(round(pil_image.height * ratio))))
+    buf = io.BytesIO()
+    pil_image.save(buf, format="JPEG", quality=84, optimize=True)
+    img_part = types.Part.from_bytes(data=buf.getvalue(), mime_type="image/jpeg")
     prompt = (
         "You are an expert STEM exam evaluator grading a student's hand-drawn diagram.\n"
         f"Question ({question.question_id}): {question.question_text}\n"
@@ -869,15 +880,15 @@ def _evaluate_diagram_gemini(
     )
 
     last_err: Exception | None = None
-    for m_name in dict.fromkeys([GEMINI_MODEL_NAME, *GEMINI_FALLBACK_MODELS]):
+    for m_name in (GEMINI_MODEL_NAME, *GEMINI_FAST_GRADING_MODELS):
         try:
             response = client.models.generate_content(
                 model=m_name,
-                contents=[prompt, pil_image],
+                contents=[prompt, img_part],
                 config=types.GenerateContentConfig(
                     response_mime_type="application/json",
                     response_schema=DiagramEvaluation,
-                    temperature=0.1,
+                    temperature=0.0,
                 ),
             )
             if response.parsed is not None:
@@ -1293,7 +1304,7 @@ class ExamGrader:
         )
 
         last_err: Exception | None = None
-        for m_name in dict.fromkeys([GEMINI_MODEL_NAME, *GEMINI_FALLBACK_MODELS]):
+        for m_name in dict.fromkeys([GEMINI_MODEL_NAME, *GEMINI_FAST_GRADING_MODELS]):
             try:
                 response = client.models.generate_content(
                     model=m_name,
@@ -1301,7 +1312,7 @@ class ExamGrader:
                     config=types.GenerateContentConfig(
                         response_mime_type="application/json",
                         response_schema=LLMGradeOutput,
-                        temperature=0.1,
+                        temperature=0.0,
                     ),
                 )
                 if response.parsed is not None:
@@ -1315,7 +1326,7 @@ class ExamGrader:
                 return parsed
             except Exception as exc:
                 last_err = exc
-                time.sleep(0.8)
+                time.sleep(0.2)
         raise RuntimeError(f"Gemini grading failed across fallback models: {last_err}")
 
     @staticmethod
@@ -1402,7 +1413,7 @@ class ExamGrader:
             )
 
         last_err: Exception | None = None
-        for m_name in dict.fromkeys([GEMINI_MODEL_NAME, *GEMINI_FALLBACK_MODELS]):
+        for m_name in dict.fromkeys([GEMINI_MODEL_NAME, *GEMINI_FAST_GRADING_MODELS]):
             try:
                 response = client.models.generate_content(
                     model=m_name,
@@ -1410,7 +1421,7 @@ class ExamGrader:
                     config=types.GenerateContentConfig(
                         response_mime_type="application/json",
                         response_schema=BatchGradeResponse,
-                        temperature=0.1,
+                        temperature=0.0,
                     ),
                 )
                 parsed = (
@@ -1430,7 +1441,7 @@ class ExamGrader:
                 return out
             except Exception as exc:
                 last_err = exc
-                time.sleep(0.9)
+                time.sleep(0.25)
         raise RuntimeError(f"Batch Gemini grading failed across fallback models: {last_err}")
 
     def grade_single_question(
@@ -1622,10 +1633,12 @@ class ExamGrader:
 
             if diagram_path is not None and is_short_submission:
                 try:
+                    fast_ocr = globals().get("_SHARED_RAPID_OCR")
                     if fast_ocr is None:
                         from rapidocr_onnxruntime import RapidOCR
 
                         fast_ocr = RapidOCR()
+                        globals()["_SHARED_RAPID_OCR"] = fast_ocr
                     d_res, _ = fast_ocr(str(diagram_path))
                     if d_res:
                         diag_text = " ".join(r[1].strip() for r in d_res if r[1].strip())
@@ -1686,15 +1699,15 @@ class ExamGrader:
                 for q, ans, osim, ksims, _, deval, _ in prepared_items
                 if ans.strip() or deval is not None
             ]
-            if len(to_grade_online) <= 3:
-                for q, ans, osim, ksims, deval in to_grade_online:
-                    try:
-                        batch_grades[q.question_id] = self._grade_with_gemini(
-                            q, ans, osim, ksims, deval, strictness_level=lvl
-                        )
-                    except Exception as exc:
-                        logger.warning("Gemini single grading fallback for %s: %s", q.question_id, exc)
-            else:
+            if len(to_grade_online) == 1:
+                q, ans, osim, ksims, deval = to_grade_online[0]
+                try:
+                    batch_grades[q.question_id] = self._grade_with_gemini(
+                        q, ans, osim, ksims, deval, strictness_level=lvl
+                    )
+                except Exception as exc:
+                    logger.warning("Gemini single grading fallback for %s: %s", q.question_id, exc)
+            elif to_grade_online:
                 chunk_size = 12
                 chunks = [
                     to_grade_online[i : i + chunk_size]

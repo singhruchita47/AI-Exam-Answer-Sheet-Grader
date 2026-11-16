@@ -26,7 +26,11 @@ EMBEDDING_MODEL_NAME: str = os.getenv("EMBEDDING_MODEL_NAME", "all-MiniLM-L6-v2"
 GEMINI_MODEL_NAME: str = os.getenv("GEMINI_MODEL_NAME", "gemini-3.5-flash-lite")
 GEMINI_FALLBACK_MODELS: tuple[str, ...] = (
     "gemini-3.5-flash-lite",
+    "gemini-3.1-flash-lite",
     "gemini-3.5-flash",
+)
+GEMINI_FAST_GRADING_MODELS: tuple[str, ...] = (
+    "gemini-3.5-flash-lite",
     "gemini-3.1-flash-lite",
 )
 LOCAL_VLM_MODEL_NAME: str = os.getenv(
@@ -87,7 +91,7 @@ class SegmentationConfig:
     """Thresholds for OpenCV preprocessing, ruled-line removal, and layout analysis."""
 
     target_min_width: int = 1000
-    target_max_width: int = 2000
+    target_max_width: int = 1600
 
     # Denoising & Adaptive Thresholding
     bilateral_d: int = 7

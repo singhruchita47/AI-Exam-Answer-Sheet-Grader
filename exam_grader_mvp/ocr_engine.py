@@ -835,8 +835,8 @@ class OCREngine:
             if w > 900:
                 scale = 900.0 / float(w)
                 bgr = cv2.resize(bgr, (900, int(round(h * scale))), interpolation=cv2.INTER_AREA)
-            layout_path = debug_dir / f"page_{page_number}_layout.png"
-            cv2.imwrite(str(layout_path), bgr)
+            layout_path = debug_dir / f"page_{page_number}_layout.jpg"
+            cv2.imwrite(str(layout_path), bgr, [int(cv2.IMWRITE_JPEG_QUALITY), 85])
             return PageOCRResult(
                 page_number=page_number,
                 source_path=src_path,
@@ -930,8 +930,8 @@ class OCREngine:
                 cv2.LINE_AA,
             )
 
-        layout_path = debug_dir / f"page_{page_number}_layout.png"
-        cv2.imwrite(str(layout_path), annotated)
+        layout_path = debug_dir / f"page_{page_number}_layout.jpg"
+        cv2.imwrite(str(layout_path), annotated, [int(cv2.IMWRITE_JPEG_QUALITY), 85])
 
         return PageOCRResult(
             page_number=page_number,
@@ -1005,13 +1005,17 @@ class OCREngine:
                 "3. Convert messy cursive handwriting carefully into clean, accurate digital English words, numbers, and scientific formulas (e.g., V = IR, CO2, H2O). Do NOT hallucinate or invent words not written on the page.\n"
                 "4. Return strict JSON mapping each page_number to its clean digital transcript."
             ]
+            import io
+
             for p in batch:
                 pil_img = Image.open(p.source_path).convert("RGB")
-                if pil_img.width > 1500:
-                    ratio = 1500.0 / float(pil_img.width)
-                    pil_img = pil_img.resize((1500, int(pil_img.height * ratio)))
+                if pil_img.width > 1280:
+                    ratio = 1280.0 / float(pil_img.width)
+                    pil_img = pil_img.resize((1280, int(round(pil_img.height * ratio))))
+                buf = io.BytesIO()
+                pil_img.save(buf, format="JPEG", quality=84, optimize=True)
                 contents.append(f"--- PAGE {p.page_number} ---")
-                contents.append(pil_img)
+                contents.append(types.Part.from_bytes(data=buf.getvalue(), mime_type="image/jpeg"))
 
             models_to_try = [GEMINI_MODEL_NAME, *GEMINI_FALLBACK_MODELS]
             for m_name in dict.fromkeys(models_to_try):
@@ -1032,7 +1036,7 @@ class OCREngine:
                     )
                     return {item.page_number: item.transcript.strip() for item in parsed.pages}
                 except Exception as exc:
-                    time.sleep(0.6)
+                    time.sleep(0.25)
                     logger.warning("Gemini OCR batch attempt (%s) failed: %s", m_name, exc)
             return {}
 
@@ -1119,60 +1123,114 @@ class OCREngine:
         is_single_or_pair = total_pages <= 2
         save_crops = is_single_or_pair and not online_fast
 
+        # Launch Gemini Vision OCR concurrently right away in online mode while OpenCV segments pages in parallel
+        from concurrent.futures import ThreadPoolExecutor
+
+        ocr_future = None
+        ocr_pages_ref: list[PageOCRResult] = []
+        if online_fast and total_pages > 0:
+            ocr_pages_ref = [
+                PageOCRResult(
+                    page_number=idx,
+                    source_path=Path(p),
+                    layout_image_path=debug_root / f"page_{idx}_layout.jpg",
+                    skew_angle_deg=0.0,
+                )
+                for idx, p in enumerate(page_paths, start=1)
+            ]
+            ocr_executor = ThreadPoolExecutor(max_workers=1)
+            ocr_future = ocr_executor.submit(self._transcribe_pages_gemini, ocr_pages_ref, progress_callback)
+        else:
+            ocr_executor = None
+
         pages: list[PageOCRResult] = []
         all_line_regions: list[SegmentedRegion] = []
 
-        for idx, page_path in enumerate(page_paths, start=1):
+        if total_pages >= 2:
             if progress_callback:
-                pct = int(5 + ((idx - 1) / max(total_pages, 1)) * 45)
-                msg = (
-                    f"Evaluating Page {idx} of {total_pages}..."
-                    if idx == 1
-                    else f"Page {idx - 1} Done ✔ → Now Evaluating Page {idx} of {total_pages}..."
-                )
                 progress_callback(
                     {
                         "type": "progress",
                         "step": "page_segment",
-                        "page": idx,
+                        "page": 1,
                         "total_pages": total_pages,
-                        "percent": pct,
-                        "message": msg,
+                        "percent": 12,
+                        "message": f"Analyzing layout & running Vision OCR across {total_pages} page(s) in parallel...",
                     }
                 )
-
-            page_result = self.segment_page(
-                page_path,
-                page_number=idx,
-                debug_dir=debug_root,
-                save_line_crops=save_crops,
-                fast_layout_only=False,
-            )
-            pages.append(page_result)
-            all_line_regions.extend(page_result.text_lines)
-
-            if progress_callback:
-                pct = int(5 + (idx / max(total_pages, 1)) * 45)
-                next_part = (
-                    f" → Now Evaluating Page {idx + 1} of {total_pages}..."
-                    if idx < total_pages
-                    else " → Layout Segmentation Complete!"
+            with ThreadPoolExecutor(max_workers=min(4, total_pages)) as seg_pool:
+                seg_futures = [
+                    seg_pool.submit(
+                        self.segment_page,
+                        page_path,
+                        idx,
+                        debug_root,
+                        save_crops,
+                        False,
+                    )
+                    for idx, page_path in enumerate(page_paths, start=1)
+                ]
+                for idx, fut in enumerate(seg_futures, start=1):
+                    page_result = fut.result()
+                    pages.append(page_result)
+                    all_line_regions.extend(page_result.text_lines)
+                    if progress_callback:
+                        pct = int(12 + (idx / max(total_pages, 1)) * 45)
+                        next_part = (
+                            f" → Processing Page {idx + 1} of {total_pages}..."
+                            if idx < total_pages
+                            else " → Finalizing OCR & Grading..."
+                        )
+                        progress_callback(
+                            {
+                                "type": "progress",
+                                "step": "page_done",
+                                "page": idx,
+                                "total_pages": total_pages,
+                                "percent": pct,
+                                "lines_detected": len(page_result.text_lines),
+                                "diagrams_detected": len(page_result.diagrams),
+                                "message": f"Page {idx} of {total_pages} Done ✔ ({len(page_result.text_lines)} lines, {len(page_result.diagrams)} diagram){next_part}",
+                            }
+                        )
+        else:
+            for idx, page_path in enumerate(page_paths, start=1):
+                if progress_callback:
+                    progress_callback(
+                        {
+                            "type": "progress",
+                            "step": "page_segment",
+                            "page": idx,
+                            "total_pages": total_pages,
+                            "percent": 15,
+                            "message": f"Evaluating Page {idx} of {total_pages}...",
+                        }
+                    )
+                page_result = self.segment_page(
+                    page_path,
+                    page_number=idx,
+                    debug_dir=debug_root,
+                    save_line_crops=save_crops,
+                    fast_layout_only=False,
                 )
-                progress_callback(
-                    {
-                        "type": "progress",
-                        "step": "page_done",
-                        "page": idx,
-                        "total_pages": total_pages,
-                        "percent": pct,
-                        "lines_detected": len(page_result.text_lines),
-                        "diagrams_detected": len(page_result.diagrams),
-                        "message": f"Page {idx} of {total_pages} Done ✔ ({len(page_result.text_lines)} lines, {len(page_result.diagrams)} diagram){next_part}",
-                    }
-                )
+                pages.append(page_result)
+                all_line_regions.extend(page_result.text_lines)
+                if progress_callback:
+                    progress_callback(
+                        {
+                            "type": "progress",
+                            "step": "page_done",
+                            "page": idx,
+                            "total_pages": total_pages,
+                            "percent": 50,
+                            "lines_detected": len(page_result.text_lines),
+                            "diagrams_detected": len(page_result.diagrams),
+                            "message": f"Page {idx} of {total_pages} Done ✔ ({len(page_result.text_lines)} lines, {len(page_result.diagrams)} diagram) → Layout Complete!",
+                        }
+                    )
 
-        # Path 1: Fast Parallel Gemini Vision OCR (Online)
-        if online_fast:
+        # Path 1: Merge concurrent Gemini Vision OCR results
+        if online_fast and ocr_future is not None:
             if progress_callback:
                 progress_callback(
                     {
@@ -1180,15 +1238,27 @@ class OCREngine:
                         "step": "ocr_vision",
                         "page": total_pages,
                         "total_pages": total_pages,
-                        "percent": 58,
-                        "message": f"Running Multimodal Vision Handwriting OCR across {total_pages} page(s)...",
+                        "percent": 65,
+                        "message": f"Finishing Multimodal Vision Handwriting OCR for {total_pages} page(s)...",
                     }
                 )
-            if self._transcribe_pages_gemini(pages, progress_callback=progress_callback):
-                # Fill any single missed page with RapidOCR if needed
-                for page in pages:
-                    if not page.transcript.strip() and page.text_lines:
-                        page.transcript = self._transcribe_page_rapidocr(page.source_path)
+            gemini_ok = False
+            try:
+                gemini_ok = bool(ocr_future.result())
+            finally:
+                if ocr_executor is not None:
+                    ocr_executor.shutdown(wait=False)
+
+            if gemini_ok:
+                for p, ocr_p in zip(pages, ocr_pages_ref):
+                    p.transcript = ocr_p.transcript
+                    if p.transcript and p.text_lines:
+                        clean_lines = [ln.strip() for ln in p.transcript.splitlines() if ln.strip()]
+                        for idx_l, reg in enumerate(p.text_lines):
+                            if idx_l < len(clean_lines):
+                                reg.text = clean_lines[idx_l]
+                    if not p.transcript.strip() and p.text_lines:
+                        p.transcript = self._transcribe_page_rapidocr(p.source_path)
                 full_transcript = "\n".join(p.transcript for p in pages if p.transcript)
                 return OCRPipelineResult(
                     pages=pages,
