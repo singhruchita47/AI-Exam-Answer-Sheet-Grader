@@ -11,7 +11,14 @@ from typing import Any
 from PIL import Image
 from pydantic import BaseModel, Field
 
-from config import GEMINI_API_KEY, GEMINI_FALLBACK_MODELS, GEMINI_MODEL_NAME, get_gemini_api_key
+from config import (
+    GEMINI_API_KEY,
+    GEMINI_FALLBACK_MODELS,
+    GEMINI_MODEL_NAME,
+    build_fast_gemini_config,
+    get_gemini_api_key,
+    get_gemini_client,
+)
 from grader import ExamRubric, KeyPoint, RubricQuestion
 
 logger = logging.getLogger(__name__)
@@ -159,7 +166,7 @@ class RubricGenerator:
         from google.genai import types
 
         assert self.api_key is not None
-        client = genai.Client(api_key=self.api_key)
+        client = get_gemini_client(self.api_key, timeout_ms=22000)
 
         has_answer_key = bool(
             (answer_key_text and answer_key_text.strip())
@@ -236,7 +243,7 @@ class RubricGenerator:
 
         import io
 
-        def _to_jpeg_part(pil_img: Image.Image, max_w: int = 1400, quality: int = 84) -> Any:
+        def _to_jpeg_part(pil_img: Image.Image, max_w: int = 1120, quality: int = 78) -> Any:
             rgb = pil_img.convert("RGB")
             if rgb.width > max_w:
                 ratio = max_w / float(rgb.width)
@@ -266,8 +273,6 @@ class RubricGenerator:
                 contents.append("--- OFFICIAL ANSWER KEY IMAGE ---")
                 contents.append(_to_jpeg_part(Image.open(ak_path)))
 
-        import time
-
         last_err: Exception | None = None
         response = None
         for m_name in dict.fromkeys([GEMINI_MODEL_NAME, *GEMINI_FALLBACK_MODELS]):
@@ -275,16 +280,11 @@ class RubricGenerator:
                 response = client.models.generate_content(
                     model=m_name,
                     contents=contents,
-                    config=types.GenerateContentConfig(
-                        response_mime_type="application/json",
-                        response_schema=ExamRubric,
-                        temperature=0.0,
-                    ),
+                    config=build_fast_gemini_config(m_name, response_schema=ExamRubric),
                 )
                 break
             except Exception as exc:
                 last_err = exc
-                time.sleep(0.25)
         if response is None:
             raise RuntimeError(f"Gemini rubric generation failed across fallback models: {last_err}")
 

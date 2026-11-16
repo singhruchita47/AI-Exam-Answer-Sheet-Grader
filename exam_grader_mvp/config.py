@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import os
+import threading
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from pathlib import Path
 from dotenv import load_dotenv
@@ -27,7 +28,6 @@ GEMINI_MODEL_NAME: str = os.getenv("GEMINI_MODEL_NAME", "gemini-3.5-flash-lite")
 GEMINI_FALLBACK_MODELS: tuple[str, ...] = (
     "gemini-3.5-flash-lite",
     "gemini-3.1-flash-lite",
-    "gemini-3.5-flash",
 )
 GEMINI_FAST_GRADING_MODELS: tuple[str, ...] = (
     "gemini-3.5-flash-lite",
@@ -37,6 +37,47 @@ LOCAL_VLM_MODEL_NAME: str = os.getenv(
     "LOCAL_VLM_MODEL_NAME", "Qwen/Qwen2.5-VL-7B-Instruct"
 )
 GEMINI_API_KEY: str | None = os.getenv("GEMINI_API_KEY")
+
+_CLIENT_LOCK = threading.Lock()
+_GEMINI_CLIENT_CACHE: dict[tuple[str, int], Any] = {}
+
+
+def get_gemini_client(api_key: str, timeout_ms: int = 16000) -> Any:
+    """Return a cached thread-safe Gemini Client configured for fast fail-over without retry backoff stalls."""
+    cache_key = (api_key, int(timeout_ms))
+    with _CLIENT_LOCK:
+        client = _GEMINI_CLIENT_CACHE.get(cache_key)
+        if client is None:
+            from google import genai
+            from google.genai import types
+
+            client = genai.Client(
+                api_key=api_key,
+                http_options=types.HttpOptions(
+                    timeout=int(timeout_ms),
+                    retry_options=types.HttpRetryOptions(attempts=1),
+                ),
+            )
+            _GEMINI_CLIENT_CACHE[cache_key] = client
+        return client
+
+
+def build_fast_gemini_config(model_name: str, response_schema: Any = None) -> Any:
+    """Build low-latency structured JSON config with optimal zero/minimal thinking per Flash-Lite variant."""
+    from google.genai import types
+
+    kwargs: dict[str, Any] = {
+        "response_mime_type": "application/json",
+        "temperature": 0.0,
+    }
+    if response_schema is not None:
+        kwargs["response_schema"] = response_schema
+
+    lower_m = (model_name or "").lower()
+    if "3.5-flash-lite" in lower_m:
+        kwargs["thinking_config"] = types.ThinkingConfig(thinking_level="MINIMAL")
+
+    return types.GenerateContentConfig(**kwargs)
 
 
 def _read_key_from_file(path: Path) -> str | None:

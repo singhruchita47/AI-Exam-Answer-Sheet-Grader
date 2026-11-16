@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Literal
@@ -83,6 +84,52 @@ class OCRPipelineResult:
     pages: list[PageOCRResult]
     full_transcript: str
     debug_dir: Path
+    student_meta: dict[str, str] = field(default_factory=dict)
+
+
+_COVER_INSTITUTION_NOISE_RE = re.compile(
+    r"(?:university|college|school|institute|academy|skills\s+university|answer\s+book|"
+    r"examination|mst\s*/?\s*put|invigilator|examiner|signature|marks\s+awarded|marks\s+obtained|"
+    r"central\s+india|scope\s+global|maximum\s+marks|max\.?\s*marks)",
+    re.IGNORECASE,
+)
+
+
+def _clean_cover_meta_value(raw_val: str, kind: str) -> str:
+    """Sanitize extracted cover-page student metadata while rejecting college/header noise."""
+    val = re.sub(r"\s+", " ", str(raw_val or "")).strip(" :;-|.,")
+    if not val:
+        return ""
+    # Strip field labels if echoed back
+    val = re.sub(
+        r"^(?:student\s*name|name|roll\s*no\.?|enrollment\s*no\.?|subject\s*name|subject)\s*[:\-–]*\s*",
+        "",
+        val,
+        flags=re.IGNORECASE,
+    ).strip(" :;-|.,")
+    if not val or _COVER_INSTITUTION_NOISE_RE.search(val):
+        return ""
+    if kind == "roll_no":
+        m = re.search(r"\b([A-Za-z0-9][A-Za-z0-9\-/]{2,20})\b", val)
+        if not m:
+            return ""
+        tok = m.group(1).upper()
+        # Roll numbers in university/board copies contain digits or mixed code; skip plain label words
+        if tok in {"NAME", "ROLL", "SUBJECT", "COURSE", "DATE", "BRANCH", "SIGN"}:
+            return ""
+        return tok if re.search(r"\d", tok) else ""
+    if kind == "student_name":
+        # Remove trailing roll/course/date fragments on same line
+        val = re.split(r"\b(?:roll|course|branch|date|sem|year|sign)\b", val, maxsplit=1, flags=re.IGNORECASE)[0].strip(" :;-|.,")
+        if len(val) < 2 or len(val) > 55 or re.search(r"^\d+$", val):
+            return ""
+        return val
+    if kind == "subject":
+        val = re.split(r"\b(?:subject\s*code|code|date|sem|year|examiner)\b", val, maxsplit=1, flags=re.IGNORECASE)[0].strip(" :;-|.,")
+        if len(val) < 2 or len(val) > 65:
+            return ""
+        return val
+    return val
 
 
 def _resize_if_needed(
@@ -960,18 +1007,63 @@ class OCREngine:
         lines = [r[1].strip() for r in res if r[1] and len(r[1].strip()) >= 2]
         return "\n".join(lines)
 
+    def _extract_cover_metadata_rapidocr(self, page1_path: Path) -> dict[str, str]:
+        """Fallback: scan top cover zone of Page 1 via RapidOCR solely for Name, Roll No., and Subject."""
+        meta = {"student_name": "", "roll_no": "", "subject": ""}
+        fast_ocr = self._get_rapid_ocr()
+        if fast_ocr is None or not page1_path.exists():
+            return meta
+        try:
+            with Image.open(page1_path) as im:
+                rgb = im.convert("RGB")
+                w, h = rgb.size
+                # Cover header details sit within top 52% of Page 1; save temporary crop if needed
+                crop = rgb.crop((0, 0, w, max(120, int(h * 0.52))))
+                import numpy as _np
+                res, _ = fast_ocr(_np.array(crop))
+            if not res:
+                return meta
+            lines = [str(r[1]).strip() for r in res if len(r) >= 2 and str(r[1]).strip()]
+            joined = "\n".join(lines)
+            if not _COVER_INSTITUTION_NOISE_RE.search(joined) and "roll" not in joined.lower():
+                return meta
+
+            for ln in lines:
+                if _COVER_INSTITUTION_NOISE_RE.search(ln) and not re.search(r"\b(?:roll|name|subject)\b", ln, re.I):
+                    continue
+                if not meta["roll_no"]:
+                    rm = re.search(r"(?:roll\s*no\.?|enrollment\s*no\.?)\s*[:\-–]?\s*([A-Za-z0-9\-/]{4,20})", ln, re.I)
+                    if rm:
+                        meta["roll_no"] = _clean_cover_meta_value(rm.group(1), "roll_no")
+                if not meta["student_name"]:
+                    nm = re.search(r"(?:student\s*name|candidate\s*name|\bname)\s*[:\-–]\s*([A-Za-z][A-Za-z .]{2,45})", ln, re.I)
+                    if nm:
+                        meta["student_name"] = _clean_cover_meta_value(nm.group(1), "student_name")
+                if not meta["subject"]:
+                    sm = re.search(r"(?:subject\s*name|\bsubject)\s*[:\-–]\s*([A-Za-z][A-Za-z0-9 &/\-]{2,45})", ln, re.I)
+                    if sm:
+                        meta["subject"] = _clean_cover_meta_value(sm.group(1), "subject")
+        except Exception as exc:
+            logger.debug("Cover metadata RapidOCR skipped: %s", exc)
+        return meta
+
     def _transcribe_pages_gemini(
         self,
         pages: list[PageOCRResult],
         progress_callback: Callable[[dict[str, Any]], None] | None = None,
+        meta_out: dict[str, str] | None = None,
     ) -> bool:
         """Parallel multi-page Vision OCR using Gemini with retry and per-batch resilience."""
-        import time
         from concurrent.futures import ThreadPoolExecutor
         from pydantic import BaseModel
-        from google import genai
         from google.genai import types
-        from config import GEMINI_FALLBACK_MODELS, GEMINI_MODEL_NAME, get_gemini_api_key
+        from config import (
+            GEMINI_FALLBACK_MODELS,
+            GEMINI_MODEL_NAME,
+            build_fast_gemini_config,
+            get_gemini_api_key,
+            get_gemini_client,
+        )
 
         active_key = get_gemini_api_key()
         if not active_key:
@@ -982,17 +1074,24 @@ class OCREngine:
             transcript: str
 
         class BatchTranscript(BaseModel):
+            student_name: str = ""
+            roll_no: str = ""
+            subject: str = ""
             pages: list[PageItem]
 
-        client = genai.Client(api_key=active_key)
-        batch_size = 5
+        client = get_gemini_client(active_key, timeout_ms=24000)
+        batch_size = 3
         batches = [pages[i : i + batch_size] for i in range(0, len(pages), batch_size)]
 
-        def _process_batch(batch: list[PageOCRResult]) -> dict[int, str]:
+        def _process_batch(batch: list[PageOCRResult]) -> tuple[dict[int, str], dict[str, str]]:
             contents: list[Any] = [
                 "You are an expert handwriting recognition specialist. Transcribe the student's handwritten English answers from each attached exam sheet page into clean, accurate, properly spelled digital text.\n"
                 "CRITICAL RULES:\n"
-                "1. IGNORE COVER / INTRODUCTION / COLLEGE METADATA: Completely ignore all cover page sections, university/college/school names (e.g. 'SCOPE GLOBAL SKILLS UNIVERSITY', 'ANSWER BOOK FOR MST / PUT EXAMINATION', 'MP Board'), student introduction/metadata fields (Roll No., Name, Course, Branch, Year/Sem, Subject Code, Date, Marks Awarded, Examiner/Invigilator Signature), printed Hindi headers, and crossed-out words. Focus ONLY on the student's main handwritten exam answers.\n"
+                "1. IGNORE COVER / INTRODUCTION / COLLEGE METADATA IN TRANSCRIPTS: Completely ignore all university/college/school names (e.g. 'SCOPE GLOBAL SKILLS UNIVERSITY', 'ANSWER BOOK FOR MST / PUT EXAMINATION', 'MP Board'), course/branch/year/sem, date, marks-awarded grid, examiner/invigilator names & signatures, printed Hindi headers, and crossed-out words inside `pages[].transcript`. Focus `pages[].transcript` ONLY on the student's main handwritten exam answers.\n"
+                "   HOWEVER, if Page 1 has a student header block, extract ONLY these 3 clean top-level metadata fields (leave empty string '' if not clearly written; NEVER put college/university/examiner names here):\n"
+                "   - student_name: handwritten student name (ignore university/college name)\n"
+                "   - roll_no: handwritten roll / enrollment number\n"
+                "   - subject: handwritten subject name on the cover sheet (ignore course/branch)\n"
                 "2. QUESTION & PART NUMBERING:\n"
                 "   - Standard sequential exams (Answer no. 01, Q2, Ans 3, etc.): start each main question on its own line with 'Q1:', 'Q2:', 'Q3:', etc.\n"
                 "   - OBJECTIVE / MULTI-ITEM SUB-ANSWERS (MCQ, Fill in blanks, True/False, One-word items): put EACH sub-item on its OWN separate line in strict top-to-bottom order using '(i) ...', '(ii) ...', '(iii) ...', etc. (never merge multiple objective answers onto a single line).\n"
@@ -1003,17 +1102,17 @@ class OCREngine:
                 "     * Under Part-III: start each main answer ('A-1', 'A-2', 'A-3', 'Q.1', 'Q.2', 'Q.3') on its own line with 'P3_Q1:', 'P3_Q2:', 'P3_Q3:' preserving the EXACT number written in the margin by the student (e.g., if the student writes 'A-2', output 'P3_Q2:' — NEVER renumber 'A-2' to 'P3_Q1:'; if the student writes 'A-3', output 'P3_Q3:'). Keep numbered sub-items inside an answer like '1-> Echo', '2-> printf', '3-> who', '4-> date', '5-> cal' on separate lines formatted as '(1) Echo...', '(2) printf...', etc.\n"
                 "   - If a page starts with a continuation of an answer from the previous page before any new question marker appears, transcribe the continuation lines first before starting the next question tag.\n"
                 "3. Convert messy cursive handwriting carefully into clean, accurate digital English words, numbers, and scientific formulas (e.g., V = IR, CO2, H2O). Do NOT hallucinate or invent words not written on the page.\n"
-                "4. Return strict JSON mapping each page_number to its clean digital transcript."
+                "4. Return strict JSON matching BatchTranscript schema."
             ]
             import io
 
             for p in batch:
                 pil_img = Image.open(p.source_path).convert("RGB")
-                if pil_img.width > 1280:
-                    ratio = 1280.0 / float(pil_img.width)
-                    pil_img = pil_img.resize((1280, int(round(pil_img.height * ratio))))
+                if pil_img.width > 1080:
+                    ratio = 1080.0 / float(pil_img.width)
+                    pil_img = pil_img.resize((1080, int(round(pil_img.height * ratio))))
                 buf = io.BytesIO()
-                pil_img.save(buf, format="JPEG", quality=84, optimize=True)
+                pil_img.save(buf, format="JPEG", quality=76, optimize=True)
                 contents.append(f"--- PAGE {p.page_number} ---")
                 contents.append(types.Part.from_bytes(data=buf.getvalue(), mime_type="image/jpeg"))
 
@@ -1023,28 +1122,32 @@ class OCREngine:
                     resp = client.models.generate_content(
                         model=m_name,
                         contents=contents,
-                        config=types.GenerateContentConfig(
-                            response_mime_type="application/json",
-                            response_schema=BatchTranscript,
-                            temperature=0.0,
-                        ),
+                        config=build_fast_gemini_config(m_name, response_schema=BatchTranscript),
                     )
                     parsed = (
                         BatchTranscript.model_validate(resp.parsed)
                         if resp.parsed is not None
                         else BatchTranscript.model_validate_json(resp.text)
                     )
-                    return {item.page_number: item.transcript.strip() for item in parsed.pages}
+                    extracted_meta = {
+                        "student_name": _clean_cover_meta_value(parsed.student_name, "student_name"),
+                        "roll_no": _clean_cover_meta_value(parsed.roll_no, "roll_no"),
+                        "subject": _clean_cover_meta_value(parsed.subject, "subject"),
+                    }
+                    return ({item.page_number: item.transcript.strip() for item in parsed.pages}, extracted_meta)
                 except Exception as exc:
-                    time.sleep(0.25)
                     logger.warning("Gemini OCR batch attempt (%s) failed: %s", m_name, exc)
-            return {}
+            return ({}, {"student_name": "", "roll_no": "", "subject": ""})
 
         page_map: dict[int, str] = {}
         try:
-            with ThreadPoolExecutor(max_workers=max(1, min(4, len(batches)))) as pool:
-                for batch_res in pool.map(_process_batch, batches):
-                    page_map.update(batch_res)
+            with ThreadPoolExecutor(max_workers=max(1, min(6, len(batches)))) as pool:
+                for batch_pages, batch_meta in pool.map(_process_batch, batches):
+                    page_map.update(batch_pages)
+                    if meta_out is not None:
+                        for k in ("student_name", "roll_no", "subject"):
+                            if not meta_out.get(k) and batch_meta.get(k):
+                                meta_out[k] = batch_meta[k]
         except Exception as exc:
             logger.warning("Gemini multi-page Vision OCR fallback triggered: %s", exc)
 
@@ -1128,6 +1231,7 @@ class OCREngine:
 
         ocr_future = None
         ocr_pages_ref: list[PageOCRResult] = []
+        extracted_student_meta: dict[str, str] = {"student_name": "", "roll_no": "", "subject": ""}
         if online_fast and total_pages > 0:
             ocr_pages_ref = [
                 PageOCRResult(
@@ -1139,7 +1243,12 @@ class OCREngine:
                 for idx, p in enumerate(page_paths, start=1)
             ]
             ocr_executor = ThreadPoolExecutor(max_workers=1)
-            ocr_future = ocr_executor.submit(self._transcribe_pages_gemini, ocr_pages_ref, progress_callback)
+            ocr_future = ocr_executor.submit(
+                self._transcribe_pages_gemini,
+                ocr_pages_ref,
+                progress_callback,
+                extracted_student_meta,
+            )
         else:
             ocr_executor = None
 
@@ -1264,6 +1373,7 @@ class OCREngine:
                     pages=pages,
                     full_transcript=full_transcript,
                     debug_dir=debug_root,
+                    student_meta=extracted_student_meta,
                 )
 
         # Path 2: Offline Multi-page Whole-Page RapidOCR (1 pass per page instead of 200 crop calls)
@@ -1281,11 +1391,14 @@ class OCREngine:
                         }
                     )
                 page.transcript = self._transcribe_page_rapidocr(page.source_path)
+            if pages and not any(extracted_student_meta.values()):
+                extracted_student_meta = self._extract_cover_metadata_rapidocr(pages[0].source_path)
             full_transcript = "\n".join(p.transcript for p in pages if p.transcript)
             return OCRPipelineResult(
                 pages=pages,
                 full_transcript=full_transcript,
                 debug_dir=debug_root,
+                student_meta=extracted_student_meta,
             )
 
         # Path 3: Offline 1-2 page crop-level RapidOCR + TrOCR fallback
@@ -1298,9 +1411,13 @@ class OCREngine:
             lines = [r.text for r in page.text_lines if r.text]
             page.transcript = "\n".join(lines)
 
+        if pages and not any(extracted_student_meta.values()):
+            extracted_student_meta = self._extract_cover_metadata_rapidocr(pages[0].source_path)
+
         full_transcript = "\n".join(p.transcript for p in pages if p.transcript)
         return OCRPipelineResult(
             pages=pages,
             full_transcript=full_transcript,
             debug_dir=debug_root,
+            student_meta=extracted_student_meta,
         )

@@ -24,7 +24,9 @@ from config import (
     GRADING_CONFIG,
     LOCAL_VLM_MODEL_NAME,
     GradingConfig,
+    build_fast_gemini_config,
     get_gemini_api_key,
+    get_gemini_client,
 )
 
 if TYPE_CHECKING:
@@ -855,18 +857,17 @@ def _evaluate_diagram_gemini(
     question: RubricQuestion,
     api_key: str,
 ) -> DiagramEvaluation:
-    """Evaluate a cropped hand-drawn diagram using Gemini 2.5 Flash structured output."""
+    """Evaluate a cropped hand-drawn diagram using Gemini Flash-Lite structured output."""
     import io
-    from google import genai
     from google.genai import types
 
-    client = genai.Client(api_key=api_key)
+    client = get_gemini_client(api_key, timeout_ms=14000)
     pil_image = Image.open(diagram_path).convert("RGB")
-    if pil_image.width > 1200:
-        ratio = 1200.0 / float(pil_image.width)
-        pil_image = pil_image.resize((1200, int(round(pil_image.height * ratio))))
+    if pil_image.width > 960:
+        ratio = 960.0 / float(pil_image.width)
+        pil_image = pil_image.resize((960, int(round(pil_image.height * ratio))))
     buf = io.BytesIO()
-    pil_image.save(buf, format="JPEG", quality=84, optimize=True)
+    pil_image.save(buf, format="JPEG", quality=76, optimize=True)
     img_part = types.Part.from_bytes(data=buf.getvalue(), mime_type="image/jpeg")
     prompt = (
         "You are an expert STEM exam evaluator grading a student's hand-drawn diagram.\n"
@@ -880,16 +881,12 @@ def _evaluate_diagram_gemini(
     )
 
     last_err: Exception | None = None
-    for m_name in (GEMINI_MODEL_NAME, *GEMINI_FAST_GRADING_MODELS):
+    for m_name in dict.fromkeys([GEMINI_MODEL_NAME, *GEMINI_FAST_GRADING_MODELS]):
         try:
             response = client.models.generate_content(
                 model=m_name,
                 contents=[prompt, img_part],
-                config=types.GenerateContentConfig(
-                    response_mime_type="application/json",
-                    response_schema=DiagramEvaluation,
-                    temperature=0.0,
-                ),
+                config=build_fast_gemini_config(m_name, response_schema=DiagramEvaluation),
             )
             if response.parsed is not None:
                 return DiagramEvaluation.model_validate(response.parsed)
@@ -988,7 +985,7 @@ def _grade_objective_answer(
             matched = True
             match_note = f"Correct option selected ({student_answer.strip()})."
         else:
-            match_note = f"Incorrect option. Expected: {question.model_answer.strip()}."
+            match_note = f"Wrong — wrote '{student_answer.strip()}', whereas correct option is {question.model_answer.strip()}."
 
     else:
         # fill_blank or one_word
@@ -1009,7 +1006,7 @@ def _grade_objective_answer(
         if matched:
             match_note = f"Correct target word/term identified ({student_answer.strip()})."
         else:
-            match_note = f"Incorrect term. Expected: {question.model_answer.strip()}."
+            match_note = f"Wrong — '{student_answer.strip()}' does not match expected '{question.model_answer.strip()}'."
 
     awarded = max_marks if matched else 0.0
     status: Literal["Hit", "Partial", "Missed"] = "Hit" if matched else "Missed"
@@ -1017,7 +1014,7 @@ def _grade_objective_answer(
     feedback = (
         f"Correct! Full marks awarded ({awarded:.2f}/{max_marks:.2f})."
         if matched
-        else f"Incorrect. Correct answer is: {question.model_answer}"
+        else match_note
     )
 
     return LLMGradeOutput(
@@ -1143,7 +1140,7 @@ class ExamGrader:
             else:
                 status = "Missed"
                 awarded = 0.0
-                note = f"Not clearly detected in answer (similarity {sim:.2f}, strictness {lvl}/10)."
+                note = f"Wrong — misses expected concept '{kp.description}' (match {sim:.2f})."
                 missing.append(kp.description)
 
             awarded = min(kp_max, max(0.0, awarded))
@@ -1171,6 +1168,9 @@ class ExamGrader:
 
         if not student_answer.strip() and diagram_eval is None:
             feedback = "No response was found for this question."
+        elif total_awarded <= 0.0 and question.max_marks > 0:
+            reason = missing[0] if missing else question.model_answer
+            feedback = f"Wrong — student's answer does not match key concept ({reason})."
         else:
             hit_count = sum(1 for item in breakdown if item.status == "Hit")
             feedback_parts = [
@@ -1178,7 +1178,7 @@ class ExamGrader:
                 f"(Strictness {lvl}/10, accuracy: {overall_sim:.2f})."
             ]
             if missing:
-                feedback_parts.append(f"Focus on: {missing[0]}")
+                feedback_parts.append(f"Missing/Wrong: {missing[0]}")
             if question.requires_diagram:
                 if diagram_eval is not None:
                     feedback_parts.append(f"Diagram score: {diagram_eval.structure_score:.2f}/1.00.")
@@ -1237,10 +1237,6 @@ class ExamGrader:
         strictness_level: int | None = None,
     ) -> LLMGradeOutput:
         """Use Gemini with automatic model fallback and Pydantic structured output for step-wise grading."""
-        import time
-        from google import genai
-        from google.genai import types
-
         lvl = max(1, min(10, int(strictness_level if strictness_level is not None else self.strictness_level)))
         if (
             question.question_type in ("mcq", "fill_blank", "one_word")
@@ -1250,7 +1246,7 @@ class ExamGrader:
             return _grade_objective_answer(question, student_answer, strictness_level=lvl)
 
         assert self.api_key is not None
-        client = genai.Client(api_key=self.api_key)
+        client = get_gemini_client(self.api_key, timeout_ms=15000)
 
         text_budget = (
             question.max_marks * (1.0 - self.cfg.diagram_weight_when_required)
@@ -1297,10 +1293,10 @@ class ExamGrader:
             + (student_answer if student_answer.strip() else "[NO TEXT ANSWER DETECTED]")
             + f"\n\nDiagram Evaluation (Diagram budget = {diagram_budget} marks):\n{diagram_summary}\n\n"
             "Return strict JSON matching the schema:\n"
-            "- step_wise_breakdown: list covering EVERY key_point id in order, status ('Hit', 'Partial', or 'Missed'), max_point_marks, awarded_point_marks, and concise notes.\n"
+            "- step_wise_breakdown: list covering EVERY key_point id in order, status ('Hit', 'Partial', or 'Missed'), max_point_marks, awarded_point_marks, and concise notes. If a step/sub-item is WRONG (awarded 0 despite an attempt), start notes with 'Wrong — <very short 1-line reason why vs expected answer>'.\n"
             "- missing_key_points: list of missed or incomplete concepts.\n"
             f"- marks_awarded: total marks out of {question.max_marks} (sum of awarded_point_marks + diagram marks if required), rounded to nearest 0.25.\n"
-            "- student_feedback: 1-2 short, actionable, constructive sentences."
+            "- student_feedback: 1-2 short sentences. If the overall answer is wrong (0 marks despite an attempt), start directly with 'Wrong — ' and briefly explain WHY in 1 crisp sentence."
         )
 
         last_err: Exception | None = None
@@ -1309,11 +1305,7 @@ class ExamGrader:
                 response = client.models.generate_content(
                     model=m_name,
                     contents=[prompt],
-                    config=types.GenerateContentConfig(
-                        response_mime_type="application/json",
-                        response_schema=LLMGradeOutput,
-                        temperature=0.0,
-                    ),
+                    config=build_fast_gemini_config(m_name, response_schema=LLMGradeOutput),
                 )
                 if response.parsed is not None:
                     parsed = LLMGradeOutput.model_validate(response.parsed)
@@ -1326,7 +1318,6 @@ class ExamGrader:
                 return parsed
             except Exception as exc:
                 last_err = exc
-                time.sleep(0.2)
         raise RuntimeError(f"Gemini grading failed across fallback models: {last_err}")
 
     @staticmethod
@@ -1363,12 +1354,8 @@ class ExamGrader:
         strictness_level: int | None = None,
     ) -> dict[str, LLMGradeOutput]:
         """Grade a batch of questions in a SINGLE Gemini API call with automatic retry & model fallback."""
-        import time
-        from google import genai
-        from google.genai import types
-
         assert self.api_key is not None
-        client = genai.Client(api_key=self.api_key)
+        client = get_gemini_client(self.api_key, timeout_ms=18000)
         lvl = max(1, min(10, int(strictness_level if strictness_level is not None else self.strictness_level)))
 
         class BatchQuestionGrade(BaseModel):
@@ -1387,7 +1374,7 @@ class ExamGrader:
             "1. For OBJECTIVE questions / 6-item objective blocks ((i)..(vi), (1)..(6)): check each sub-item directly against the student's sub-answer. Award full marks ('Hit') for each factually correct sub-item (including valid examples like 'Kanha National Park Kisli' for 'Name of any valid national park in MP', and minor OCR typos like 'Federa' for 'Federal').\n"
             "2. For '[OR]' internal choices: award full credit if the student accurately answered EITHER option.\n"
             f"3. For SUBJECTIVE questions (Short/Long Answer): evaluate according to Global Strictness Level ({lvl}/10).\n"
-            "4. Keep notes and student_feedback concise (1 sentence).\n"
+            "4. Keep notes and student_feedback concise (1 sentence). If any answer or sub-item is WRONG (0 marks despite an attempt), start its notes / student_feedback with 'Wrong — <short 1-line reason WHY it is wrong vs expected answer>'.\n"
             "Return strict JSON with a result for every question_id below:\n"
         ]
 
@@ -1418,11 +1405,7 @@ class ExamGrader:
                 response = client.models.generate_content(
                     model=m_name,
                     contents=["\n".join(blocks)],
-                    config=types.GenerateContentConfig(
-                        response_mime_type="application/json",
-                        response_schema=BatchGradeResponse,
-                        temperature=0.0,
-                    ),
+                    config=build_fast_gemini_config(m_name, response_schema=BatchGradeResponse),
                 )
                 parsed = (
                     BatchGradeResponse.model_validate(response.parsed)
@@ -1441,7 +1424,6 @@ class ExamGrader:
                 return out
             except Exception as exc:
                 last_err = exc
-                time.sleep(0.25)
         raise RuntimeError(f"Batch Gemini grading failed across fallback models: {last_err}")
 
     def grade_single_question(
@@ -1607,90 +1589,100 @@ class ExamGrader:
                 )
                 existing_qids.add(extra_qid)
 
-        prepared_items: list[
-            tuple[RubricQuestion, str, float, dict[str, float], Path | None, DiagramEvaluation | None, list[int]]
-        ] = []
-        fast_ocr = None
+        prepared_items: list[list[Any]] = []
+        diag_futures: dict[str, tuple[Any, bool, Path, RubricQuestion]] = {}
+        diag_pool: ThreadPoolExecutor | None = (
+            ThreadPoolExecutor(max_workers=4)
+            if (not self.offline and self.api_key)
+            else None
+        )
 
-        for question in effective_questions:
-            qid = question.question_id
-            student_answer = mapped_answers.get(qid, "")
-            q_pages = list(question_pages.get(qid, []))
+        try:
+            for question in effective_questions:
+                qid = question.question_id
+                student_answer = mapped_answers.get(qid, "")
+                q_pages = list(question_pages.get(qid, []))
 
-            diagram_path: Path | None = None
-            if question.requires_diagram or (
-                is_short_submission
-                and any(p.page_number in q_pages and p.diagrams for p in ocr_result.pages)
-            ):
-                diagram_path = self._select_diagram_for_question(
-                    question, q_pages, ocr_result, used_diagrams
-                )
-                if diagram_path is not None:
-                    for p_obj in ocr_result.pages:
-                        if any(str(d.crop_path) == str(diagram_path) for d in p_obj.diagrams):
-                            if p_obj.page_number not in q_pages:
-                                q_pages.append(p_obj.page_number)
+                diagram_path: Path | None = None
+                if question.requires_diagram or (
+                    is_short_submission
+                    and any(p.page_number in q_pages and p.diagrams for p in ocr_result.pages)
+                ):
+                    diagram_path = self._select_diagram_for_question(
+                        question, q_pages, ocr_result, used_diagrams
+                    )
+                    if diagram_path is not None:
+                        for p_obj in ocr_result.pages:
+                            if any(str(d.crop_path) == str(diagram_path) for d in p_obj.diagrams):
+                                if p_obj.page_number not in q_pages:
+                                    q_pages.append(p_obj.page_number)
 
-            if diagram_path is not None and is_short_submission:
-                try:
-                    fast_ocr = globals().get("_SHARED_RAPID_OCR")
-                    if fast_ocr is None:
-                        from rapidocr_onnxruntime import RapidOCR
-
-                        fast_ocr = RapidOCR()
-                        globals()["_SHARED_RAPID_OCR"] = fast_ocr
-                    d_res, _ = fast_ocr(str(diagram_path))
-                    if d_res:
-                        diag_text = " ".join(r[1].strip() for r in d_res if r[1].strip())
-                        if diag_text:
-                            diag_clean = _clean_ocr_handwriting_text(diag_text)
-                            if diag_clean and diag_clean not in student_answer:
-                                student_answer = f"{student_answer} {diag_clean}".strip()
-                                mapped_answers[qid] = student_answer
-                except Exception as exc:
-                    logger.debug("RapidOCR diagram text extraction skipped for %s: %s", qid, exc)
-
-            diagram_eval: DiagramEvaluation | None = None
-            if diagram_path is not None:
-                if not self.offline and self.api_key and question.requires_diagram and is_short_submission:
+                if diagram_path is not None and is_short_submission:
                     try:
-                        diagram_eval = _evaluate_diagram_gemini(
-                            diagram_path, question, self.api_key
-                        )
-                    except Exception:
+                        fast_ocr = globals().get("_SHARED_RAPID_OCR")
+                        if fast_ocr is None:
+                            from rapidocr_onnxruntime import RapidOCR
+
+                            fast_ocr = RapidOCR()
+                            globals()["_SHARED_RAPID_OCR"] = fast_ocr
+                        d_res, _ = fast_ocr(str(diagram_path))
+                        if d_res:
+                            diag_text = " ".join(r[1].strip() for r in d_res if r[1].strip())
+                            if diag_text:
+                                diag_clean = _clean_ocr_handwriting_text(diag_text)
+                                if diag_clean and diag_clean not in student_answer:
+                                    student_answer = f"{student_answer} {diag_clean}".strip()
+                                    mapped_answers[qid] = student_answer
+                    except Exception as exc:
+                        logger.debug("RapidOCR diagram text extraction skipped for %s: %s", qid, exc)
+
+                diagram_eval: DiagramEvaluation | None = None
+                if diagram_path is not None:
+                    if diag_pool is not None and question.requires_diagram and is_short_submission:
+                        fut = diag_pool.submit(_evaluate_diagram_gemini, diagram_path, question, self.api_key)
+                        diag_futures[qid] = (fut, False, diagram_path, question)
+                    else:
                         diagram_eval = self.local_vlm.evaluate_diagram(
                             diagram_path, question.question_text, question.diagram_criteria
                         )
-                else:
-                    diagram_eval = self.local_vlm.evaluate_diagram(
-                        diagram_path, question.question_text, question.diagram_criteria
+                elif (
+                    question.requires_diagram
+                    and diag_pool is not None
+                    and ocr_result.pages
+                    and student_answer.strip()
+                ):
+                    target_pnum = q_pages[0] if q_pages else ocr_result.pages[0].page_number
+                    target_page_obj = next(
+                        (p for p in ocr_result.pages if p.page_number == target_pnum),
+                        ocr_result.pages[0],
                     )
-            elif (
-                question.requires_diagram
-                and not self.offline
-                and self.api_key
-                and ocr_result.pages
-                and student_answer.strip()
-            ):
-                # Fallback: inspect full answer page with Gemini Vision in case OpenCV bbox missed a clean hand-drawn diagram
-                target_pnum = q_pages[0] if q_pages else ocr_result.pages[0].page_number
-                target_page_obj = next(
-                    (p for p in ocr_result.pages if p.page_number == target_pnum),
-                    ocr_result.pages[0],
-                )
-                try:
-                    full_page_diag = _evaluate_diagram_gemini(
-                        target_page_obj.source_path, question, self.api_key
-                    )
-                    if full_page_diag.is_relevant and full_page_diag.structure_score >= 0.25:
-                        diagram_eval = full_page_diag
-                except Exception as exc:
-                    logger.debug("Full-page Gemini diagram check skipped for %s: %s", qid, exc)
+                    fut = diag_pool.submit(_evaluate_diagram_gemini, target_page_obj.source_path, question, self.api_key)
+                    diag_futures[qid] = (fut, True, target_page_obj.source_path, question)
 
-            overall_sim, kp_sims = self.semantic_scorer.score_answer(student_answer, question)
-            prepared_items.append(
-                (question, student_answer, overall_sim, kp_sims, diagram_path, diagram_eval, q_pages)
-            )
+                overall_sim, kp_sims = self.semantic_scorer.score_answer(student_answer, question)
+                prepared_items.append(
+                    [question, student_answer, overall_sim, kp_sims, diagram_path, diagram_eval, q_pages]
+                )
+
+            if diag_futures:
+                for entry in prepared_items:
+                    q = entry[0]
+                    if q.question_id in diag_futures:
+                        fut, is_fullpage_fallback, dpath, qobj = diag_futures[q.question_id]
+                        try:
+                            deval = fut.result()
+                            if not is_fullpage_fallback or (deval.is_relevant and deval.structure_score >= 0.25):
+                                entry[5] = deval
+                        except Exception as exc:
+                            if not is_fullpage_fallback:
+                                entry[5] = self.local_vlm.evaluate_diagram(
+                                    dpath, qobj.question_text, qobj.diagram_criteria
+                                )
+                            else:
+                                logger.debug("Full-page Gemini diagram check skipped for %s: %s", q.question_id, exc)
+        finally:
+            if diag_pool is not None:
+                diag_pool.shutdown(wait=False)
 
         batch_grades: dict[str, LLMGradeOutput] = {}
         if not self.offline and self.api_key:
@@ -1708,12 +1700,12 @@ class ExamGrader:
                 except Exception as exc:
                     logger.warning("Gemini single grading fallback for %s: %s", q.question_id, exc)
             elif to_grade_online:
-                chunk_size = 12
+                chunk_size = 5
                 chunks = [
                     to_grade_online[i : i + chunk_size]
                     for i in range(0, len(to_grade_online), chunk_size)
                 ]
-                with ThreadPoolExecutor(max_workers=min(3, len(chunks))) as pool:
+                with ThreadPoolExecutor(max_workers=min(5, len(chunks))) as pool:
                     futures = [
                         pool.submit(self._grade_batch_with_gemini, chunk, lvl)
                         for chunk in chunks

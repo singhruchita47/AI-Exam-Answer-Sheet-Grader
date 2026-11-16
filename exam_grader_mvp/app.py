@@ -294,9 +294,9 @@ def _prepare_student_pages(
                 try:
                     doc = pdfium.PdfDocument(pdf_dest)
                     for page_idx in range(len(doc)):
-                        page_img = doc[page_idx].render(scale=1.15).to_pil()
+                        page_img = doc[page_idx].render(scale=1.05).to_pil()
                         img_path = session_upload_dir / f"page_{page_counter}.jpg"
-                        page_img.save(img_path, "JPEG", quality=85)
+                        page_img.save(img_path, "JPEG", quality=80)
                         page_paths.append(img_path)
                         page_counter += 1
                     doc.close()
@@ -414,12 +414,14 @@ def _build_final_payload(
             }
         )
 
+    student_meta = dict(getattr(ocr_result, "student_meta", None) or {})
     return {
         "session_id": session_id,
         "reference_mode": reference_mode,
         "paper_questions": paper_questions,
         "segmentation": seg_data,
         "grading_report": report_dump,
+        "student_meta": student_meta,
     }
 
 
