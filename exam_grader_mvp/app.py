@@ -306,16 +306,68 @@ def _build_final_payload(
     session_id: str,
     ocr_result: Any,
     report: Any,
+    rubric: ExamRubric | None = None,
 ) -> dict[str, Any]:
-    """Format segmentation and grading report with client-friendly relative URLs."""
-    from grader import _clean_ocr_handwriting_text
+    """Format segmentation and grading report with client-friendly relative URLs and paper metadata."""
+    from grader import _clean_ocr_handwriting_text, _normalize_qid
 
     report_dump = report.model_dump()
+
+    rubric_map: dict[str, dict[str, Any]] = {}
+    rubric_order_idx: dict[str, int] = {}
+    paper_questions: list[dict[str, Any]] = []
+    reference_mode = "auto_inferred"
+
+    if rubric is not None:
+        reference_mode = getattr(rubric, "reference_mode", "auto_inferred")
+        for idx, rq in enumerate(rubric.questions):
+            rq_dict = rq.model_dump()
+            norm_id = _normalize_qid(rq.question_id)
+            rq_dict["normalized_id"] = norm_id
+            paper_questions.append(rq_dict)
+            rubric_map[rq.question_id] = rq_dict
+            rubric_map[norm_id] = rq_dict
+            rubric_order_idx[rq.question_id] = idx
+            rubric_order_idx[norm_id] = idx
+
     for q_res in report_dump.get("question_results", []):
         if q_res.get("diagram_path"):
             diag_p = Path(q_res["diagram_path"])
             if diag_p.is_absolute() and BASE_DIR in diag_p.parents:
                 q_res["diagram_path"] = str(diag_p.relative_to(BASE_DIR))
+
+        qid = q_res.get("question_id", "")
+        rq_meta = rubric_map.get(qid) or rubric_map.get(_normalize_qid(qid))
+        if rq_meta:
+            q_res["question_text"] = rq_meta.get("question_text", "")
+            q_res["model_answer"] = rq_meta.get("model_answer", "")
+            q_res["requires_diagram"] = bool(rq_meta.get("requires_diagram", False))
+            q_res["diagram_criteria"] = rq_meta.get("diagram_criteria", "")
+        else:
+            q_res.setdefault("question_text", "")
+            q_res.setdefault("model_answer", "")
+            q_res.setdefault("requires_diagram", False)
+            q_res.setdefault("diagram_criteria", "")
+
+        has_text = bool(str(q_res.get("student_answer") or "").strip())
+        has_diagram = bool(q_res.get("diagram_path"))
+        is_attempted = has_text or has_diagram
+        q_res["is_attempted"] = is_attempted
+
+        if not is_attempted:
+            q_res["page_numbers"] = []
+            fb = str(q_res.get("student_feedback") or "").strip()
+            if not fb or fb == "No response was found for this question.":
+                q_res["student_feedback"] = "Student did not attempt this question."
+
+    if rubric_order_idx:
+        report_dump["question_results"] = sorted(
+            report_dump.get("question_results", []),
+            key=lambda item: rubric_order_idx.get(
+                item.get("question_id", ""),
+                rubric_order_idx.get(_normalize_qid(item.get("question_id", "")), 9999),
+            ),
+        )
 
     seg_data = []
     for p in ocr_result.pages:
@@ -328,7 +380,7 @@ def _build_final_payload(
         page_qids = [
             q_res["question_id"]
             for q_res in report_dump.get("question_results", [])
-            if p.page_number in (q_res.get("page_numbers") or [])
+            if q_res.get("is_attempted", True) and p.page_number in (q_res.get("page_numbers") or [])
         ]
         cleaned_page_lines = [
             _clean_ocr_handwriting_text(raw)
@@ -351,6 +403,8 @@ def _build_final_payload(
 
     return {
         "session_id": session_id,
+        "reference_mode": reference_mode,
+        "paper_questions": paper_questions,
         "segmentation": seg_data,
         "grading_report": report_dump,
     }
@@ -393,7 +447,7 @@ async def api_grade(
         grader.semantic_scorer = get_semantic_scorer()
         report = grader.grade_exam(ocr_result, rubric, strictness_level=strictness_level)
 
-        return _build_final_payload(session_id, ocr_result, report)
+        return _build_final_payload(session_id, ocr_result, report, rubric=rubric)
     except Exception as exc:
         logger.exception("Error evaluating exam sheets")
         raise HTTPException(status_code=500, detail=str(exc))
@@ -471,7 +525,7 @@ async def api_grade_stream(
             grader.semantic_scorer = get_semantic_scorer()
             report = grader.grade_exam(ocr_result, rubric, strictness_level=lvl)
 
-            payload = _build_final_payload(session_id, ocr_result, report)
+            payload = _build_final_payload(session_id, ocr_result, report, rubric=rubric)
             push_event(
                 {
                     "type": "complete",

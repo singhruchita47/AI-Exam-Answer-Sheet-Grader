@@ -243,7 +243,9 @@ def build_report_pdf_bytes(report_payload: dict[str, Any]) -> bytes:
 
             q_id = _sanitize_pdf_text(q.get("question_id") or f"Q{idx_q+1}")
             q_type = _sanitize_pdf_text((q.get("question_type") or "short_answer").replace("_", " ").title())
-            p_nums = ", ".join(str(p) for p in (q.get("page_numbers") or [1]))
+            is_att = q.get("is_attempted", bool(str(q.get("student_answer") or "").strip()))
+            raw_pages = q.get("page_numbers") or []
+            p_nums = ", ".join(str(p) for p in raw_pages) if (is_att and raw_pages) else ("Not Attempted" if not is_att else "1")
             steps = q.get("step_wise_breakdown") or []
             hits = sum(1 for s in steps if s.get("status") == "Hit")
             kp_stat = f"{hits} / {len(steps)}" if steps else "-"
@@ -256,7 +258,7 @@ def build_report_pdf_bytes(report_payload: dict[str, Any]) -> bytes:
             ax.add_patch(row_rect)
             ax.text(7.0, y - 2.6, q_id, fontsize=8.2, fontweight="bold", color="#312e81")
             ax.text(21.0, y - 2.6, q_type[:18], fontsize=8.0, color="#334155")
-            ax.text(42.0, y - 2.6, f"P {p_nums}"[:12], fontsize=8.0, color="#475569")
+            ax.text(42.0, y - 2.6, (f"P {p_nums}" if p_nums != "Not Attempted" else "-")[:12], fontsize=8.0, color="#475569")
             ax.text(56.0, y - 2.6, kp_stat, fontsize=8.0, color="#475569")
             ax.text(75.0, y - 2.6, f"{aw:.2f}", fontsize=8.2, fontweight="bold", color="#047857", ha="right")
             ax.text(85.0, y - 2.6, f"{mx:.2f}", fontsize=8.0, color="#475569", ha="right")
@@ -287,10 +289,12 @@ def build_report_pdf_bytes(report_payload: dict[str, Any]) -> bytes:
         for idx_q, q in enumerate(q_results):
             q_id = _sanitize_pdf_text(q.get("question_id") or f"Q{idx_q+1}")
             q_type = _sanitize_pdf_text((q.get("question_type") or "short_answer").replace("_", " ").title())
-            p_nums = ", ".join(str(p) for p in (q.get("page_numbers") or [1]))
+            is_att = q.get("is_attempted", bool(str(q.get("student_answer") or "").strip()))
+            raw_pages = q.get("page_numbers") or []
+            p_nums = ", ".join(str(p) for p in raw_pages) if (is_att and raw_pages) else ("Not Attempted" if not is_att else "1")
             aw = float(q.get("marks_awarded") or 0.0)
             mx = float(q.get("max_marks") or 0.0)
-            ans_txt = _sanitize_pdf_text(q.get("student_answer") or "[No answer text recorded]")
+            ans_txt = _sanitize_pdf_text(q.get("student_answer") or ("Student did not attempt this question." if not is_att else "[No answer text recorded]"))
             fb_txt = _sanitize_pdf_text(q.get("student_feedback") or "")
             steps = q.get("step_wise_breakdown") or []
 
@@ -340,7 +344,8 @@ def build_report_pdf_bytes(report_payload: dict[str, Any]) -> bytes:
             # Card Title Bar
             title_bar = patches.Rectangle((5.2, y - 4.5), 89.6, 4.4, facecolor="#f1f5f9", edgecolor="#e2e8f0", linewidth=0.5)
             ax.add_patch(title_bar)
-            ax.text(7.0, y - 3.0, f"{q_id}  ({q_type})  -  Page {p_nums}", fontsize=9.0, fontweight="bold", color="#1e1b4b")
+            page_tag = "Not Attempted" if p_nums == "Not Attempted" else f"Page {p_nums}"
+            ax.text(7.0, y - 3.0, f"{q_id}  ({q_type})  -  {page_tag}", fontsize=9.0, fontweight="bold", color="#1e1b4b")
             score_color = "#047857" if (mx > 0 and aw / mx >= 0.6) else ("#b45309" if aw > 0 else "#b91c1c")
             ax.text(93.2, y - 3.0, f"Marks: {aw:.2f} / {mx:.2f}", fontsize=9.0, fontweight="bold", color=score_color, ha="right")
 
@@ -414,14 +419,17 @@ def build_report_csv_text(report_payload: dict[str, Any]) -> str:
         ["Question ID", "Type", "Pages", "Marks Awarded", "Max Marks", "Extracted Student Answer", "Feedback"]
     )
     for q in q_results:
+        is_att = q.get("is_attempted", bool(str(q.get("student_answer") or "").strip()))
+        raw_pages = q.get("page_numbers") or []
+        page_str = ", ".join(str(p) for p in raw_pages) if (is_att and raw_pages) else ("Not Attempted" if not is_att else "1")
         writer.writerow(
             [
                 q.get("question_id", ""),
                 q.get("question_type", ""),
-                ", ".join(str(p) for p in (q.get("page_numbers") or [1])),
+                page_str,
                 f"{float(q.get('marks_awarded') or 0.0):.2f}",
                 f"{float(q.get('max_marks') or 0.0):.2f}",
-                q.get("student_answer", ""),
+                q.get("student_answer", "") or ("Not Attempted" if not is_att else ""),
                 q.get("student_feedback", ""),
             ]
         )
@@ -449,14 +457,18 @@ def build_report_html(report_payload: dict[str, Any]) -> str:
     for q in q_results:
         qid = html.escape(str(q.get("question_id") or ""))
         qtype = html.escape(str((q.get("question_type") or "").replace("_", " ").title()))
-        pages = html.escape(", ".join(str(p) for p in (q.get("page_numbers") or [1])))
+        is_att = q.get("is_attempted", bool(str(q.get("student_answer") or "").strip()))
+        raw_pages = q.get("page_numbers") or []
+        pages = html.escape(", ".join(str(p) for p in raw_pages)) if (is_att and raw_pages) else ("Not Attempted" if not is_att else "1")
         aw = float(q.get("marks_awarded") or 0.0)
         mx = float(q.get("max_marks") or 0.0)
         q_pct = (aw / mx * 100.0) if mx > 0 else 0.0
-        ans = html.escape(str(q.get("student_answer") or "[No answer recorded]"))
+        ans = html.escape(str(q.get("student_answer") or ("Student did not attempt this question." if not is_att else "[No answer recorded]")))
         fb = html.escape(str(q.get("student_feedback") or ""))
+        page_cell = "-" if pages == "Not Attempted" else f"P {pages}"
+        page_head = "Not Attempted" if pages == "Not Attempted" else f"Page {pages}"
         rows_html.append(
-            f"<tr><td><b>{qid}</b></td><td>{qtype}</td><td>P {pages}</td>"
+            f"<tr><td><b>{qid}</b></td><td>{qtype}</td><td>{page_cell}</td>"
             f"<td class='num win'>{aw:.2f}</td><td class='num'>{mx:.2f}</td><td class='num'>{q_pct:.0f}%</td></tr>"
         )
         steps_li = "".join(
@@ -466,7 +478,7 @@ def build_report_html(report_payload: dict[str, Any]) -> str:
             for s in (q.get("step_wise_breakdown") or [])
         )
         details_html.append(
-            f"<div class='qcard'><div class='qhead'><span><b>{qid}</b> ({qtype}) &bull; Page {pages}</span>"
+            f"<div class='qcard'><div class='qhead'><span><b>{qid}</b> ({qtype}) &bull; {page_head}</span>"
             f"<span class='qmarks'>{aw:.2f} / {mx:.2f} Marks</span></div>"
             f"<div class='qbody'><div class='lbl'>Extracted Handwritten Answer:</div><p class='ans'>{ans}</p>"
             f"{('<ul class=\"steps\">' + steps_li + '</ul>') if steps_li else ''}"
