@@ -308,39 +308,54 @@
           <div id="unifiedUploadGrid" class="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
             <!-- CARD 1: QUESTION PAPER -->
-            <div id="uploadCard_question" class="upload-feature-card rounded-3xl flex flex-col justify-between lg:min-h-[385px]">
-              <div class="h-1 w-full bg-gradient-to-r from-indigo-800 via-indigo-600 to-cyan-600"></div>
-              <div class="p-5 sm:p-6 flex-1 flex flex-col justify-between space-y-4">
-                <div class="space-y-4">
-                  <div class="flex items-start justify-between gap-2">
-                    <div class="flex items-center gap-3 min-w-0">
-                      <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-slate-800 to-indigo-700 text-white flex items-center justify-center text-lg shadow-xs shrink-0">
-                        📄
-                      </div>
-                      <div class="min-w-0">
-                        <span class="inline-block text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-900 border border-indigo-200/70">Step 01</span>
-                        <h3 class="text-lg font-black text-slate-950 mt-0.5 heading-font whitespace-nowrap">Question Paper</h3>
-                      </div>
-                    </div>
-                    <span class="text-[10px] font-extrabold px-2.5 py-0.5 rounded-full bg-rose-600/90 text-white shadow-2xs shrink-0">
-                      Required
-                    </span>
-                  </div>
+            <div id="uploadCard_question" class="upload-feature-card rounded-3xl flex flex-col justify-between lg:min-h-[350px]">
+              <div class="h-1.5 w-full bg-gradient-to-r from-indigo-800 via-indigo-600 to-cyan-500"></div>
 
+              <!-- Tinted Interior Header Band -->
+              <div class="px-5 py-3.5 bg-gradient-to-r from-indigo-50/90 via-sky-50/55 to-white border-b border-indigo-100/80 flex items-center justify-between gap-2">
+                <div class="flex items-center gap-3 min-w-0">
+                  <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-slate-900 to-indigo-700 text-white flex items-center justify-center text-lg shadow-sm ring-2 ring-indigo-200/70 shrink-0">
+                    📄
+                  </div>
+                  <div class="min-w-0">
+                    <span class="inline-block text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md bg-indigo-600 text-white">Step 01</span>
+                    <h3 class="text-lg font-black text-slate-950 mt-0.5 heading-font whitespace-nowrap">Question Paper</h3>
+                  </div>
+                </div>
+                <span class="text-[10px] font-extrabold px-2.5 py-0.5 rounded-full bg-rose-600 text-white shadow-2xs shrink-0">
+                  Required
+                </span>
+              </div>
+
+              <div class="p-4 sm:p-5 flex-1 flex flex-col justify-between space-y-3">
+                <div class="space-y-3">
                   <div onclick="document.getElementById('questionImageFile').click()"
-                    class="border-2 border-dashed border-slate-300 hover:border-indigo-500 rounded-2xl py-8 px-5 text-center bg-slate-50/90 hover:bg-indigo-50/40 transition cursor-pointer group">
-                    <div class="w-12 h-12 rounded-2xl bg-white border border-slate-200 text-indigo-700 flex items-center justify-center text-xl mx-auto mb-2.5 shadow-xs group-hover:scale-105 transition">
+                    ondragover="handleCardDragOver(event, this)"
+                    ondragleave="handleCardDragLeave(event, this)"
+                    ondrop="handleCardDrop(event, this, 'questionImageFile', handleQuestionFileChange)"
+                    class="border-2 border-dashed border-indigo-300/80 hover:border-indigo-600 rounded-2xl py-5 px-4 text-center bg-gradient-to-b from-indigo-50/50 via-sky-50/25 to-slate-50/80 hover:from-indigo-50 hover:to-sky-50/60 transition cursor-pointer group">
+                    <div class="w-11 h-11 rounded-2xl bg-white border border-indigo-200 text-indigo-700 flex items-center justify-center text-xl mx-auto mb-2 shadow-xs ring-4 ring-indigo-100/70 group-hover:scale-105 transition">
                       📄
                     </div>
                     <p class="text-sm font-extrabold text-slate-950">Upload Question Paper</p>
-                    <p class="text-xs font-semibold text-slate-600 mt-1">PDF, JPG, or PNG • Bilingual auto-filtered</p>
+                    <p class="text-[11px] font-semibold text-slate-600 mt-0.5">Drop PDF, JPG, or PNG here</p>
+                    <div class="mt-2.5">
+                      <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-white border border-indigo-200 text-indigo-900 group-hover:bg-indigo-700 group-hover:text-white group-hover:border-indigo-700 text-[11px] font-extrabold shadow-2xs transition">
+                        <span>+ Choose Question File</span>
+                      </span>
+                    </div>
                   </div>
                   <input type="file" id="questionImageFile" accept="image/*,application/pdf,.pdf" class="hidden" onchange="handleQuestionFileChange(this)" />
                   <div id="questionThumbnail" class="hidden"></div>
+
+                  <div class="flex flex-wrap items-center gap-1.5">
+                    <span class="text-[10px] font-bold px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-900 border border-indigo-200/70">✨ Bilingual Clean</span>
+                    <span class="text-[10px] font-bold px-2 py-0.5 rounded-md bg-sky-50 text-sky-900 border border-sky-200/70">🎯 Auto Part Extraction</span>
+                  </div>
                 </div>
 
-                <div class="space-y-2.5 pt-3 border-t border-slate-100">
-                  <div id="silentRubricStatus" class="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                <div class="space-y-2 pt-2.5 border-t border-slate-100">
+                  <div id="silentRubricStatus" class="text-[11px] font-bold text-slate-800 flex items-center gap-1.5">
                     <span>⏳</span> <span>Upload Question Paper to prepare silently</span>
                   </div>
                   <details class="text-xs">
@@ -370,39 +385,54 @@
             </div>
 
             <!-- CARD 2: STUDENT ANSWER SHEET -->
-            <div id="uploadCard_student" class="upload-feature-card rounded-3xl flex flex-col justify-between lg:min-h-[385px]">
-              <div class="h-1 w-full bg-gradient-to-r from-cyan-800 via-teal-600 to-emerald-600"></div>
-              <div class="p-5 sm:p-6 flex-1 flex flex-col justify-between space-y-4">
-                <div class="space-y-4">
-                  <div class="flex items-start justify-between gap-2">
-                    <div class="flex items-center gap-3 min-w-0">
-                      <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-slate-800 to-teal-700 text-white flex items-center justify-center text-lg shadow-xs shrink-0">
-                        ✍️
-                      </div>
-                      <div class="min-w-0">
-                        <span class="inline-block text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-md bg-teal-50 text-teal-900 border border-teal-200/70">Step 02</span>
-                        <h3 class="text-lg font-black text-slate-950 mt-0.5 heading-font whitespace-nowrap">Student Answer</h3>
-                      </div>
-                    </div>
-                    <span class="text-[10px] font-extrabold px-2.5 py-0.5 rounded-full bg-slate-800 text-slate-100 shadow-2xs shrink-0">
-                      Multi-Page
-                    </span>
-                  </div>
+            <div id="uploadCard_student" class="upload-feature-card rounded-3xl flex flex-col justify-between lg:min-h-[350px]">
+              <div class="h-1.5 w-full bg-gradient-to-r from-cyan-800 via-teal-600 to-emerald-500"></div>
 
+              <!-- Tinted Interior Header Band -->
+              <div class="px-5 py-3.5 bg-gradient-to-r from-teal-50/95 via-cyan-50/60 to-white border-b border-teal-100/90 flex items-center justify-between gap-2">
+                <div class="flex items-center gap-3 min-w-0">
+                  <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-slate-900 to-teal-700 text-white flex items-center justify-center text-lg shadow-sm ring-2 ring-teal-200/70 shrink-0">
+                    ✍️
+                  </div>
+                  <div class="min-w-0">
+                    <span class="inline-block text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md bg-teal-700 text-white">Step 02</span>
+                    <h3 class="text-lg font-black text-slate-950 mt-0.5 heading-font whitespace-nowrap">Student Answer</h3>
+                  </div>
+                </div>
+                <span class="text-[10px] font-extrabold px-2.5 py-0.5 rounded-full bg-slate-900 text-white shadow-2xs shrink-0">
+                  Multi-Page
+                </span>
+              </div>
+
+              <div class="p-4 sm:p-5 flex-1 flex flex-col justify-between space-y-3">
+                <div class="space-y-3">
                   <div onclick="document.getElementById('studentPageFiles').click()"
-                    class="border-2 border-dashed border-slate-300 hover:border-teal-600 rounded-2xl py-8 px-5 text-center bg-slate-50/90 hover:bg-teal-50/40 transition cursor-pointer group">
-                    <div class="w-12 h-12 rounded-2xl bg-white border border-slate-200 text-teal-700 flex items-center justify-center text-xl mx-auto mb-2.5 shadow-xs group-hover:scale-105 transition">
+                    ondragover="handleCardDragOver(event, this)"
+                    ondragleave="handleCardDragLeave(event, this)"
+                    ondrop="handleCardDrop(event, this, 'studentPageFiles', handleStudentFileChange)"
+                    class="border-2 border-dashed border-teal-300/80 hover:border-teal-600 rounded-2xl py-5 px-4 text-center bg-gradient-to-b from-teal-50/50 via-cyan-50/25 to-slate-50/80 hover:from-teal-50 hover:to-emerald-50/50 transition cursor-pointer group">
+                    <div class="w-11 h-11 rounded-2xl bg-white border border-teal-200 text-teal-700 flex items-center justify-center text-xl mx-auto mb-2 shadow-xs ring-4 ring-teal-100/70 group-hover:scale-105 transition">
                       ✍️
                     </div>
                     <p class="text-sm font-extrabold text-slate-950">Upload Handwritten Copy</p>
-                    <p class="text-xs font-semibold text-slate-600 mt-1">Multiple JPG/PNG or 1–20+ page PDF</p>
+                    <p class="text-[11px] font-semibold text-slate-600 mt-0.5">Drop 1–20+ pages (PDF or Images)</p>
+                    <div class="mt-2.5">
+                      <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-white border border-teal-200 text-teal-900 group-hover:bg-teal-700 group-hover:text-white group-hover:border-teal-700 text-[11px] font-extrabold shadow-2xs transition">
+                        <span>+ Choose Answer Pages</span>
+                      </span>
+                    </div>
                   </div>
                   <input type="file" id="studentPageFiles" multiple accept="image/*,application/pdf,.pdf" class="hidden" onchange="handleStudentFileChange(this)" />
-                  <div id="studentThumbnails" class="hidden space-y-1.5 max-h-28 overflow-y-auto custom-scrollbar"></div>
+                  <div id="studentThumbnails" class="hidden space-y-1.5 max-h-24 overflow-y-auto custom-scrollbar"></div>
+
+                  <div class="flex flex-wrap items-center gap-1.5">
+                    <span class="text-[10px] font-bold px-2 py-0.5 rounded-md bg-teal-50 text-teal-900 border border-teal-200/70">📐 Handwriting + Diagrams</span>
+                    <span class="text-[10px] font-bold px-2 py-0.5 rounded-md bg-amber-50 text-amber-900 border border-amber-200/70">⚠️ Skipped Flagged</span>
+                  </div>
                 </div>
 
-                <div class="pt-3 border-t border-slate-100 flex items-center justify-between gap-2 text-xs font-semibold text-slate-700">
-                  <span>Skipped questions are auto-detected.</span>
+                <div class="pt-2.5 border-t border-slate-100 flex items-center justify-between gap-2 text-[11px] font-semibold text-slate-700">
+                  <span>Cover page automatically skipped in grading.</span>
                   <button type="button" onclick="clearStudentFiles()" id="clearStudentBtn" class="hidden text-rose-700 hover:text-rose-900 font-extrabold cursor-pointer">
                     Clear
                   </button>
@@ -411,39 +441,53 @@
             </div>
 
             <!-- CARD 3: OFFICIAL ANSWER KEY (OPTIONAL) -->
-            <div id="uploadCard_answerKey" class="upload-feature-card rounded-3xl flex flex-col justify-between lg:min-h-[385px]">
-              <div class="h-1 w-full bg-gradient-to-r from-slate-700 via-indigo-600 to-teal-600"></div>
-              <div class="p-5 sm:p-6 flex-1 flex flex-col justify-between space-y-4">
-                <div class="space-y-4">
-                  <div class="flex items-start justify-between gap-2">
-                    <div class="flex items-center gap-3 min-w-0">
-                      <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-900 to-slate-800 text-white flex items-center justify-center text-lg shadow-xs shrink-0">
-                        🔑
-                      </div>
-                      <div class="min-w-0">
-                        <span class="inline-block text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-md bg-slate-100 text-slate-800 border border-slate-200">Step 03</span>
-                        <h3 class="text-lg font-black text-slate-950 mt-0.5 heading-font whitespace-nowrap">Official Answer Key</h3>
-                      </div>
-                    </div>
-                    <span id="dualRefStatusPill" class="text-[10px] font-extrabold px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-800 border border-slate-300/70 shrink-0">
-                      Optional
-                    </span>
-                  </div>
+            <div id="uploadCard_answerKey" class="upload-feature-card rounded-3xl flex flex-col justify-between lg:min-h-[350px]">
+              <div class="h-1.5 w-full bg-gradient-to-r from-slate-800 via-indigo-600 to-teal-600"></div>
 
+              <!-- Tinted Interior Header Band -->
+              <div class="px-5 py-3.5 bg-gradient-to-r from-slate-100/90 via-indigo-50/45 to-white border-b border-slate-200/80 flex items-center justify-between gap-2">
+                <div class="flex items-center gap-3 min-w-0">
+                  <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-900 to-slate-800 text-white flex items-center justify-center text-lg shadow-sm ring-2 ring-slate-200/80 shrink-0">
+                    🔑
+                  </div>
+                  <div class="min-w-0">
+                    <span class="inline-block text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md bg-slate-800 text-white">Step 03</span>
+                    <h3 class="text-lg font-black text-slate-950 mt-0.5 heading-font whitespace-nowrap">Official Answer Key</h3>
+                  </div>
+                </div>
+                <span id="dualRefStatusPill" class="text-[10px] font-extrabold px-2.5 py-0.5 rounded-full bg-slate-200/80 text-slate-900 border border-slate-300 shrink-0">
+                  Optional
+                </span>
+              </div>
+
+              <div class="p-4 sm:p-5 flex-1 flex flex-col justify-between space-y-3">
+                <div class="space-y-3">
                   <div onclick="document.getElementById('answerKeyFile').click()"
-                    class="border-2 border-dashed border-slate-300 hover:border-indigo-500 rounded-2xl py-8 px-5 text-center bg-slate-50/90 hover:bg-slate-100/70 transition cursor-pointer group">
-                    <div class="w-12 h-12 rounded-2xl bg-white border border-slate-200 text-slate-800 flex items-center justify-center text-xl mx-auto mb-2.5 shadow-xs group-hover:scale-105 transition">
+                    ondragover="handleCardDragOver(event, this)"
+                    ondragleave="handleCardDragLeave(event, this)"
+                    ondrop="handleCardDrop(event, this, 'answerKeyFile', handleAnswerKeyFileChange)"
+                    class="border-2 border-dashed border-slate-300 hover:border-indigo-600 rounded-2xl py-5 px-4 text-center bg-gradient-to-b from-slate-100/60 via-indigo-50/25 to-white hover:from-indigo-50/60 hover:to-teal-50/40 transition cursor-pointer group">
+                    <div class="w-11 h-11 rounded-2xl bg-white border border-slate-200 text-indigo-800 flex items-center justify-center text-xl mx-auto mb-2 shadow-xs ring-4 ring-slate-200/60 group-hover:scale-105 transition">
                       🔑
                     </div>
                     <p class="text-sm font-extrabold text-slate-950">Optional: Upload Answer Key if available</p>
-                    <p class="text-xs font-semibold text-slate-600 mt-1">PDF or Photo • Auto-inferred if skipped</p>
+                    <p class="text-[11px] font-semibold text-slate-600 mt-0.5">Drop PDF or Photo • Leave blank to auto-infer</p>
+                    <div class="mt-2.5">
+                      <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-white border border-slate-300 text-slate-900 group-hover:bg-slate-900 group-hover:text-white group-hover:border-slate-900 text-[11px] font-extrabold shadow-2xs transition">
+                        <span>+ Choose Answer Key</span>
+                      </span>
+                    </div>
                   </div>
                   <input type="file" id="answerKeyFile" accept="image/*,application/pdf,.pdf" class="hidden" onchange="handleAnswerKeyFileChange(this)" />
                   <div id="answerKeyThumbnail" class="hidden"></div>
+
+                  <div class="rounded-xl bg-indigo-50/75 border border-indigo-200/70 px-3 py-1.5 text-[11px] font-bold text-indigo-950 flex items-center gap-1.5">
+                    <span>🤖</span> <span>Auto-Inference Ready: AI generates model answers if skipped</span>
+                  </div>
                 </div>
 
-                <div class="space-y-2.5 pt-3 border-t border-slate-100">
-                  <p id="answerKeyHelperNote" class="text-xs font-semibold text-slate-700 leading-snug">
+                <div class="space-y-2 pt-2.5 border-t border-slate-100">
+                  <p id="answerKeyHelperNote" class="text-[11px] font-semibold text-slate-700 leading-snug">
                     If skipped, AI automatically generates expected model answers.
                   </p>
                   <details class="text-xs">
@@ -1180,6 +1224,29 @@
         }
       }
       syncUploadCardHighlights();
+    }
+
+    function handleCardDragOver(e, zone) {
+      e.preventDefault();
+      e.stopPropagation();
+      zone.classList.add('ring-2', 'ring-teal-500', 'bg-teal-50/70');
+    }
+
+    function handleCardDragLeave(e, zone) {
+      e.preventDefault();
+      e.stopPropagation();
+      zone.classList.remove('ring-2', 'ring-teal-500', 'bg-teal-50/70');
+    }
+
+    function handleCardDrop(e, zone, inputId, handlerFn) {
+      e.preventDefault();
+      e.stopPropagation();
+      zone.classList.remove('ring-2', 'ring-teal-500', 'bg-teal-50/70');
+      const input = document.getElementById(inputId);
+      if (input && e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+        input.files = e.dataTransfer.files;
+        handlerFn(input);
+      }
     }
 
     function setSilentRubricStatus(state, message) {
