@@ -100,6 +100,31 @@
       padding-right: 0;
     }
 
+    /* Live Evaluation Popup Modal & Page-Flip Book Animations */
+    @keyframes evalModalIn {
+      from { opacity: 0; transform: scale(0.95) translateY(8px); }
+      to { opacity: 1; transform: scale(1) translateY(0); }
+    }
+    @keyframes scanBeamSweep {
+      0%, 100% { top: 12%; opacity: 0.85; }
+      50% { top: 82%; opacity: 1; }
+    }
+    @keyframes pageTurnFlip {
+      0% { transform: perspective(900px) rotateY(0deg) translateX(0); opacity: 1; }
+      45% { transform: perspective(900px) rotateY(-85deg) translateX(-12px); opacity: 0.92; }
+      100% { transform: perspective(900px) rotateY(-170deg) translateX(-28px); opacity: 0; }
+    }
+    .eval-modal-panel {
+      animation: evalModalIn 220ms cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .scan-beam-bar {
+      animation: scanBeamSweep 1.65s ease-in-out infinite;
+    }
+    .page-flip-active {
+      transform-origin: left center;
+      animation: pageTurnFlip 520ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
+    }
+
     /* Full-Screen Resizable Split Panes on Desktop (>= 900px) matching Image 1 ratio */
     @media (min-width: 900px) {
       #unifiedUploadGrid {
@@ -553,30 +578,91 @@
             </div>
           </div>
 
-          <!-- Live Multi-Page Progress Tracker Banner -->
-          <div id="gradingLoadingCard" class="hidden bg-white rounded-3xl shadow-lg shadow-teal-950/10 border-2 border-teal-300 p-5 space-y-4">
-            <div class="flex flex-wrap items-center justify-between gap-3">
-              <div class="flex items-center gap-3">
-                <div id="liveSpinner" class="animate-spin rounded-full h-6 w-6 border-2 border-teal-700 border-t-transparent shrink-0"></div>
-                <div>
-                  <div class="flex items-center gap-2">
-                    <span class="text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded bg-teal-950 text-teal-100">
-                      Live Evaluation Tracker
-                    </span>
-                    <span id="liveProgressPageCounter" class="text-xs font-bold text-slate-800">Initializing...</span>
-                  </div>
-                  <h3 class="font-bold text-slate-950 text-sm mt-1" id="loadingStageTitle">
-                    Preparing Question Paper &amp; Student Answer Sheet...
-                  </h3>
-                </div>
-              </div>
-              <span id="liveProgressPercent" class="text-xl font-black text-teal-800 mono-font">0%</span>
-            </div>
+          <!-- Centered Live Evaluation Popup Modal with Page-Flip Copy Animation -->
+          <div id="gradingLoadingCard" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 backdrop-blur-xs p-4">
+            <div class="eval-modal-panel w-full max-w-lg bg-white rounded-3xl shadow-2xl border-[1.5px] border-teal-500/60 overflow-hidden">
+              <div class="h-1.5 w-full bg-gradient-to-r from-indigo-700 via-teal-600 to-emerald-500"></div>
 
-            <div class="w-full bg-teal-100 h-2.5 rounded-full overflow-hidden border border-teal-200">
-              <div id="liveProgressBar" class="bg-gradient-to-r from-sky-800 via-teal-600 to-emerald-500 h-full transition-all duration-300 rounded-full" style="width: 4%"></div>
+              <div class="p-5 sm:p-6 space-y-4">
+                <!-- Header Tracker Row -->
+                <div class="flex items-start justify-between gap-3">
+                  <div class="flex items-start gap-3 min-w-0">
+                    <div id="liveSpinner" class="animate-spin rounded-full h-6 w-6 border-2 border-teal-600 border-t-transparent shrink-0 mt-0.5"></div>
+                    <div class="min-w-0">
+                      <div class="flex flex-wrap items-center gap-2">
+                        <span class="text-[10px] font-extrabold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-slate-900 text-teal-200">
+                          Live Evaluation Tracker
+                        </span>
+                        <span id="liveProgressPageCounter" class="text-xs font-extrabold text-slate-900">1 Page(s) Total</span>
+                      </div>
+                      <h3 class="font-bold text-slate-950 text-xs sm:text-sm mt-1.5 leading-snug" id="loadingStageTitle">
+                        Preparing Question Paper &amp; Student Answer Sheet...
+                      </h3>
+                    </div>
+                  </div>
+                  <span id="liveProgressPercent" class="text-xl font-black text-indigo-800 shrink-0">0%</span>
+                </div>
+
+                <!-- Animated Copy Page-Flip Visual Stage -->
+                <div id="liveFlipBookStage" class="relative mx-auto w-full rounded-2xl bg-gradient-to-br from-slate-100 via-indigo-50/40 to-teal-50/50 border border-slate-200 p-4 flex items-center justify-center overflow-hidden min-h-[164px]">
+                  <!-- Layered Stacked Sheet Backdrops -->
+                  <div class="relative w-44 h-36">
+                    <div class="absolute inset-0 translate-x-2 translate-y-2 rounded-xl bg-slate-200/80 border border-slate-300"></div>
+                    <div class="absolute inset-0 translate-x-1 translate-y-1 rounded-xl bg-white border border-slate-300 shadow-xs"></div>
+
+                    <!-- Active Current Sheet Being Evaluated -->
+                    <div id="liveFlipSheetCurrent" class="relative w-full h-full rounded-xl bg-white border-[1.5px] border-teal-500/70 shadow-md p-3 flex flex-col justify-between overflow-hidden">
+                      <div class="flex items-center justify-between gap-1">
+                        <span id="liveFlipSheetBadge" class="text-[10px] font-black px-2 py-0.5 rounded-md bg-indigo-600 text-white">
+                          Page 1
+                        </span>
+                        <span id="liveFlipSheetStatus" class="text-[9px] font-extrabold text-teal-800">
+                          Scanning...
+                        </span>
+                      </div>
+                      <!-- Notebook ruled lines illustration -->
+                      <div class="space-y-1.5 my-1.5">
+                        <div class="h-1.5 w-11/12 rounded-full bg-slate-200"></div>
+                        <div class="h-1.5 w-9/12 rounded-full bg-indigo-100"></div>
+                        <div class="h-1.5 w-10/12 rounded-full bg-slate-200"></div>
+                        <div class="h-1.5 w-8/12 rounded-full bg-teal-100"></div>
+                        <div class="h-1.5 w-7/12 rounded-full bg-slate-200"></div>
+                      </div>
+                      <div class="text-[9px] font-bold text-slate-600 flex items-center justify-between border-t border-slate-100 pt-1">
+                        <span id="liveFlipFooterLabel">Vision OCR + Diagrams</span>
+                        <span class="text-teal-700 font-black">AI ●</span>
+                      </div>
+                      <!-- Sweeping Scan Beam -->
+                      <div id="liveFlipScanBeam" class="scan-beam-bar absolute left-0 right-0 h-1 bg-gradient-to-r from-indigo-500/0 via-teal-500 to-emerald-400/0 pointer-events-none"></div>
+                    </div>
+
+                    <!-- Turning / Flipping Completed Page Overlay -->
+                    <div id="liveFlipTurningOverlay" class="hidden absolute inset-0 rounded-xl bg-emerald-50 border-2 border-emerald-500 shadow-lg p-3 flex flex-col justify-between z-10 pointer-events-none">
+                      <div class="flex items-center justify-between gap-1">
+                        <span id="liveFlipOverlayPageNum" class="text-[10px] font-black px-2 py-0.5 rounded-md bg-emerald-600 text-white">
+                          Page 1
+                        </span>
+                        <span class="text-[10px] font-black text-emerald-700">Done ✔</span>
+                      </div>
+                      <div class="my-auto flex items-center justify-center">
+                        <span id="liveFlipOverlayStamp" class="px-2.5 py-1 rounded-lg border-2 border-emerald-600 bg-white text-emerald-800 font-black text-xs shadow-xs">
+                          Page 1 Done ✔
+                        </span>
+                      </div>
+                      <div class="text-[9px] font-bold text-emerald-800 text-center">Flipping to next page →</div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Gradient Progress Bar -->
+                <div class="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden border border-slate-200">
+                  <div id="liveProgressBar" class="bg-gradient-to-r from-indigo-700 via-teal-600 to-emerald-500 h-full transition-all duration-300 rounded-full" style="width: 4%"></div>
+                </div>
+
+                <!-- Live Step Pills ("Page 1 Done ✔", "Page 2 Done ✔", ...) -->
+                <div id="livePageStepsList" class="flex flex-wrap items-center justify-center gap-2 pt-0.5"></div>
+              </div>
             </div>
-            <div id="livePageStepsList" class="flex flex-wrap gap-2"></div>
           </div>
 
         </div>
@@ -1561,6 +1647,71 @@
     // -------------------------------------------------------------------------
     // STREAMING EVALUATION -> AUTO-SWITCH TO FULL-SCREEN SPLIT REVIEW PAGE
     // -------------------------------------------------------------------------
+    let liveFlipDoneTracker = 0;
+    let liveFlipTimeout = null;
+
+    function resetLiveFlipBook() {
+      liveFlipDoneTracker = 0;
+      if (liveFlipTimeout) {
+        clearTimeout(liveFlipTimeout);
+        liveFlipTimeout = null;
+      }
+      const badge = document.getElementById('liveFlipSheetBadge');
+      const status = document.getElementById('liveFlipSheetStatus');
+      const footer = document.getElementById('liveFlipFooterLabel');
+      const overlay = document.getElementById('liveFlipTurningOverlay');
+      const beam = document.getElementById('liveFlipScanBeam');
+      if (badge) {
+        badge.className = "text-[10px] font-black px-2 py-0.5 rounded-md bg-indigo-600 text-white";
+        badge.textContent = "Page 1";
+      }
+      if (status) status.textContent = "Preparing...";
+      if (footer) footer.textContent = "Vision OCR + Diagrams";
+      if (beam) beam.classList.remove('hidden');
+      if (overlay) {
+        overlay.classList.add('hidden');
+        overlay.classList.remove('page-flip-active');
+      }
+    }
+
+    function triggerLivePageFlip(donePage, totalPages) {
+      if (!donePage || donePage <= liveFlipDoneTracker) return;
+      liveFlipDoneTracker = donePage;
+
+      const overlay = document.getElementById('liveFlipTurningOverlay');
+      const ovNum = document.getElementById('liveFlipOverlayPageNum');
+      const ovStamp = document.getElementById('liveFlipOverlayStamp');
+      const badge = document.getElementById('liveFlipSheetBadge');
+      const status = document.getElementById('liveFlipSheetStatus');
+      const footer = document.getElementById('liveFlipFooterLabel');
+
+      const nextPage = donePage < totalPages ? (donePage + 1) : null;
+      if (badge) {
+        if (nextPage) {
+          badge.className = "text-[10px] font-black px-2 py-0.5 rounded-md bg-indigo-600 text-white";
+          badge.textContent = `Page ${nextPage}`;
+        } else {
+          badge.className = "text-[10px] font-black px-2 py-0.5 rounded-md bg-teal-700 text-white";
+          badge.textContent = "Grading Copy";
+        }
+      }
+      if (status) status.textContent = nextPage ? `Scanning ${nextPage}/${totalPages}...` : `All ${totalPages} Done ✔`;
+      if (footer) footer.textContent = nextPage ? "Vision OCR + Diagrams" : "Scoring Answers & Key";
+
+      if (overlay && ovNum && ovStamp) {
+        ovNum.textContent = `Page ${donePage}`;
+        ovStamp.textContent = `Page ${donePage} Done ✔`;
+        overlay.classList.remove('hidden', 'page-flip-active');
+        void overlay.offsetWidth; // Restart 3D turn cleanly on consecutive pages
+        overlay.classList.add('page-flip-active');
+        if (liveFlipTimeout) clearTimeout(liveFlipTimeout);
+        liveFlipTimeout = setTimeout(() => {
+          overlay.classList.add('hidden');
+          overlay.classList.remove('page-flip-active');
+        }, 520);
+      }
+    }
+
     function renderLivePagePills(totalPages, currentDonePage, activePage) {
       const container = document.getElementById('livePageStepsList');
       if (!container || !totalPages) return;
@@ -1568,13 +1719,13 @@
       for (let p = 1; p <= totalPages; p++) {
         const pill = document.createElement('span');
         if (p <= currentDonePage) {
-          pill.className = "inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300";
+          pill.className = "inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-emerald-100 text-emerald-900 border border-emerald-300";
           pill.textContent = `Page ${p} Done ✔`;
         } else if (p === activePage) {
           pill.className = "inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-indigo-600 text-white shadow-2xs animate-pulse";
           pill.textContent = `Evaluating Page ${p} of ${totalPages}...`;
         } else {
-          pill.className = "inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-medium bg-slate-100 text-slate-500 border border-slate-200";
+          pill.className = "inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-slate-100 text-slate-600 border border-slate-200";
           pill.textContent = `Page ${p}`;
         }
         container.appendChild(pill);
@@ -1591,7 +1742,7 @@
         return;
       }
       if (activePreset === 'custom' && !hasStudentFiles) {
-        alert("Please upload the Student Answer Sheet (Step 03) or click 'Try Sample Paper'.");
+        alert("Please upload the Student Answer Sheet (Step 02) or click 'Try Sample Paper'.");
         return;
       }
 
@@ -1599,8 +1750,8 @@
       const btnText = document.getElementById('gradeBtnText');
       const loadingCard = document.getElementById('gradingLoadingCard');
 
+      resetLiveFlipBook();
       loadingCard.classList.remove('hidden');
-      loadingCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 
       btn.disabled = true;
       btn.classList.add('opacity-60');
@@ -1673,10 +1824,16 @@
                 document.getElementById('liveProgressPageCounter').textContent = `${evt.total_pages} Page(s) Total`;
                 if (evt.step === 'page_done') {
                   completedPages = evt.page;
+                  triggerLivePageFlip(evt.page, evt.total_pages);
                   renderLivePagePills(evt.total_pages, completedPages, completedPages + 1);
                 } else if (evt.step === 'page_segment' || evt.step === 'init') {
+                  const statusEl = document.getElementById('liveFlipSheetStatus');
+                  if (statusEl) statusEl.textContent = `Scanning Page ${evt.page || 1}...`;
                   renderLivePagePills(evt.total_pages, completedPages, evt.page || 1);
                 } else {
+                  if (liveFlipDoneTracker < evt.total_pages) {
+                    triggerLivePageFlip(evt.total_pages, evt.total_pages);
+                  }
                   renderLivePagePills(evt.total_pages, evt.total_pages, 0);
                 }
               }
@@ -1687,7 +1844,7 @@
               rawResultsPayload = evt.data;
               currentSessionId = evt.data.session_id;
               renderGradingResults(evt.data);
-              navigatePage('review'); // Switch straight to dedicated Full-Screen Split Review page!
+              navigatePage('review'); // Switch straight to clean Split Review slides!
             } else if (evt.type === 'error') {
               throw new Error(evt.message || 'Streaming evaluation error.');
             }
