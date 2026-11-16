@@ -367,6 +367,10 @@
         <div class="flex flex-wrap items-start justify-between gap-4">
           <div class="space-y-1.5">
             <div class="flex flex-wrap items-center gap-2">
+              <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-extrabold bg-slate-900 text-white" id="resStudentBannerPill">
+                👤 <span id="resStudentHeaderName">Student Copy</span>
+                <span id="resStudentHeaderRollWrap" class="hidden font-mono text-[10px] bg-slate-700 px-1.5 py-0.2 rounded"></span>
+              </span>
               <span class="inline-block px-2.5 py-0.5 rounded-full text-[11px] font-extrabold bg-indigo-100 border border-indigo-200 text-indigo-800 uppercase tracking-wider" id="resExamTitle">
                 Exam Assessment
               </span>
@@ -570,6 +574,9 @@
               </div>
             </div>
 
+            <!-- Part-Wise Filter Tabs (All Parts / Part I / Part II / Part III ...) -->
+            <div id="partFilterBar" class="flex flex-wrap items-center gap-1.5 pt-1 border-t border-slate-100"></div>
+
             <!-- Question Quick-Jump Strip -->
             <div id="questionJumpBar" class="flex items-center gap-1.5 overflow-x-auto pb-1 custom-scrollbar"></div>
           </div>
@@ -733,6 +740,7 @@
     let currentViewerMode = 'annotated'; // 'annotated' | 'original'
     let currentZoom = 1.0;
     let filterByCurrentPage = false; // Default false: show clean ordered Q1..Qn review cards
+    let activePartFilter = 'all'; // 'all' or Part key ('Part I', 'Q1A', 'Part II', 'Part III', etc.)
     let isWidePhotoLayout = false;
     let isUploadPanelCollapsed = false;
 
@@ -1438,6 +1446,9 @@
 
     function setRightPanelFilterMode(onlyCurrentPage) {
       filterByCurrentPage = Boolean(onlyCurrentPage);
+      if (filterByCurrentPage) {
+        activePartFilter = 'all';
+      }
       const pageBtn = document.getElementById('filterPageOnlyBtn');
       const allBtn = document.getElementById('filterAllQuestionsBtn');
       if (pageBtn && allBtn) {
@@ -1449,6 +1460,7 @@
           pageBtn.className = "px-2.5 py-1 rounded-lg text-slate-600 hover:text-slate-900 cursor-pointer transition";
         }
       }
+      renderPartFilterBar();
       renderQuestionJumpBar();
       renderGradingBreakdownCards();
     }
@@ -1876,6 +1888,280 @@
       }
     }
 
+    function syncStudentHeaderPill() {
+      const nameVal = (document.getElementById('reportStudentName')?.value || '').trim() || 'Student Copy';
+      const rollVal = (document.getElementById('reportRollNo')?.value || '').trim();
+      const nameEl = document.getElementById('resStudentHeaderName');
+      const rollEl = document.getElementById('resStudentHeaderRollWrap');
+      if (nameEl) nameEl.textContent = nameVal;
+      if (rollEl) {
+        if (rollVal) {
+          rollEl.textContent = `Roll: ${rollVal}`;
+          rollEl.classList.remove('hidden');
+        } else {
+          rollEl.classList.add('hidden');
+        }
+      }
+    }
+
+    function getQuestionPartInfo(res) {
+      const qid = normalizeQidClient(res.question_id);
+      if (/^Q1[AB]$/.test(qid)) {
+        const letter = qid.endsWith('A') ? 'A' : 'B';
+        return {
+          partKey: 'PART_1',
+          subKey: qid,
+          partOrder: 1,
+          partTitle: 'Part I — Objective & Short Questions',
+          subTitle: letter === 'A' ? 'Part I • Q1(A) Multiple Choice' : 'Part I • Q1(B) Short Answers',
+        };
+      }
+      if (/^P2_/.test(qid)) {
+        return {
+          partKey: 'PART_2',
+          subKey: 'PART_2',
+          partOrder: 2,
+          partTitle: 'Part II — Descriptive Questions',
+          subTitle: 'Part II • Medium-Length Answers',
+        };
+      }
+      if (/^P3_/.test(qid)) {
+        return {
+          partKey: 'PART_3',
+          subKey: 'PART_3',
+          partOrder: 3,
+          partTitle: 'Part III — Long Analytical Questions',
+          subTitle: 'Part III • Long Descriptive Answers',
+        };
+      }
+      // Single-part exam fallback grouping (Objective vs Descriptive when both exist)
+      if (isObjectiveQuestionType(res.question_type)) {
+        return {
+          partKey: 'OBJ',
+          subKey: 'OBJ',
+          partOrder: 1,
+          partTitle: 'Section A — Objective Questions',
+          subTitle: 'Objective Questions (MCQ / Fill in Blanks / One Word)',
+        };
+      }
+      return {
+        partKey: 'DESC',
+        subKey: 'DESC',
+        partOrder: 2,
+        partTitle: 'Section B — Short & Long Questions',
+        subTitle: 'Descriptive Question-Answers',
+      };
+    }
+
+    function getAvailableParts() {
+      const allItems = getOrderedReviewItems();
+      const hasMultiPart = allItems.some(it => /^Q1[AB]|^P[23]_/.test(normalizeQidClient(it.res.question_id)));
+      const buckets = new Map();
+
+      allItems.forEach(item => {
+        const info = getQuestionPartInfo(item.res);
+        // For multi-part papers, create top-level Part I, Part II, Part III AND sub-filter Q1A / Q1B
+        const keys = [];
+        if (hasMultiPart) {
+          const partLabelMap = { PART_1: 'Part I', PART_2: 'Part II', PART_3: 'Part III' };
+          keys.push({ key: info.partKey, label: partLabelMap[info.partKey] || info.partKey, title: info.partTitle, order: info.partOrder * 10 });
+          if (info.subKey !== info.partKey) {
+            const nice = info.subKey === 'Q1A' ? 'Q1(A) MCQs' : 'Q1(B) Short';
+            keys.push({ key: info.subKey, label: nice, title: info.subTitle, order: info.partOrder * 10 + (info.subKey === 'Q1A' ? 1 : 2) });
+          }
+        } else {
+          keys.push({ key: info.partKey, label: info.partKey === 'OBJ' ? 'Objectives' : 'Descriptive Q&A', title: info.partTitle, order: info.partOrder });
+        }
+
+        keys.forEach(k => {
+          if (!buckets.has(k.key)) {
+            buckets.set(k.key, { ...k, items: [], awarded: 0, maxMarks: 0 });
+          }
+          const b = buckets.get(k.key);
+          b.items.push(item);
+          if (!item.isOptionalOmitted) {
+            b.awarded += Number(item.res.marks_awarded) || 0;
+            b.maxMarks += Number(item.res.max_marks) || 0;
+          }
+        });
+      });
+
+      const list = [...buckets.values()].sort((a, b) => a.order - b.order);
+      // Only show separate tabs if there are >= 2 distinct parts
+      return list.length >= 2 ? list : [];
+    }
+
+    function itemMatchesActivePart(item) {
+      if (!activePartFilter || activePartFilter === 'all') return true;
+      const info = getQuestionPartInfo(item.res);
+      return info.partKey === activePartFilter || info.subKey === activePartFilter;
+    }
+
+    function selectPartFilter(partKey) {
+      activePartFilter = partKey || 'all';
+      filterByCurrentPage = false;
+
+      const pageBtn = document.getElementById('filterPageOnlyBtn');
+      const allBtn = document.getElementById('filterAllQuestionsBtn');
+      if (pageBtn && allBtn) {
+        allBtn.className = "px-2.5 py-1 rounded-lg bg-indigo-600 text-white shadow-2xs cursor-pointer transition";
+        pageBtn.className = "px-2.5 py-1 rounded-lg text-slate-600 hover:text-slate-900 cursor-pointer transition";
+      }
+
+      renderPartFilterBar();
+      renderQuestionJumpBar();
+      renderGradingBreakdownCards();
+
+      // Jump Left Sheet Viewer cleanly to the first page where this Part appears
+      if (activePartFilter !== 'all') {
+        const partItems = getOrderedReviewItems().filter(itemMatchesActivePart);
+        const firstAtt = partItems.find(it => it.res.is_attempted && it.res.page_numbers && it.res.page_numbers.length > 0);
+        if (firstAtt) {
+          selectViewerPage(firstAtt.res.page_numbers[0] - 1, false);
+        }
+      }
+      const bd = document.getElementById('resGradingBreakdown');
+      if (bd) bd.scrollTop = 0;
+    }
+
+    function renderPartFilterBar() {
+      const bar = document.getElementById('partFilterBar');
+      if (!bar || !currentGradingReport) return;
+
+      const parts = getAvailableParts();
+      if (parts.length === 0) {
+        bar.classList.add('hidden');
+        bar.innerHTML = '';
+        return;
+      }
+      bar.classList.remove('hidden');
+
+      const allItems = getOrderedReviewItems();
+      const totAw = currentGradingReport.total_marks_awarded ?? allItems.reduce((s, it) => s + (it.isOptionalOmitted ? 0 : (Number(it.res.marks_awarded) || 0)), 0);
+      const totMx = currentGradingReport.total_max_marks ?? allItems.reduce((s, it) => s + (it.isOptionalOmitted ? 0 : (Number(it.res.max_marks) || 0)), 0);
+
+      const allActive = activePartFilter === 'all' && !filterByCurrentPage;
+      let html = `
+        <span class="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 mr-1">Parts:</span>
+        <button type="button" onclick="selectPartFilter('all')"
+          class="px-2.5 py-1 rounded-lg text-[11px] font-bold transition cursor-pointer ${allActive ? 'bg-slate-900 text-white shadow-2xs' : 'bg-slate-100 hover:bg-slate-200 text-slate-700'}">
+          All Parts (${Number(totAw).toFixed(1)}/${Number(totMx).toFixed(0)})
+        </button>
+      `;
+
+      parts.forEach(p => {
+        const isAct = activePartFilter === p.key && !filterByCurrentPage;
+        html += `
+          <button type="button" onclick="selectPartFilter('${escapeHtmlSafe(p.key)}')"
+            class="px-2.5 py-1 rounded-lg text-[11px] font-bold transition cursor-pointer border ${isAct ? 'bg-indigo-600 text-white border-indigo-600 shadow-2xs' : 'bg-white hover:bg-indigo-50 text-slate-700 border-slate-200 hover:border-indigo-300'}">
+            ${escapeHtmlSafe(p.label)} <span class="${isAct ? 'text-indigo-100' : 'text-slate-500'} font-semibold">(${p.awarded.toFixed(1)}/${p.maxMarks.toFixed(0)})</span>
+          </button>
+        `;
+      });
+      bar.innerHTML = html;
+    }
+
+    function formatDisplayQuestionId(qid) {
+      const q = normalizeQidClient(qid);
+      if (q === 'Q1A') return 'Q1(A)';
+      if (q === 'Q1B') return 'Q1(B)';
+      const pm = q.match(/^P(\d+)_Q(\d+)$/);
+      if (pm) return `Part ${pm[1] === '2' ? 'II' : (pm[1] === '3' ? 'III' : 'I')} • Q${pm[2]}`;
+      return qid;
+    }
+
+    const ROMAN_LIST = ['i', 'ii', 'iii', 'iv', 'v', 'vi', 'vii', 'viii', 'ix', 'x'];
+    const ROMAN_TO_NUM = { i: 1, ii: 2, iii: 3, iv: 4, v: 5, vi: 6, vii: 7, viii: 8, ix: 9, x: 10 };
+
+    function stripDevanagariClean(text) {
+      return String(text || '')
+        .replace(/[\u0900-\u097F]+/g, '')
+        .replace(/\s*\/\s*(?=\)|$)/g, ' ')
+        .replace(/\s{2,}/g, ' ')
+        .trim();
+    }
+
+    function extractSubItemsMap(rawText) {
+      const text = String(rawText || '').trim();
+      const map = new Map();
+      if (!text) return map;
+
+      // Priority 1: Roman paren markers (i), (ii), (iii)... (never collides with MCQ choices A) B) C) D))
+      const romanRe = /(?:^|\s|\n)\(\s*(i|ii|iii|iv|v|vi|vii|viii|ix|x)\s*\)\s*/gi;
+      const romanMatches = [...text.matchAll(romanRe)];
+      if (romanMatches.length >= 2) {
+        romanMatches.forEach((m, idx) => {
+          const rKey = m[1].toLowerCase();
+          const num = ROMAN_TO_NUM[rKey] || (idx + 1);
+          const start = m.index + m[0].length;
+          const end = idx + 1 < romanMatches.length ? romanMatches[idx + 1].index : text.length;
+          const val = stripDevanagariClean(text.slice(start, end));
+          map.set(num, val);
+        });
+        return map;
+      }
+
+      // Priority 2: Numeric markers (1), (2) or A-1, A-2 line starts
+      const numRe = /(?:^|\s|\n)(?:\(\s*(\d{1,2})\s*\)|(?:A[\s\-_]*)(\d{1,2})\b[\.\):\-]*)\s*/gi;
+      const numMatches = [...text.matchAll(numRe)];
+      if (numMatches.length >= 2) {
+        numMatches.forEach((m, idx) => {
+          const num = parseInt(m[1] || m[2], 10);
+          const start = m.index + m[0].length;
+          const end = idx + 1 < numMatches.length ? numMatches[idx + 1].index : text.length;
+          const val = stripDevanagariClean(text.slice(start, end));
+          if (num >= 1 && num <= 20) map.set(num, val);
+        });
+        return map;
+      }
+
+      // Priority 3: Lowercase paren markers (a), (b), (c)...
+      const alphaRe = /(?:^|\s|\n)\(\s*([a-f])\s*\)\s*/gi;
+      const alphaMatches = [...text.matchAll(alphaRe)];
+      if (alphaMatches.length >= 2) {
+        alphaMatches.forEach((m, idx) => {
+          const num = m[1].toLowerCase().charCodeAt(0) - 96;
+          const start = m.index + m[0].length;
+          const end = idx + 1 < alphaMatches.length ? alphaMatches[idx + 1].index : text.length;
+          const val = stripDevanagariClean(text.slice(start, end));
+          map.set(num, val);
+        });
+        return map;
+      }
+
+      return map;
+    }
+
+    function shouldExpandSubCards(res) {
+      const steps = res.step_wise_breakdown || [];
+      if (steps.length < 2) return false;
+      const norm = normalizeQidClient(res.question_id);
+      const avgPerStep = (Number(res.max_marks) || 0) / steps.length;
+      const isObjOrSmallBlock =
+        isObjectiveQuestionType(res.question_type) ||
+        /^Q1[AB]$/.test(norm) ||
+        (res.question_type === 'short_answer' && steps.length >= 3 && avgPerStep <= 1.5);
+      if (!isObjOrSmallBlock) return false;
+
+      const qSubMap = extractSubItemsMap(res.question_text);
+      const ansSubMap = extractSubItemsMap(res.student_answer);
+      return qSubMap.size >= 2 || ansSubMap.size >= 2 || steps.length >= 3;
+    }
+
+    function getOrigStepAwarded(qIdx, stepIdx, fallbackVal) {
+      if (originalGradingReport && originalGradingReport.question_results?.[qIdx]?.step_wise_breakdown?.[stepIdx]) {
+        return Number(originalGradingReport.question_results[qIdx].step_wise_breakdown[stepIdx].awarded_point_marks) || 0;
+      }
+      return Number(fallbackVal) || 0;
+    }
+
+    function getOrigQuestionAwarded(qIdx, fallbackVal) {
+      if (originalGradingReport && originalGradingReport.question_results?.[qIdx]) {
+        return Number(originalGradingReport.question_results[qIdx].marks_awarded) || 0;
+      }
+      return Number(fallbackVal) || 0;
+    }
+
     function renderGradingResults(data) {
       originalGradingReport = JSON.parse(JSON.stringify(data.grading_report));
       currentGradingReport = JSON.parse(JSON.stringify(data.grading_report));
@@ -1911,14 +2197,15 @@
       if (uploadedStudentFilename) {
         populateReportMetaFromFilename(uploadedStudentFilename);
       }
+      syncStudentHeaderPill();
 
+      activePartFilter = 'all';
+      filterByCurrentPage = false;
       recalculateGrandTotal(false);
       updateAttemptedSummaryBar();
       document.getElementById('resEngineMode').textContent =
         `Evaluation Mode: ${currentGradingReport.mode === 'online_gemini' ? 'Multimodal Vision + Step-by-Step Rubric Grader' : 'Local TrOCR + Semantic Grader'}`;
 
-      // Default to showing All Questions in exact Question Paper order (so Unattempted questions are immediately clear!)
-      filterByCurrentPage = false;
       setRightPanelFilterMode(false);
 
       currentZoom = 1.0;
@@ -1938,7 +2225,7 @@
         : { page_number: 1 };
       const activePageNum = activePageObj.page_number;
 
-      const items = getOrderedReviewItems();
+      const items = getOrderedReviewItems().filter(itemMatchesActivePart);
       items.forEach(item => {
         const res = item.res;
         const btn = document.createElement('button');
@@ -1957,18 +2244,46 @@
           }, 40);
         };
 
+        const niceId = formatDisplayQuestionId(res.question_id);
         if (!isAtt) {
           btn.className = "px-2.5 py-1 rounded-lg text-[11px] font-bold bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 shrink-0 cursor-pointer";
-          btn.textContent = `${res.question_id} (Not Attempted)`;
+          btn.textContent = `${niceId} (Not Attempted)`;
         } else if (isOnActivePage) {
-          btn.className = "px-2.5 py-1 rounded-lg text-[11px] font-extrabold bg-indigo-600 text-white ring-2 ring-indigo-300 shrink-0 cursor-pointer shadow-2xs";
-          btn.textContent = `${res.question_id} (${Number(res.marks_awarded).toFixed(1)}/${res.max_marks}) • P${pNums.join(',')}`;
+          btn.className = "px-2.5 py-1 rounded-lg text-[11px] font-extrabold bg-indigo-600 text-white ring-2 ring-indigo-200 shrink-0 cursor-pointer shadow-2xs";
+          btn.textContent = `${niceId} (${Number(res.marks_awarded).toFixed(1)}/${res.max_marks}) • P${pNums.join(',')}`;
         } else {
           btn.className = "px-2.5 py-1 rounded-lg text-[11px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 hover:bg-emerald-100 shrink-0 cursor-pointer";
-          btn.textContent = `${res.question_id} (${Number(res.marks_awarded).toFixed(1)}/${res.max_marks}) • P${pNums.join(',')}`;
+          btn.textContent = `${niceId} (${Number(res.marks_awarded).toFixed(1)}/${res.max_marks}) • P${pNums.join(',')}`;
         }
         bar.appendChild(btn);
       });
+    }
+
+    function renderMatchedMissedGrid(matchedList, missedList) {
+      const matchedItemsHtml = matchedList.length > 0
+        ? matchedList.map(m => `<li class="flex items-start gap-1.5 text-xs text-emerald-900 leading-snug"><span class="text-emerald-600 font-bold shrink-0">•</span><span>${escapeHtmlSafe(m)}</span></li>`).join('')
+        : `<li class="text-xs text-slate-400 italic">No points matched</li>`;
+
+      const missedItemsHtml = missedList.length > 0
+        ? missedList.map(m => `<li class="flex items-start gap-1.5 text-xs text-rose-900 leading-snug"><span class="text-rose-500 font-bold shrink-0">•</span><span>${escapeHtmlSafe(m)}</span></li>`).join('')
+        : `<li class="text-xs text-rose-400/80 italic">No points missed</li>`;
+
+      return `
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+          <div class="rounded-xl bg-emerald-50/65 border border-emerald-200/80 p-3 space-y-1.5">
+            <div class="text-[11px] font-extrabold text-emerald-800 flex items-center gap-1.5">
+              <span>✓</span> <span>Points Matched (${matchedList.length})</span>
+            </div>
+            <ul class="space-y-1">${matchedItemsHtml}</ul>
+          </div>
+          <div class="rounded-xl bg-rose-50/55 border border-rose-200/80 p-3 space-y-1.5">
+            <div class="text-[11px] font-extrabold text-rose-800 flex items-center gap-1.5">
+              <span>⊗</span> <span>Points Missed (${missedList.length})</span>
+            </div>
+            <ul class="space-y-1">${missedItemsHtml}</ul>
+          </div>
+        </div>
+      `;
     }
 
     function renderGradingBreakdownCards() {
@@ -1983,6 +2298,7 @@
 
       const allItems = getOrderedReviewItems();
       const pageItems = getQuestionsForPageNumber(activePageNum);
+      const partItems = allItems.filter(itemMatchesActivePart);
 
       const titleEl = document.getElementById('rightPanelPageTitle');
       const badgeEl = document.getElementById('rightPanelQCountBadge');
@@ -1992,23 +2308,33 @@
       if (pageBtn) {
         pageBtn.textContent = `📄 Page ${activePageNum} Only (${pageItems.length})`;
       }
+
+      const activePartObj = getAvailableParts().find(p => p.key === activePartFilter);
       if (titleEl) {
-        titleEl.textContent = filterByCurrentPage
-          ? `Page ${activePageNum} — Questions Written Here`
-          : `All Questions (${allItems.length}) — Question-by-Question Review`;
+        if (filterByCurrentPage) {
+          titleEl.textContent = `Page ${activePageNum} — OCR & Review`;
+        } else if (activePartObj) {
+          titleEl.textContent = `${activePartObj.title}`;
+        } else {
+          titleEl.textContent = `OCR & Question Review (All Parts)`;
+        }
       }
       if (badgeEl) {
-        badgeEl.textContent = filterByCurrentPage
-          ? `${pageItems.length} Question(s) on Page ${activePageNum}`
-          : `${allItems.length} Paper Questions`;
+        if (filterByCurrentPage) {
+          badgeEl.textContent = `${pageItems.length} Question(s) on P${activePageNum}`;
+        } else if (activePartObj) {
+          badgeEl.textContent = `${activePartObj.awarded.toFixed(1)} / ${activePartObj.maxMarks.toFixed(0)} Marks`;
+        } else {
+          badgeEl.textContent = `${allItems.length} Questions`;
+        }
       }
       if (subEl) {
         subEl.textContent = filterByCurrentPage
-          ? `Filtered to questions found on Page ${activePageNum}. Switch back to "All Questions" to view unattempted items too.`
-          : `Showing all questions in exact Question Paper order. Active Page ${activePageNum} cards are highlighted.`;
+          ? `Showing questions written on Page ${activePageNum}. Click a Part tab or "All Questions" to view all sections.`
+          : `Neat line-by-line review grouped cleanly by section. Select a Part tab above to focus on a single part.`;
       }
 
-      const itemsToRender = filterByCurrentPage ? pageItems : allItems;
+      const itemsToRender = filterByCurrentPage ? pageItems : partItems;
 
       if (filterByCurrentPage && itemsToRender.length === 0) {
         const emptyCard = document.createElement('div');
@@ -2022,7 +2348,7 @@
               No Answer Mapped to Page ${activePageNum}
             </h4>
             <p class="text-xs text-slate-600 mt-1">
-              This page appears to be a cover page or header (${activePageObj.text_lines_detected || 0} lines detected).
+              This page appears to be a cover introduction or header sheet (${activePageObj.text_lines_detected || 0} lines detected).
             </p>
           </div>
           <div class="space-y-1.5">
@@ -2041,103 +2367,231 @@
       }
 
       const expectedAnswerOrigin = currentReferenceMode === 'dual_reference'
-        ? 'From Uploaded Official Answer Key'
-        : 'AI-Inferred Model Answer';
+        ? 'Official Answer Key'
+        : 'AI-Inferred Key';
+
+      let lastRenderedSubSection = '';
 
       itemsToRender.forEach(item => {
         const { res, qIdx, cardKey, isOptionalOmitted } = item;
+        const pInfo = getQuestionPartInfo(res);
+        const sectionLabel = pInfo.subTitle;
+
+        // Render clean Part / Sub-section Banner when transitioning between sections
+        if (sectionLabel && sectionLabel !== lastRenderedSubSection) {
+          lastRenderedSubSection = sectionLabel;
+          const secItems = itemsToRender.filter(it => getQuestionPartInfo(it.res).subTitle === sectionLabel);
+          const secAw = secItems.reduce((s, it) => s + (it.isOptionalOmitted ? 0 : (Number(it.res.marks_awarded) || 0)), 0);
+          const secMx = secItems.reduce((s, it) => s + (it.isOptionalOmitted ? 0 : (Number(it.res.max_marks) || 0)), 0);
+          const banner = document.createElement('div');
+          banner.className = "flex flex-wrap items-center justify-between gap-2 px-3.5 py-2 rounded-xl bg-slate-100/90 border border-slate-200";
+          banner.innerHTML = `
+            <span class="text-xs font-extrabold text-slate-800 tracking-tight">${escapeHtmlSafe(sectionLabel)}</span>
+            <span class="text-[11px] font-bold text-indigo-700 bg-white px-2.5 py-0.5 rounded-lg border border-slate-200">Subtotal: ${secAw.toFixed(1)} / ${secMx.toFixed(0)} Marks</span>
+          `;
+          breakdownList.appendChild(banner);
+        }
+
         const isAttempted = Boolean(res.is_attempted);
         const pageNums = (isAttempted && res.page_numbers && res.page_numbers.length > 0) ? res.page_numbers : [];
         const isHighlightedOnCurrentPage = isAttempted && pageNums.includes(activePageNum);
 
-        const card = document.createElement('div');
-        card.id = `questionCard_${cardKey}`;
+        // =====================================================================
+        // CASE A: MULTI-ITEM OBJECTIVE / SMALL-ANSWER BLOCK -> CLEAN INDIVIDUAL SUB-CARDS (Q1(A)(i), Q1(A)(ii)...)
+        // =====================================================================
+        if (shouldExpandSubCards(res) && qIdx >= 0) {
+          const groupWrap = document.createElement('div');
+          groupWrap.id = `questionCard_${cardKey}`;
+          groupWrap.className = "space-y-3";
 
-        if (!isAttempted) {
-          card.className = 'border-2 border-amber-200 rounded-2xl p-5 sm:p-6 space-y-4 bg-white shadow-2xs';
-        } else if (isHighlightedOnCurrentPage) {
-          card.className = 'border-2 border-indigo-400 rounded-2xl p-5 sm:p-6 space-y-4 bg-white shadow-sm ring-2 ring-indigo-100';
-        } else {
-          card.className = 'border border-slate-200 rounded-2xl p-5 sm:p-6 space-y-4 bg-white shadow-2xs hover:border-indigo-200 transition';
+          const steps = res.step_wise_breakdown || [];
+          const qSubMap = extractSubItemsMap(res.question_text);
+          const ansSubMap = extractSubItemsMap(res.student_answer);
+          const modSubMap = extractSubItemsMap(res.model_answer);
+          const parentNice = formatDisplayQuestionId(res.question_id);
+
+          steps.forEach((step, sIdx) => {
+            const subNum = sIdx + 1;
+            const romanTok = ROMAN_LIST[sIdx] || String(subNum);
+            const subTitle = `${parentNice}(${romanTok})`;
+            const subQuestion = qSubMap.get(subNum) || step.description || `Sub-question (${romanTok})`;
+            const subStudentAns = ansSubMap.has(subNum) ? ansSubMap.get(subNum) : '';
+            const subModelAns = modSubMap.get(subNum) || step.description || '';
+            const subAttempted = Boolean(isAttempted && subStudentAns.trim().length > 0);
+
+            const stepMax = Number(step.max_point_marks) || (Number(res.max_marks) / steps.length) || 1.0;
+            const stepAwarded = Number(step.awarded_point_marks) || 0.0;
+            const origStepAwarded = getOrigStepAwarded(qIdx, sIdx, stepAwarded);
+
+            const matchedArr = (step.status === 'Hit' || step.status === 'Partial') ? [step.description || subModelAns] : [];
+            const missedArr = step.status === 'Missed'
+              ? [step.description || subModelAns]
+              : (step.status === 'Partial' && step.notes ? [step.notes] : []);
+
+            const subCard = document.createElement('div');
+            subCard.id = `questionCard_${cardKey}_sub_${sIdx}`;
+            subCard.className = isHighlightedOnCurrentPage
+              ? 'bg-white rounded-xl border border-indigo-300 shadow-2xs p-4 space-y-3 ring-1 ring-indigo-100'
+              : 'bg-white rounded-xl border border-slate-200 shadow-2xs p-4 space-y-3 hover:border-indigo-200 transition';
+
+            const pagePill = (pageNums.length > 0)
+              ? `<button type="button" onclick="selectViewerPage(${pageNums[0] - 1}, false)"
+                   class="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-slate-100 hover:bg-indigo-50 text-slate-600 hover:text-indigo-700 border border-slate-200 cursor-pointer flex items-center gap-1">
+                   <span>📄</span> <span>Page ${pageNums.join(',')}</span>
+                 </button>`
+              : '';
+
+            const subStatusBadge = subAttempted
+              ? `<span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">✓ Attempted</span>`
+              : `<span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-50 text-rose-700 border border-rose-200">Not Attempted</span>`;
+
+            subCard.innerHTML = `
+              <!-- Sub-Card Header -->
+              <div class="flex flex-wrap items-center justify-between gap-2">
+                <div class="flex flex-wrap items-center gap-2">
+                  <span class="font-extrabold text-sm text-slate-900">${escapeHtmlSafe(subTitle)}</span>
+                  <span class="text-[11px] font-medium text-slate-400">[Max: ${Number(stepMax).toFixed(stepMax % 1 === 0 ? 0 : 2)} mark${stepMax === 1 ? '' : 's'}]</span>
+                  ${pagePill}
+                  ${subStatusBadge}
+                </div>
+                <span class="text-[11px] font-bold px-2 py-0.5 rounded-full ${stepAwarded >= stepMax * 0.9 ? 'bg-emerald-50 text-emerald-700' : (stepAwarded > 0 ? 'bg-amber-50 text-amber-700' : 'bg-slate-100 text-slate-600')}">
+                  ${stepAwarded >= stepMax * 0.9 ? '✓ Correct' : (stepAwarded > 0 ? '~ Partial' : '0 Marks')}
+                </span>
+              </div>
+
+              <!-- Question Text -->
+              <div class="rounded-lg bg-slate-50 border border-slate-200/80 px-3 py-2 text-xs text-slate-700 leading-relaxed">
+                <span class="font-bold text-slate-900">Question:</span> ${escapeHtmlSafe(subQuestion)}
+              </div>
+
+              <!-- Student's Transcribed Answer -->
+              <div class="space-y-1">
+                <span class="text-[11px] font-bold text-slate-700 block">Student's Transcribed Answer:</span>
+                <div id="subPrettyAns_${qIdx}_${sIdx}" class="rounded-lg bg-slate-50/70 border border-slate-200 px-3 py-2.5 text-xs sm:text-sm font-semibold ${subAttempted ? 'text-slate-900' : 'text-rose-500 italic'}">
+                  ${escapeHtmlSafe(subAttempted ? subStudentAns : 'Not Attempted (No answer written by student)')}
+                </div>
+                <div id="subEditorWrap_${qIdx}_${sIdx}" class="hidden pt-1">
+                  <input type="text" id="subOcrInput_${qIdx}_${sIdx}" value="${escapeHtmlSafe(subStudentAns)}"
+                    oninput="onSubItemOcrTextChanged(${qIdx}, ${subNum}, this.value, '${escapeHtmlSafe(romanTok)}', ${sIdx})"
+                    placeholder="Type student answer for (${escapeHtmlSafe(romanTok)})..."
+                    class="w-full text-xs sm:text-sm px-3 py-2 rounded-lg border border-indigo-300 bg-white focus:ring-2 focus:ring-indigo-500/20 text-slate-900 font-medium" />
+                </div>
+              </div>
+
+              <!-- Side-by-Side Points Matched / Points Missed -->
+              ${renderMatchedMissedGrid(matchedArr, missedArr)}
+
+              <!-- AI Feedback & Expected Answer -->
+              <div class="rounded-lg bg-slate-50/60 border border-slate-200 px-3 py-2 text-xs space-y-1">
+                <div class="flex flex-wrap items-center justify-between gap-2">
+                  <span class="font-bold text-indigo-700 flex items-center gap-1"><span>✨</span> <span>AI Feedback:</span></span>
+                  ${subModelAns ? `<span class="text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.2 rounded border border-emerald-200">Expected: ${escapeHtmlSafe(subModelAns)}</span>` : ''}
+                </div>
+                <p class="text-slate-700 leading-relaxed">${escapeHtmlSafe(step.notes || (stepAwarded > 0 ? 'Matched expected key concept.' : `Expected: ${subModelAns}`))}</p>
+              </div>
+
+              <!-- Bottom Stepper + Actions Bar -->
+              <div class="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-100">
+                <div class="flex items-center gap-2">
+                  <span class="text-xs font-bold text-slate-600">Marks:</span>
+                  <div class="inline-flex items-center rounded-lg border border-slate-300 bg-white overflow-hidden shadow-2xs">
+                    <button type="button" onclick="stepSubItemMarks(${qIdx}, ${sIdx}, -0.5)"
+                      class="px-2.5 py-1 text-xs font-extrabold text-slate-600 hover:bg-slate-100 cursor-pointer border-r border-slate-200">−</button>
+                    <input type="number" id="subMarksInput_${qIdx}_${sIdx}" min="0" max="${stepMax}" step="0.25"
+                      value="${stepAwarded % 1 === 0 ? stepAwarded.toFixed(0) : stepAwarded.toFixed(2)}"
+                      oninput="onSubItemMarksChanged(${qIdx}, ${sIdx}, this.value)"
+                      class="w-12 text-center text-xs font-extrabold text-slate-900 py-1 focus:outline-hidden mono-font" />
+                    <button type="button" onclick="stepSubItemMarks(${qIdx}, ${sIdx}, 0.5)"
+                      class="px-2.5 py-1 text-xs font-extrabold text-slate-600 hover:bg-slate-100 cursor-pointer border-l border-slate-200">+</button>
+                  </div>
+                  <span class="text-xs font-semibold text-slate-500">/ ${Number(stepMax).toFixed(stepMax % 1 === 0 ? 0 : 2)}</span>
+                  <span class="text-[11px] font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-600">AI: ${Number(origStepAwarded).toFixed(origStepAwarded % 1 === 0 ? 0 : 2)}</span>
+                </div>
+
+                <div class="flex items-center gap-1.5">
+                  <button type="button" id="toggleSubEditBtn_${qIdx}_${sIdx}" onclick="toggleSubOcrEditor(${qIdx}, ${sIdx})"
+                    class="px-2.5 py-1 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-[11px] font-bold transition cursor-pointer">
+                    ✏️ Edit
+                  </button>
+                  <button type="button" id="regradeBtn_${qIdx}_sub_${sIdx}" onclick="regradeSingleQuestion(${qIdx})"
+                    class="px-2.5 py-1 rounded-lg border border-slate-200 bg-white hover:bg-indigo-50 text-slate-700 hover:text-indigo-700 text-[11px] font-bold transition cursor-pointer">
+                    🔄 Re-evaluate
+                  </button>
+                </div>
+              </div>
+            `;
+            groupWrap.appendChild(subCard);
+          });
+
+          breakdownList.appendChild(groupWrap);
+          return;
         }
 
-        // 1. HEADER ROW
-        const statusBadgeHtml = isAttempted
-          ? `<span class="text-[11px] font-extrabold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">✓ Attempted</span>`
-          : `<span class="text-[11px] font-extrabold px-2.5 py-0.5 rounded-full bg-rose-100 text-rose-800 border border-rose-200">⚠️ Not Attempted</span>`;
+        // =====================================================================
+        // CASE B: STANDARD / LONG QUESTION CARD (Clean Single Neat Card matching Reference)
+        // =====================================================================
+        const card = document.createElement('div');
+        card.id = `questionCard_${cardKey}`;
+        card.className = !isAttempted
+          ? 'bg-white rounded-xl border-2 border-amber-200 p-4 sm:p-5 space-y-3 shadow-2xs'
+          : (isHighlightedOnCurrentPage
+              ? 'bg-white rounded-xl border-2 border-indigo-400 p-4 sm:p-5 space-y-3 shadow-sm ring-2 ring-indigo-100'
+              : 'bg-white rounded-xl border border-slate-200 p-4 sm:p-5 space-y-3 shadow-2xs hover:border-indigo-200 transition');
 
-        const pageJumpBtnHtml = (isAttempted && pageNums.length > 0)
+        const niceQid = formatDisplayQuestionId(res.question_id);
+        const pagePill = (isAttempted && pageNums.length > 0)
           ? `<button type="button" onclick="selectViewerPage(${pageNums[0] - 1}, false)"
-               title="Show Page ${pageNums[0]} on Left Viewer"
-               class="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 transition cursor-pointer flex items-center gap-1">
+               class="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-slate-100 hover:bg-indigo-50 text-slate-600 hover:text-indigo-700 border border-slate-200 cursor-pointer flex items-center gap-1">
                <span>📄</span> <span>Page ${pageNums.join(', ')}</span>
              </button>`
           : '';
 
-        const marksControlHtml = isOptionalOmitted
-          ? `<div class="flex items-center gap-2 bg-slate-100 px-3 py-1.5 rounded-xl border border-slate-200">
-               <span class="text-xs font-extrabold text-rose-700">0.00 / ${Number(res.max_marks).toFixed(2)}</span>
-               <span class="text-[10px] font-bold text-slate-500">(Optional Choice)</span>
-             </div>`
-          : `<div class="flex items-center gap-2 ${isAttempted ? 'bg-emerald-50/80 border-emerald-200' : 'bg-rose-50/70 border-rose-200'} px-3 py-1.5 rounded-xl border">
-               <label for="qMarksInput_${qIdx}" class="text-xs font-extrabold text-slate-700">Marks:</label>
-               <input type="number" id="qMarksInput_${qIdx}" min="0" max="${res.max_marks}" step="0.25"
-                      value="${Number(res.marks_awarded).toFixed(2)}"
-                      oninput="onQuestionMarksChanged(${qIdx}, this.value)"
-                      class="w-20 text-center font-black ${isAttempted ? 'text-emerald-800 border-emerald-400 focus:ring-emerald-500' : 'text-rose-800 border-rose-300 focus:ring-rose-500'} bg-white border rounded-lg py-1 text-sm focus:ring-2 mono-font" />
-               <span class="text-xs font-extrabold text-slate-600">/ ${Number(res.max_marks).toFixed(2)}</span>
-             </div>`;
+        const statusBadgeHtml = isAttempted
+          ? `<span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">✓ Attempted</span>`
+          : `<span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-50 text-rose-700 border border-rose-200">⚠️ Not Attempted</span>`;
+
+        const origAw = qIdx >= 0 ? getOrigQuestionAwarded(qIdx, res.marks_awarded) : 0;
 
         const headerHtml = `
-          <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-3.5">
+          <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-2.5">
             <div class="flex flex-wrap items-center gap-2">
-              <span class="font-extrabold text-sm px-3 py-1 ${isAttempted ? 'bg-indigo-600' : 'bg-slate-700'} text-white rounded-lg shadow-2xs">${escapeHtmlSafe(res.question_id)}</span>
+              <span class="font-extrabold text-sm text-slate-900">${escapeHtmlSafe(niceQid)}</span>
+              <span class="text-[11px] font-medium text-slate-400">[Max: ${Number(res.max_marks).toFixed(res.max_marks % 1 === 0 ? 0 : 2)} marks]</span>
               ${getQuestionTypeBadge(res.question_type)}
+              ${pagePill}
               ${statusBadgeHtml}
-              ${pageJumpBtnHtml}
-              ${qIdx >= 0 ? `<span id="qEditBadge_${qIdx}" class="hidden text-[10px] font-bold bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full border border-amber-200">✏️ Edited</span>` : ''}
+              ${qIdx >= 0 ? `<span id="qEditBadge_${qIdx}" class="hidden text-[10px] font-bold bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full">✏️ Edited</span>` : ''}
             </div>
-            ${marksControlHtml}
           </div>
         `;
 
-        // 2. QUESTION ASKED
         const questionAskedHtml = `
-          <div class="rounded-xl bg-slate-50 border border-slate-200 p-3.5 space-y-1">
-            <span class="text-[11px] font-extrabold uppercase tracking-wider text-slate-500 block">
-              📌 Question Asked
-            </span>
-            <p class="text-sm text-slate-800 font-semibold leading-relaxed">
-              ${escapeHtmlSafe(res.question_text || `Question ${res.question_id} from Question Paper`)}
-            </p>
+          <div class="rounded-lg bg-slate-50 border border-slate-200/80 px-3 py-2 text-xs text-slate-700 leading-relaxed">
+            <span class="font-bold text-slate-900">Question:</span> ${escapeHtmlSafe(res.question_text || `Question ${niceQid} from Question Paper`)}
           </div>
         `;
 
-        // 3. UNATTEMPTED CASE vs ATTEMPTED CASE
         if (!isAttempted) {
-          const modelAnsHtml = res.model_answer ? `
-            <div class="rounded-xl bg-emerald-50/50 border border-emerald-200 p-3.5 space-y-2">
-              <div class="flex items-center justify-between gap-2">
-                <span class="text-[11px] font-extrabold uppercase tracking-wider text-emerald-800">✅ Expected / Correct Answer</span>
-                <span class="text-[10px] font-semibold text-emerald-700">${expectedAnswerOrigin}</span>
-              </div>
-              ${renderAnswerContentHtml(res.model_answer, res.question_type, [], false)}
-            </div>
+          const modelBox = res.model_answer ? `
+            <details class="text-xs rounded-lg bg-emerald-50/40 border border-emerald-200 px-3 py-2">
+              <summary class="cursor-pointer font-bold text-emerald-800 select-none">✅ Expected / Correct Answer (${expectedAnswerOrigin}) ▾</summary>
+              <div class="mt-2">${renderAnswerContentHtml(res.model_answer, res.question_type, [], false)}</div>
+            </details>
           ` : '';
 
           const manualOverrideHtml = qIdx >= 0 ? `
             <details class="text-xs">
               <summary class="cursor-pointer font-bold text-slate-500 hover:text-indigo-700 select-none">
-                ✏️ Teacher override: Enter handwritten text manually if student wrote this elsewhere ▾
+                ✏️ Add manual answer text if student wrote this elsewhere ▾
               </summary>
-              <div class="mt-2.5 space-y-2 p-3 rounded-xl bg-slate-50 border border-slate-200">
+              <div class="mt-2 space-y-2 p-2.5 rounded-lg bg-slate-50 border border-slate-200">
                 <textarea id="qOcrInput_${qIdx}" rows="3"
                   oninput="onQuestionOcrTextChanged(${qIdx}, this.value)"
-                  placeholder="Type student's answer text here if missed during page scanning..."
-                  class="w-full text-xs sm:text-sm p-2.5 bg-white rounded-lg border border-slate-200 focus:border-indigo-500 text-slate-800"></textarea>
+                  placeholder="Type student's answer text here..."
+                  class="w-full text-xs sm:text-sm p-2.5 bg-white rounded-lg border border-slate-200 text-slate-800"></textarea>
                 <button type="button" id="regradeBtn_${qIdx}" onclick="regradeSingleQuestion(${qIdx})"
-                  class="text-xs font-bold px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white transition cursor-pointer">
-                  🔄 Re-Grade Entered Text
+                  class="text-xs font-bold px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white cursor-pointer">
+                  🔄 Re-evaluate Entered Text
                 </button>
               </div>
             </details>
@@ -2146,182 +2600,214 @@
           card.innerHTML = `
             ${headerHtml}
             ${questionAskedHtml}
-            <div class="rounded-xl bg-rose-50/80 border border-rose-200 p-4 flex items-start gap-3">
-              <span class="text-lg shrink-0">⚠️</span>
+            <div class="rounded-lg bg-rose-50/80 border border-rose-200 p-3 flex items-center justify-between gap-3">
               <div>
-                <p class="text-sm font-extrabold text-rose-900">Student did not attempt this question.</p>
-                <p class="text-xs text-rose-700 mt-0.5">Awarded 0.00 / ${Number(res.max_marks).toFixed(2)} Marks. ${isOptionalOmitted ? '(This was an unattempted question from an optional choice section and is excluded from total paper marks.)' : ''}</p>
+                <p class="text-xs sm:text-sm font-extrabold text-rose-900">Student did not attempt this question.</p>
+                <p class="text-[11px] text-rose-700 mt-0.5">Awarded 0 / ${Number(res.max_marks).toFixed(2)} Marks.${isOptionalOmitted ? ' (Skipped optional section question)' : ''}</p>
               </div>
             </div>
-            ${modelAnsHtml}
+            ${modelBox}
             ${manualOverrideHtml}
           `;
           breakdownList.appendChild(card);
           return;
         }
 
-        // ATTEMPTED QUESTION CARD:
-        // Build Step-Wise Breakdown bullets
-        const stepRows = (res.step_wise_breakdown || []).map((step) => {
-          let badge = `<span class="badge-hit px-2.5 py-0.5 rounded-full text-[11px] font-bold shrink-0">✓ Hit (+${Number(step.awarded_point_marks).toFixed(2)})</span>`;
-          let bulletIcon = `<span class="text-emerald-600 font-black">✓</span>`;
-          if (step.status === 'Partial') {
-            badge = `<span class="badge-partial px-2.5 py-0.5 rounded-full text-[11px] font-bold shrink-0">⚠️ Partial (+${Number(step.awarded_point_marks).toFixed(2)})</span>`;
-            bulletIcon = `<span class="text-amber-600 font-black">•</span>`;
-          } else if (step.status === 'Missed') {
-            badge = `<span class="badge-missed px-2.5 py-0.5 rounded-full text-[11px] font-bold shrink-0">✗ Missed (0.00)</span>`;
-            bulletIcon = `<span class="text-rose-500 font-black">✗</span>`;
-          }
+        // ATTEMPTED PROSE / DESCRIPTIVE CARD
+        const steps = res.step_wise_breakdown || [];
+        const matchedArr = steps.filter(s => s.status === 'Hit' || s.status === 'Partial')
+          .map(s => `${s.description}${s.status === 'Partial' ? ` (Partial +${Number(s.awarded_point_marks).toFixed(1)})` : ''}`);
+        const missedArr = steps.filter(s => s.status === 'Missed').map(s => s.description);
 
-          return `
-            <li class="flex items-start justify-between gap-3 p-3 bg-white rounded-xl border border-slate-200/80 text-xs sm:text-sm">
-              <div class="flex items-start gap-2.5 flex-1">
-                ${bulletIcon}
-                <div>
-                  <span class="font-semibold text-slate-800 leading-snug">${escapeHtmlSafe(step.description)}</span>
-                  ${step.notes ? `<p class="text-xs text-slate-500 mt-0.5 leading-relaxed">${escapeHtmlSafe(step.notes)}</p>` : ''}
-                </div>
-              </div>
-              ${badge}
-            </li>
-          `;
-        }).join('');
-
-        // Optional diagram visual check block
         let diagramHtml = '';
         if (res.diagram_path || res.diagram_evaluation) {
           const cropUrl = res.diagram_path ? `/${res.diagram_path.replace(/\\/g, '/')}` : '';
           const dScore = res.diagram_evaluation ? (res.diagram_evaluation.structure_score * 100).toFixed(0) : '100';
           const dCritique = res.diagram_evaluation ? res.diagram_evaluation.critique : 'Hand-drawn diagram verified.';
           diagramHtml = `
-            <div class="p-3.5 bg-amber-50/70 border border-amber-200 rounded-xl space-y-2.5">
-              <div class="flex items-center justify-between gap-2">
-                <span class="text-[11px] font-extrabold text-amber-900 uppercase tracking-wider flex items-center gap-1.5">
-                  <span>🎨</span> Student Diagram Check
-                </span>
-                <span class="text-[11px] font-extrabold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
-                  Diagram Score: ${dScore}%
-                </span>
+            <div class="p-3 bg-amber-50/60 border border-amber-200 rounded-lg space-y-2">
+              <div class="flex items-center justify-between">
+                <span class="text-[11px] font-bold text-amber-900">🎨 Diagram Verification (${dScore}%)</span>
               </div>
-              <div class="grid grid-cols-1 sm:grid-cols-12 gap-3 items-center">
-                ${cropUrl ? `
-                  <div class="sm:col-span-5 bg-white p-1.5 rounded-lg border border-amber-200 text-center">
-                    <img src="${escapeHtmlSafe(cropUrl)}" class="max-h-36 w-auto mx-auto object-contain rounded" />
-                  </div>
-                ` : ''}
-                <div class="${cropUrl ? 'sm:col-span-7' : 'sm:col-span-12'} text-xs sm:text-sm text-slate-700 leading-relaxed">
-                  ${escapeHtmlSafe(dCritique)}
-                </div>
+              <div class="flex flex-wrap sm:flex-nowrap gap-3 items-center">
+                ${cropUrl ? `<img src="${escapeHtmlSafe(cropUrl)}" class="max-h-28 rounded border border-amber-200 bg-white p-1" />` : ''}
+                <p class="text-xs text-slate-700 leading-relaxed">${escapeHtmlSafe(dCritique)}</p>
               </div>
             </div>
           `;
         }
 
-        const studentSummaryText = buildStudentAnswerSummary(res);
         const formattedOcrValue = formatDisplayStudentAnswer(res.student_answer || '', res.question_type);
-        const studentAnswerViewHtml = renderAnswerContentHtml(
-          formattedOcrValue,
-          res.question_type,
-          res.step_wise_breakdown || [],
-          true
-        );
-        const modelAnswerViewHtml = res.model_answer
-          ? renderAnswerContentHtml(res.model_answer, res.question_type, [], false)
-          : '';
-        const isObjLayout = extractObjectiveSubItems(formattedOcrValue, res.question_type).length >= 2;
-        const multiPageNote = (pageNums.length > 1 && res.page_texts && res.page_texts[String(activePageNum)]) ? `
-          <div class="p-3 bg-indigo-50/60 border border-indigo-200 rounded-xl text-xs space-y-1">
-            <span class="text-[10px] font-extrabold uppercase tracking-wider text-indigo-800 block">
-              📍 Portion Written on Page ${activePageNum}:
-            </span>
-            <p class="text-slate-800 leading-relaxed whitespace-pre-line">${escapeHtmlSafe(res.page_texts[String(activePageNum)])}</p>
-          </div>
-        ` : '';
+        const studentAnswerViewHtml = renderAnswerContentHtml(formattedOcrValue, res.question_type, steps, false);
 
         card.innerHTML = `
           ${headerHtml}
           ${questionAskedHtml}
 
-          <!-- Section 2: What Student Wrote (Clean Line-by-Line for Objectives, Natural Prose for Q&A) -->
-          <div class="rounded-xl bg-white border-2 border-indigo-100 p-4 space-y-3">
-            <div class="flex flex-wrap items-center justify-between gap-2">
-              <div class="flex flex-wrap items-center gap-2">
-                <span class="text-[11px] font-extrabold uppercase tracking-wider text-indigo-900 flex items-center gap-1.5">
-                  <span>📝</span> <span>What Student Wrote</span>
-                </span>
-                <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
-                  ${isObjLayout ? 'Objective • Line-by-Line Top to Bottom' : `From Page ${pageNums.join(', ')}`}
-                </span>
-              </div>
-              <div class="flex items-center gap-1.5">
-                <button type="button" id="toggleOcrEditBtn_${qIdx}" onclick="toggleOcrEditor(${qIdx})"
-                  class="text-[11px] font-bold px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 transition cursor-pointer flex items-center gap-1">
-                  <span>✏️</span> <span>Edit Text</span>
-                </button>
-                <button type="button" id="regradeBtn_${qIdx}" onclick="regradeSingleQuestion(${qIdx})"
-                  class="text-[11px] font-bold px-2.5 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 transition cursor-pointer flex items-center gap-1">
-                  <span>🔄</span> <span>Re-Grade</span>
-                </button>
-              </div>
-            </div>
-
-            ${multiPageNote}
+          <!-- Student's Transcribed Answer -->
+          <div class="space-y-1.5">
+            <span class="text-[11px] font-bold text-slate-700 block">Student's Transcribed Answer:</span>
             <div id="qStudentPrettyView_${qIdx}">
               ${studentAnswerViewHtml}
             </div>
-
-            <!-- Inline Editable OCR Box (Toggled by "Edit Text") -->
-            <div id="qOcrEditorWrap_${qIdx}" class="hidden pt-2 border-t border-slate-100 space-y-1.5">
-              <label for="qOcrInput_${qIdx}" class="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 block">
-                Edit Extracted OCR Text (updates preview above &amp; lets you re-grade):
-              </label>
-              <textarea id="qOcrInput_${qIdx}" rows="${isObjLayout ? 6 : 4}"
+            <div id="qOcrEditorWrap_${qIdx}" class="hidden pt-1 space-y-1">
+              <textarea id="qOcrInput_${qIdx}" rows="4"
                 oninput="onQuestionOcrTextChanged(${qIdx}, this.value)"
-                placeholder="No handwriting detected for this question. Edit or type here if needed..."
-                class="w-full text-xs sm:text-sm p-3 bg-slate-50 focus:bg-white rounded-xl border border-indigo-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 text-slate-800 font-medium leading-relaxed">${escapeHtmlSafe(formattedOcrValue)}</textarea>
+                placeholder="Edit transcribed answer text..."
+                class="w-full text-xs sm:text-sm p-3 bg-white rounded-lg border border-indigo-300 focus:border-indigo-500 text-slate-800 leading-relaxed">${escapeHtmlSafe(formattedOcrValue)}</textarea>
             </div>
           </div>
 
-          <!-- Section 3: Student Answer Evaluation Summary + Diagram Check -->
-          <div class="rounded-xl bg-sky-50/60 border border-sky-200 p-3.5 space-y-2">
-            <span class="text-[11px] font-extrabold uppercase tracking-wider text-sky-900 block">
-              🧠 Evaluation Summary (At a Glance)
-            </span>
-            <p class="text-xs sm:text-sm text-slate-700 leading-relaxed">
-              ${escapeHtmlSafe(studentSummaryText)}
-            </p>
-            ${diagramHtml}
-          </div>
+          <!-- Side-by-Side Points Matched / Points Missed -->
+          ${steps.length > 0 ? renderMatchedMissedGrid(matchedArr, missedArr) : ''}
+          ${diagramHtml}
 
-          <!-- Section 4: Model / Correct Answer -->
+          <!-- Expected Model Answer (Clean Expandable Reference) -->
           ${res.model_answer ? `
-            <div class="rounded-xl bg-emerald-50/45 border border-emerald-200 p-3.5 space-y-2">
-              <div class="flex flex-wrap items-center justify-between gap-2">
-                <span class="text-[11px] font-extrabold uppercase tracking-wider text-emerald-900">✅ Expected / Correct Answer</span>
-                <span class="text-[10px] font-semibold text-emerald-700 bg-white px-2 py-0.5 rounded border border-emerald-200">${expectedAnswerOrigin}</span>
-              </div>
-              ${modelAnswerViewHtml}
-            </div>
+            <details class="text-xs rounded-lg bg-indigo-50/40 border border-indigo-100 px-3 py-2">
+              <summary class="cursor-pointer font-bold text-indigo-800 select-none flex items-center justify-between">
+                <span>✅ Expected / Model Answer (${expectedAnswerOrigin})</span>
+                <span class="text-[10px] text-indigo-500">Click to compare ▾</span>
+              </summary>
+              <div class="mt-2 pt-2 border-t border-indigo-100">${renderAnswerContentHtml(res.model_answer, res.question_type, [], false)}</div>
+            </details>
           ` : ''}
 
-          <!-- Section 5: Feedback & Step-Wise Breakdown -->
-          <div class="rounded-xl bg-indigo-50/35 border border-indigo-100 p-3.5 space-y-3">
-            <span class="text-[11px] font-extrabold uppercase tracking-wider text-indigo-950 block">
-              📋 Feedback &amp; Step-Wise Breakdown
-            </span>
-            ${stepRows ? `<ul class="space-y-2">${stepRows}</ul>` : ''}
-            <div class="space-y-1 pt-1">
-              <div class="flex items-center justify-between">
-                <label class="text-[10px] font-extrabold uppercase tracking-wider text-indigo-700">Examiner Remarks (Editable)</label>
-              </div>
+          <!-- AI Feedback Box -->
+          <div class="rounded-lg bg-slate-50/70 border border-slate-200 px-3 py-2.5 text-xs space-y-1">
+            <span class="font-bold text-indigo-700 flex items-center gap-1"><span>✨</span> <span>AI Feedback:</span></span>
+            <p id="qFeedbackDisplay_${qIdx}" class="text-slate-700 leading-relaxed">${escapeHtmlSafe(res.student_feedback || '')}</p>
+            <div id="qCommentWrap_${qIdx}" class="hidden pt-1">
               <textarea rows="2"
-                oninput="currentGradingReport.question_results[${qIdx}].student_feedback = this.value"
-                class="w-full text-xs sm:text-sm p-2.5 bg-white rounded-xl border border-indigo-200 text-slate-800 leading-relaxed focus:ring-2 focus:ring-indigo-500">${escapeHtmlSafe(res.student_feedback || '')}</textarea>
+                oninput="currentGradingReport.question_results[${qIdx}].student_feedback = this.value; document.getElementById('qFeedbackDisplay_${qIdx}').textContent = this.value;"
+                class="w-full text-xs p-2 bg-white rounded-lg border border-indigo-200 text-slate-800">${escapeHtmlSafe(res.student_feedback || '')}</textarea>
+            </div>
+          </div>
+
+          <!-- Bottom Marks Stepper & Actions Bar -->
+          <div class="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-100">
+            <div class="flex items-center gap-2">
+              <span class="text-xs font-bold text-slate-600">Marks:</span>
+              <div class="inline-flex items-center rounded-lg border border-slate-300 bg-white overflow-hidden shadow-2xs">
+                <button type="button" onclick="stepQuestionMarks(${qIdx}, -0.5)"
+                  class="px-2.5 py-1 text-xs font-extrabold text-slate-600 hover:bg-slate-100 cursor-pointer border-r border-slate-200">−</button>
+                <input type="number" id="qMarksInput_${qIdx}" min="0" max="${res.max_marks}" step="0.25"
+                  value="${Number(res.marks_awarded) % 1 === 0 ? Number(res.marks_awarded).toFixed(0) : Number(res.marks_awarded).toFixed(2)}"
+                  oninput="onQuestionMarksChanged(${qIdx}, this.value)"
+                  class="w-14 text-center text-xs font-extrabold text-slate-900 py-1 focus:outline-hidden mono-font" />
+                <button type="button" onclick="stepQuestionMarks(${qIdx}, 0.5)"
+                  class="px-2.5 py-1 text-xs font-extrabold text-slate-600 hover:bg-slate-100 cursor-pointer border-l border-slate-200">+</button>
+              </div>
+              <span class="text-xs font-semibold text-slate-500">/ ${Number(res.max_marks).toFixed(res.max_marks % 1 === 0 ? 0 : 2)}</span>
+              <span class="text-[11px] font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-600">AI: ${origAw % 1 === 0 ? origAw.toFixed(0) : origAw.toFixed(2)}</span>
+            </div>
+
+            <div class="flex items-center gap-1.5">
+              <button type="button" id="toggleOcrEditBtn_${qIdx}" onclick="toggleOcrEditor(${qIdx})"
+                class="px-2.5 py-1 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-[11px] font-bold transition cursor-pointer">
+                ✏️ Edit
+              </button>
+              <button type="button" onclick="toggleCommentEditor(${qIdx})"
+                class="px-2.5 py-1 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-[11px] font-bold transition cursor-pointer">
+                💬 Comment
+              </button>
+              <button type="button" id="regradeBtn_${qIdx}" onclick="regradeSingleQuestion(${qIdx})"
+                class="px-2.5 py-1 rounded-lg border border-slate-200 bg-white hover:bg-indigo-50 text-slate-700 hover:text-indigo-700 text-[11px] font-bold transition cursor-pointer">
+                🔄 Re-evaluate
+              </button>
             </div>
           </div>
         `;
         breakdownList.appendChild(card);
       });
+    }
+
+    function toggleCommentEditor(qIdx) {
+      const wrap = document.getElementById(`qCommentWrap_${qIdx}`);
+      if (wrap) wrap.classList.toggle('hidden');
+    }
+
+    function toggleSubOcrEditor(qIdx, sIdx) {
+      const wrap = document.getElementById(`subEditorWrap_${qIdx}_${sIdx}`);
+      const btn = document.getElementById(`toggleSubEditBtn_${qIdx}_${sIdx}`);
+      if (!wrap) return;
+      const opening = wrap.classList.contains('hidden');
+      wrap.classList.toggle('hidden', !opening);
+      if (btn) btn.textContent = opening ? '✓ Done' : '✏️ Edit';
+    }
+
+    function onSubItemOcrTextChanged(qIdx, subNum, newText, romanTok, sIdx) {
+      if (!currentGradingReport || qIdx < 0) return;
+      const qRes = currentGradingReport.question_results[qIdx];
+      const existingMap = extractSubItemsMap(qRes.student_answer);
+      const val = String(newText || '').trim();
+      if (val) {
+        existingMap.set(subNum, val);
+      } else {
+        existingMap.delete(subNum);
+      }
+      const totalSteps = (qRes.step_wise_breakdown || []).length || Math.max(subNum, existingMap.size);
+      const rebuiltLines = [];
+      for (let i = 1; i <= Math.max(totalSteps, ...existingMap.keys(), 0); i++) {
+        if (existingMap.has(i)) {
+          const rLbl = ROMAN_LIST[i - 1] || String(i);
+          rebuiltLines.push(`(${rLbl}) ${existingMap.get(i)}`);
+        }
+      }
+      qRes.student_answer = rebuiltLines.join('\n');
+      qRes.is_attempted = Boolean(qRes.student_answer.trim() || qRes.diagram_path);
+      if (currentGradingReport.mapped_answers) {
+        currentGradingReport.mapped_answers[qRes.question_id] = qRes.student_answer;
+      }
+
+      const pretty = document.getElementById(`subPrettyAns_${qIdx}_${sIdx}`);
+      if (pretty) {
+        pretty.textContent = val || 'Not Attempted (No answer written by student)';
+        pretty.className = `rounded-lg bg-slate-50/70 border border-slate-200 px-3 py-2.5 text-xs sm:text-sm font-semibold ${val ? 'text-slate-900' : 'text-rose-500 italic'}`;
+      }
+      document.getElementById('teacherEditedBadge')?.classList.remove('hidden');
+      updateAttemptedSummaryBar();
+    }
+
+    function stepSubItemMarks(qIdx, sIdx, delta) {
+      if (!currentGradingReport || qIdx < 0) return;
+      const step = currentGradingReport.question_results?.[qIdx]?.step_wise_breakdown?.[sIdx];
+      if (!step) return;
+      const nextVal = Math.round(((Number(step.awarded_point_marks) || 0) + delta) * 4) / 4;
+      const clamped = Math.max(0, Math.min(Number(step.max_point_marks) || 1, nextVal));
+      const inputEl = document.getElementById(`subMarksInput_${qIdx}_${sIdx}`);
+      if (inputEl) inputEl.value = clamped % 1 === 0 ? clamped.toFixed(0) : clamped.toFixed(2);
+      onSubItemMarksChanged(qIdx, sIdx, clamped);
+    }
+
+    function onSubItemMarksChanged(qIdx, sIdx, val) {
+      if (!currentGradingReport || qIdx < 0) return;
+      const qRes = currentGradingReport.question_results[qIdx];
+      const step = qRes?.step_wise_breakdown?.[sIdx];
+      if (!step) return;
+      let num = parseFloat(val);
+      if (isNaN(num)) num = 0.0;
+      num = Math.max(0, Math.min(Number(step.max_point_marks) || 1, num));
+      step.awarded_point_marks = num;
+      step.status = num >= (Number(step.max_point_marks) || 1) * 0.9 ? 'Hit' : (num > 0 ? 'Partial' : 'Missed');
+
+      const sumSteps = (qRes.step_wise_breakdown || []).reduce((s, st) => s + (Number(st.awarded_point_marks) || 0), 0);
+      qRes.marks_awarded = Math.min(Number(qRes.max_marks) || sumSteps, Math.round(sumSteps * 4) / 4);
+
+      recalculateGrandTotal(true);
+      renderPartFilterBar();
+      renderQuestionJumpBar();
+    }
+
+    function stepQuestionMarks(qIdx, delta) {
+      if (!currentGradingReport || qIdx < 0) return;
+      const q = currentGradingReport.question_results[qIdx];
+      if (!q) return;
+      const nextVal = Math.round(((Number(q.marks_awarded) || 0) + delta) * 4) / 4;
+      const clamped = Math.max(0, Math.min(Number(q.max_marks) || 0, nextVal));
+      const inputEl = document.getElementById(`qMarksInput_${qIdx}`);
+      if (inputEl) inputEl.value = clamped % 1 === 0 ? clamped.toFixed(0) : clamped.toFixed(2);
+      onQuestionMarksChanged(qIdx, clamped);
     }
 
     function onQuestionOcrTextChanged(qIdx, newText) {
@@ -2369,12 +2855,14 @@
         }]
       };
 
+      const subBtns = [...document.querySelectorAll(`[id^="regradeBtn_${qIdx}_sub_"]`)];
       const btn = document.getElementById(`regradeBtn_${qIdx}`);
-      const origHtml = btn ? btn.innerHTML : '';
-      if (btn) {
-        btn.disabled = true;
-        btn.textContent = "⏳ Re-Grading...";
-      }
+      const allBtns = [btn, ...subBtns].filter(Boolean);
+      const origHtmls = allBtns.map(b => b.innerHTML);
+      allBtns.forEach(b => {
+        b.disabled = true;
+        b.textContent = "⏳ Re-evaluating...";
+      });
 
       try {
         const offline = Boolean(document.getElementById('offlineMode')?.checked);
@@ -2406,6 +2894,7 @@
         }
 
         currentGradingReport.question_results[qIdx] = updatedQRes;
+        renderPartFilterBar();
         renderGradingBreakdownCards();
         renderQuestionJumpBar();
         recalculateGrandTotal(true);
@@ -2413,10 +2902,10 @@
       } catch (e) {
         alert("Failed to re-grade question: " + e.message);
       } finally {
-        if (btn) {
-          btn.disabled = false;
-          btn.innerHTML = origHtml;
-        }
+        allBtns.forEach((b, i) => {
+          b.disabled = false;
+          if (origHtmls[i]) b.innerHTML = origHtmls[i];
+        });
       }
     }
 
@@ -2432,6 +2921,7 @@
       if (editBadge) editBadge.classList.remove('hidden');
 
       recalculateGrandTotal(true);
+      renderPartFilterBar();
       renderQuestionJumpBar();
     }
 
@@ -2474,6 +2964,7 @@
     function resetToAiMarks() {
       if (!originalGradingReport) return;
       currentGradingReport = JSON.parse(JSON.stringify(originalGradingReport));
+      renderPartFilterBar();
       renderGradingBreakdownCards();
       renderQuestionJumpBar();
       recalculateGrandTotal(false);
@@ -2784,6 +3275,7 @@
     document.addEventListener('input', (e) => {
       if (e.target && (e.target.id === 'reportStudentName' || e.target.id === 'reportRollNo')) {
         e.target.dataset.userEdited = '1';
+        syncStudentHeaderPill();
       }
     });
 
