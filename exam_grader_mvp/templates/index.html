@@ -16,7 +16,7 @@
       font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
       letter-spacing: -0.012em;
       color: #0f172a;
-      background: linear-gradient(145deg, #f2edff 0%, #e9e0ff 48%, #f5f2ff 100%);
+      background: linear-gradient(145deg, #effaf9 0%, #e4f3f6 48%, #f1fdf9 100%);
     }
     h1, h2, h3, .heading-font {
       font-family: 'Outfit', 'Plus Jakarta Sans', sans-serif;
@@ -29,46 +29,46 @@
 
     .studio-canvas {
       background:
-        radial-gradient(circle at 12% 10%, rgba(124, 58, 237, 0.12) 0%, transparent 42%),
-        radial-gradient(circle at 88% 18%, rgba(76, 29, 149, 0.10) 0%, transparent 40%),
-        linear-gradient(150deg, #f3efff 0%, #eae2ff 50%, #f7f4ff 100%);
+        radial-gradient(circle at 12% 10%, rgba(14, 165, 233, 0.12) 0%, transparent 42%),
+        radial-gradient(circle at 88% 18%, rgba(16, 185, 129, 0.11) 0%, transparent 40%),
+        linear-gradient(150deg, #effaf9 0%, #e4f3f6 50%, #f1fdf9 100%);
     }
 
     .sidebar-purple-rail {
-      background: linear-gradient(185deg, #1b0f3a 0%, #261452 52%, #321b6b 100%);
-      border-right: 1px solid rgba(167, 139, 250, 0.22);
-      box-shadow: 6px 0 28px -12px rgba(27, 15, 58, 0.45);
+      background: linear-gradient(185deg, #071e26 0%, #0a2e38 52%, #0e434d 100%);
+      border-right: 1px solid rgba(94, 234, 212, 0.22);
+      box-shadow: 6px 0 28px -12px rgba(7, 30, 38, 0.45);
     }
 
     .hero-purple-banner {
-      background: linear-gradient(135deg, #ffffff 0%, #f4eeff 52%, #e9dcff 100%);
-      border: 1.5px solid rgba(124, 58, 237, 0.24);
-      box-shadow: 0 16px 36px -16px rgba(76, 29, 149, 0.20), inset 0 1px 0 rgba(255, 255, 255, 0.9);
+      background: linear-gradient(135deg, #ffffff 0%, #ecfeff 52%, #d1fae5 100%);
+      border: 1.5px solid rgba(13, 148, 136, 0.28);
+      box-shadow: 0 12px 28px -14px rgba(15, 76, 92, 0.20), inset 0 1px 0 rgba(255, 255, 255, 0.92);
     }
 
     .upload-feature-card {
       position: relative;
       overflow: hidden;
-      background: linear-gradient(180deg, #ffffff 0%, #fbf9ff 100%);
-      border: 1.5px solid rgba(124, 58, 237, 0.24);
-      box-shadow: 0 14px 32px -12px rgba(76, 29, 149, 0.18), 0 4px 10px -4px rgba(15, 23, 42, 0.06);
+      background: linear-gradient(180deg, #ffffff 0%, #f7fdfc 100%);
+      border: 1.5px solid rgba(13, 148, 136, 0.28);
+      box-shadow: 0 12px 30px -12px rgba(15, 76, 92, 0.20), 0 4px 10px -4px rgba(15, 23, 42, 0.06);
       transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
     }
     .upload-feature-card:hover {
       transform: translateY(-3px);
-      border-color: rgba(109, 40, 217, 0.55);
-      box-shadow: 0 22px 42px -14px rgba(109, 40, 217, 0.28), 0 0 0 3px rgba(139, 92, 246, 0.12);
+      border-color: rgba(13, 148, 136, 0.62);
+      box-shadow: 0 20px 38px -14px rgba(13, 148, 136, 0.28), 0 0 0 3px rgba(20, 184, 166, 0.14);
     }
     .upload-feature-card.card-uploaded-active {
-      border-color: #6d28d9;
-      background: linear-gradient(180deg, #ffffff 0%, #f5f0ff 100%);
-      box-shadow: 0 18px 36px -12px rgba(109, 40, 217, 0.28), 0 0 0 3px rgba(124, 58, 237, 0.16);
+      border-color: #0d9488;
+      background: linear-gradient(180deg, #ffffff 0%, #ecfdf5 100%);
+      box-shadow: 0 16px 34px -12px rgba(13, 148, 136, 0.28), 0 0 0 3px rgba(16, 185, 129, 0.18);
     }
 
     .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
     .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-    .custom-scrollbar::-webkit-scrollbar-thumb { background: #c4b5fd; border-radius: 9999px; }
-    .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #8b5cf6; }
+    .custom-scrollbar::-webkit-scrollbar-thumb { background: #99f6e4; border-radius: 9999px; }
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #14b8a6; }
 
     /* Sidebar Collapse States */
     #appSidebar {
@@ -128,7 +128,7 @@
       #appSidebar {
         width: 100% !important;
         border-right: none;
-        border-bottom: 1px solid rgba(167, 139, 250, 0.25);
+        border-bottom: 1px solid rgba(94, 234, 212, 0.25);
       }
       #splitResizer {
         display: none !important;
@@ -147,37 +147,39 @@
   <div id="appShell" class="h-screen w-screen overflow-hidden flex studio-canvas">
 
     <!-- =================================================================== -->
-    <!-- LEFT NAVIGATION SIDEBAR (DARK VELVET PURPLE STUDIO RAIL)            -->
+    <!-- LEFT NAVIGATION SIDEBAR (DARK OCEAN BLUE-GREEN STUDIO RAIL)         -->
     <!-- =================================================================== -->
     <aside id="appSidebar" class="sidebar-purple-rail text-white flex flex-col justify-between shrink-0 z-20">
       <div class="p-3.5 space-y-5">
         <!-- Brand Header + Sidebar Toggle -->
         <div class="flex items-center justify-between gap-2 px-1">
           <div class="flex items-center gap-2.5 min-w-0 cursor-pointer" onclick="navigatePage('upload')">
-            <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-violet-500 via-purple-600 to-fuchsia-600 text-white font-black text-sm flex items-center justify-center shadow-lg shadow-purple-950/50 ring-1 ring-white/25 shrink-0 heading-font">
+            <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-sky-500 via-teal-500 to-emerald-500 text-white font-black text-sm flex items-center justify-center shadow-lg shadow-teal-950/50 ring-1 ring-white/25 shrink-0 heading-font">
               EG
             </div>
             <div class="sidebar-label truncate">
               <div class="font-extrabold text-sm text-white tracking-tight leading-tight heading-font">ExamGrader</div>
-              <div class="text-[11px] font-semibold text-purple-200/80">AI Assessment Studio</div>
+              <div class="text-[11px] font-semibold text-teal-200/85">AI Assessment Studio</div>
             </div>
           </div>
           <button type="button" id="sidebarToggleBtn" onclick="toggleSidebarCollapse()" title="Toggle Compact Sidebar"
-            class="p-1.5 rounded-lg text-purple-200 hover:text-white hover:bg-white/10 transition cursor-pointer shrink-0">
+            class="p-1.5 rounded-lg text-teal-200 hover:text-white hover:bg-white/10 transition cursor-pointer shrink-0">
             ⇄
           </button>
         </div>
 
-        <!-- Primary Navigation Pages (Separate Pages — Zero Clutter Stacking!) -->
+        <!-- Primary Navigation Pages (Separate Pages — Fixed Left Alignment!) -->
         <nav class="space-y-1.5" aria-label="Workspace Navigation">
           <button type="button" id="navBtn_upload" onclick="navigatePage('upload')"
-            class="sidebar-nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer bg-gradient-to-r from-violet-600 to-purple-500 text-white shadow-md shadow-purple-950/40 ring-1 ring-purple-300/35">
-            <span class="text-base shrink-0">📥</span>
-            <span class="sidebar-label truncate">Upload &amp; Evaluate</span>
+            class="sidebar-nav-btn w-full flex items-center justify-between gap-2 px-3 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer bg-gradient-to-r from-sky-600 via-teal-600 to-emerald-500 text-white shadow-md shadow-teal-950/40 ring-1 ring-teal-300/40">
+            <span class="flex items-center gap-3 min-w-0">
+              <span class="text-base shrink-0">📥</span>
+              <span class="sidebar-label truncate">Upload &amp; Evaluate</span>
+            </span>
           </button>
 
           <button type="button" id="navBtn_review" onclick="navigatePage('review')"
-            class="sidebar-nav-btn w-full flex items-center justify-between gap-2 px-3 py-2.5 rounded-xl text-xs font-semibold text-purple-100/85 hover:bg-white/10 hover:text-white transition cursor-pointer">
+            class="sidebar-nav-btn w-full flex items-center justify-between gap-2 px-3 py-2.5 rounded-xl text-xs font-semibold text-teal-100/85 hover:bg-white/10 hover:text-white transition cursor-pointer">
             <span class="flex items-center gap-3 min-w-0">
               <span class="text-base shrink-0">🎯</span>
               <span class="sidebar-label truncate">Split Review</span>
@@ -188,18 +190,20 @@
           </button>
 
           <button type="button" id="navBtn_report" onclick="navigatePage('report')"
-            class="sidebar-nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold text-purple-100/85 hover:bg-white/10 hover:text-white transition cursor-pointer">
-            <span class="text-base shrink-0">📄</span>
-            <span class="sidebar-label truncate">Report &amp; Export</span>
+            class="sidebar-nav-btn w-full flex items-center justify-between gap-2 px-3 py-2.5 rounded-xl text-xs font-semibold text-teal-100/85 hover:bg-white/10 hover:text-white transition cursor-pointer">
+            <span class="flex items-center gap-3 min-w-0">
+              <span class="text-base shrink-0">📄</span>
+              <span class="sidebar-label truncate">Report &amp; Export</span>
+            </span>
           </button>
 
           <button type="button" id="navBtn_history" onclick="navigatePage('history')"
-            class="sidebar-nav-btn w-full flex items-center justify-between gap-2 px-3 py-2.5 rounded-xl text-xs font-semibold text-purple-100/85 hover:bg-white/10 hover:text-white transition cursor-pointer">
+            class="sidebar-nav-btn w-full flex items-center justify-between gap-2 px-3 py-2.5 rounded-xl text-xs font-semibold text-teal-100/85 hover:bg-white/10 hover:text-white transition cursor-pointer">
             <span class="flex items-center gap-3 min-w-0">
               <span class="text-base shrink-0">📁</span>
               <span class="sidebar-label truncate">Saved Reports</span>
             </span>
-            <span id="savedReportsCount" class="sidebar-badge-full text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-white/15 text-purple-100 border border-purple-300/25 shrink-0">
+            <span id="savedReportsCount" class="sidebar-badge-full text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-white/15 text-teal-50 border border-teal-300/25 shrink-0">
               0
             </span>
           </button>
@@ -207,16 +211,16 @@
       </div>
 
       <!-- Bottom Status & Quick Demo Rail -->
-      <div class="p-3.5 border-t border-purple-300/15 space-y-2.5">
+      <div class="p-3.5 border-t border-teal-300/15 space-y-2.5">
         <button type="button" onclick="loadSampleDemoSetup(); navigatePage('upload');" title="Load Sample Photosynthesis Exam"
-          class="sidebar-nav-btn w-full flex items-center gap-2.5 px-3 py-2 rounded-xl border border-purple-300/25 bg-white/10 hover:bg-purple-500/30 text-purple-50 text-xs font-bold transition cursor-pointer">
+          class="sidebar-nav-btn w-full flex items-center gap-2.5 px-3 py-2 rounded-xl border border-teal-300/25 bg-white/10 hover:bg-teal-500/30 text-teal-50 text-xs font-bold transition cursor-pointer">
           <span class="shrink-0">⚡</span>
           <span class="sidebar-label truncate">Load Sample Demo</span>
         </button>
 
-        <div class="px-2.5 py-1.5 rounded-xl bg-black/25 border border-purple-300/15 flex items-center gap-2">
+        <div class="px-2.5 py-1.5 rounded-xl bg-black/25 border border-teal-300/15 flex items-center gap-2">
           <span class="w-2 h-2 rounded-full bg-emerald-400 shrink-0" id="vlmDot"></span>
-          <span id="geminiStatusBadge" class="sidebar-footer-text text-[11px] font-semibold text-purple-100 truncate">
+          <span id="geminiStatusBadge" class="sidebar-footer-text text-[11px] font-semibold text-teal-100 truncate">
             Online VLM Ready
           </span>
         </div>
@@ -230,9 +234,9 @@
     <div class="flex-1 min-w-0 flex flex-col h-full overflow-hidden">
 
       <!-- Crisp Frosted Top Bar -->
-      <header class="h-14 shrink-0 bg-white/85 backdrop-blur-md border-b border-purple-200/80 px-4 sm:px-6 flex items-center justify-between gap-3">
+      <header class="h-13 shrink-0 bg-white/85 backdrop-blur-md border-b border-teal-200/80 px-4 sm:px-6 flex items-center justify-between gap-3">
         <div class="flex items-center gap-3 min-w-0">
-          <span id="topPageBadge" class="text-xs font-extrabold px-2.5 py-1 rounded-lg bg-purple-950 text-purple-100 shadow-2xs shrink-0 heading-font">
+          <span id="topPageBadge" class="text-xs font-extrabold px-2.5 py-1 rounded-lg bg-teal-950 text-teal-100 shadow-2xs shrink-0 heading-font">
             Upload
           </span>
           <h1 id="topPageTitle" class="text-sm sm:text-base font-extrabold text-slate-950 truncate">
@@ -241,16 +245,16 @@
         </div>
 
         <div class="flex items-center gap-2.5 shrink-0">
-          <div class="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-50/90 border border-purple-200 text-xs">
+          <div class="hidden sm:flex items-center gap-1.5 px-3 py-1 rounded-xl bg-teal-50/90 border border-teal-200 text-xs">
             <span class="text-slate-700 font-bold">Strictness:</span>
-            <span id="headerStrictnessBadge" class="font-extrabold text-purple-800">5/10 • Balanced</span>
+            <span id="headerStrictnessBadge" class="font-extrabold text-teal-900">5/10 • Balanced</span>
           </div>
           <button type="button" id="topQuickReviewBtn" onclick="navigatePage('review')"
-            class="hidden px-3 py-1.5 rounded-xl bg-purple-950 hover:bg-purple-900 text-white text-xs font-bold transition cursor-pointer shadow-2xs">
+            class="hidden px-3 py-1.5 rounded-xl bg-teal-950 hover:bg-teal-900 text-white text-xs font-bold transition cursor-pointer shadow-2xs">
             Split Review →
           </button>
           <button type="button" id="topQuickNewBtn" onclick="navigatePage('upload')"
-            class="hidden px-3 py-1.5 rounded-xl border border-purple-200 bg-white hover:bg-purple-50 text-slate-900 text-xs font-bold transition cursor-pointer">
+            class="hidden px-3 py-1.5 rounded-xl border border-teal-200 bg-white hover:bg-teal-50 text-slate-900 text-xs font-bold transition cursor-pointer">
             ← New Copy
           </button>
         </div>
@@ -259,50 +263,52 @@
       <!-- ================================================================= -->
       <!-- PAGE 1: MINIMAL UPLOAD & EVALUATE CONSOLE                         -->
       <!-- ================================================================= -->
-      <main id="page_upload" class="page-view flex-1 overflow-y-auto p-5 sm:p-8 custom-scrollbar">
-        <div class="max-w-6xl mx-auto space-y-6">
+      <main id="page_upload" class="page-view flex-1 overflow-y-auto p-4 sm:p-6 custom-scrollbar">
+        <div class="max-w-6xl mx-auto space-y-4">
 
-          <!-- Hero Header Banner (Image 1 Learner Hub Inspired: Dark-Light Lavender Accent) -->
-          <div class="hero-purple-banner rounded-3xl p-5 sm:p-7 flex flex-wrap items-center justify-between gap-5">
-            <div class="space-y-2 max-w-2xl">
-              <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-purple-950 text-purple-100 text-[11px] font-extrabold tracking-wider uppercase shadow-xs">
-                <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
-                AI Assessment Control Studio
+          <!-- Compact Hero Header Banner (Slim Single-Row Blue-Greenish Accent) -->
+          <div class="hero-purple-banner rounded-2xl px-4 py-3 sm:px-5 sm:py-3.5 flex flex-wrap md:flex-nowrap items-center justify-between gap-3">
+            <div class="space-y-0.5 min-w-0">
+              <div class="flex flex-wrap items-center gap-2">
+                <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-teal-950 text-teal-100 text-[10px] font-extrabold tracking-wider uppercase">
+                  <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                  AI Assessment Studio
+                </span>
+                <h2 class="text-lg sm:text-2xl font-black text-slate-950 tracking-tight leading-tight heading-font">
+                  Answer Copy <span class="bg-gradient-to-r from-sky-700 via-teal-600 to-emerald-600 bg-clip-text text-transparent">Evaluation &amp; Grading</span>
+                </h2>
               </div>
-              <h2 class="text-2xl sm:text-4xl font-black text-slate-950 tracking-tight leading-tight heading-font">
-                Answer Copy <span class="bg-gradient-to-r from-violet-700 via-purple-600 to-fuchsia-600 bg-clip-text text-transparent">Evaluation &amp; Grading</span>
-              </h2>
-              <p class="text-xs sm:text-sm font-semibold text-slate-700 leading-relaxed">
-                Upload Question Paper, optional Answer Key, and Student Copy below. Questions and model answers prepare silently in the background.
+              <p class="text-[11px] sm:text-xs font-semibold text-slate-700 leading-snug">
+                Upload Question Paper, optional Answer Key, and Student Copy — rubrics prepare silently in background.
               </p>
             </div>
-            <div class="flex flex-wrap items-center gap-3">
+            <div class="flex items-center gap-2 shrink-0">
               <button type="button" onclick="loadSampleDemoSetup()" id="sampleDemoBtn"
-                class="px-4 py-3 rounded-2xl bg-gradient-to-r from-purple-950 via-purple-800 to-violet-700 hover:from-purple-900 hover:to-violet-600 text-white font-extrabold text-xs shadow-lg shadow-purple-950/25 transition cursor-pointer flex items-center gap-2">
+                class="px-3.5 py-2 rounded-xl bg-gradient-to-r from-teal-950 via-teal-700 to-emerald-600 hover:from-teal-900 hover:to-emerald-500 text-white font-extrabold text-xs shadow-md shadow-teal-950/20 transition cursor-pointer flex items-center gap-1.5 whitespace-nowrap">
                 <span>⚡</span> <span>Try Sample Paper</span>
               </button>
-              <div class="hidden sm:flex w-12 h-12 rounded-2xl bg-white border border-purple-200 shadow-md shadow-purple-500/10 items-center justify-center text-2xl">
+              <div class="hidden sm:flex w-9 h-9 rounded-xl bg-white border border-teal-200 shadow-xs items-center justify-center text-lg">
                 📋
               </div>
             </div>
           </div>
 
-          <!-- Highlighted 3 Front Upload Cards (Image 3 Inspired Top Accent Cap + Elevation Glow) -->
-          <div id="unifiedUploadGrid" class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <!-- Highlighted 3 Front Upload Cards (Blue-Greenish Theme + Top Accent Ribbons) -->
+          <div id="unifiedUploadGrid" class="grid grid-cols-1 lg:grid-cols-3 gap-5">
 
             <!-- CARD 1: QUESTION PAPER -->
             <div id="uploadCard_question" class="upload-feature-card rounded-3xl flex flex-col justify-between">
-              <div class="h-1.5 w-full bg-gradient-to-r from-purple-950 via-violet-700 to-purple-500"></div>
-              <div class="p-5 flex-1 flex flex-col justify-between space-y-4">
-                <div class="space-y-3.5">
+              <div class="h-1.5 w-full bg-gradient-to-r from-sky-900 via-cyan-600 to-teal-500"></div>
+              <div class="p-4 sm:p-5 flex-1 flex flex-col justify-between space-y-3.5">
+                <div class="space-y-3">
                   <div class="flex items-start justify-between gap-2">
-                    <div class="flex items-center gap-2.5">
-                      <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-950 to-violet-700 text-white flex items-center justify-center text-lg shadow-sm">
+                    <div class="flex items-center gap-2.5 min-w-0">
+                      <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-sky-900 to-cyan-600 text-white flex items-center justify-center text-base shadow-sm shrink-0">
                         📄
                       </div>
-                      <div>
-                        <span class="inline-block text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md bg-purple-100 text-purple-900">Step 01</span>
-                        <h3 class="text-lg font-black text-slate-950 mt-0.5 heading-font">Question Paper</h3>
+                      <div class="min-w-0">
+                        <span class="inline-block text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md bg-sky-100 text-sky-950">Step 01</span>
+                        <h3 class="text-base font-black text-slate-950 mt-0.5 heading-font whitespace-nowrap">Question Paper</h3>
                       </div>
                     </div>
                     <span class="text-[10px] font-extrabold px-2.5 py-1 rounded-full bg-rose-600 text-white shadow-2xs shrink-0">
@@ -311,8 +317,8 @@
                   </div>
 
                   <div onclick="document.getElementById('questionImageFile').click()"
-                    class="border-2 border-dashed border-purple-300 hover:border-purple-700 rounded-2xl p-5 text-center bg-purple-50/75 hover:bg-purple-100/75 transition cursor-pointer group">
-                    <div class="w-11 h-11 rounded-2xl bg-white border border-purple-200 text-purple-700 flex items-center justify-center text-xl mx-auto mb-2 shadow-xs group-hover:scale-105 transition">
+                    class="border-2 border-dashed border-sky-300 hover:border-teal-600 rounded-2xl p-4 text-center bg-sky-50/70 hover:bg-teal-50/80 transition cursor-pointer group">
+                    <div class="w-10 h-10 rounded-xl bg-white border border-teal-200 text-teal-700 flex items-center justify-center text-lg mx-auto mb-1.5 shadow-xs group-hover:scale-105 transition">
                       📄
                     </div>
                     <p class="text-xs sm:text-sm font-extrabold text-slate-950">Upload Question Paper</p>
@@ -322,30 +328,30 @@
                   <div id="questionThumbnail" class="hidden"></div>
                 </div>
 
-                <div class="space-y-2.5 pt-3 border-t border-purple-100">
+                <div class="space-y-2 pt-2.5 border-t border-teal-100">
                   <div id="silentRubricStatus" class="text-[11px] font-bold text-slate-800 flex items-center gap-1.5">
                     <span>⏳</span> <span>Upload Question Paper to prepare silently</span>
                   </div>
                   <details class="text-xs">
-                    <summary class="cursor-pointer font-bold text-purple-800 hover:text-purple-950 select-none">
+                    <summary class="cursor-pointer font-bold text-teal-800 hover:text-teal-950 select-none">
                       Type text / subject settings ▾
                     </summary>
-                    <div class="mt-2.5 space-y-2.5 bg-purple-50/60 p-3 rounded-xl border border-purple-200">
+                    <div class="mt-2.5 space-y-2.5 bg-teal-50/60 p-3 rounded-xl border border-teal-200">
                       <div class="grid grid-cols-2 gap-2">
                         <div>
                           <label for="teacherSubject" class="block text-[10px] font-extrabold uppercase text-slate-700 mb-1">Subject</label>
                           <input type="text" id="teacherSubject" value="Science" oninput="scheduleSilentRubricPrep()"
-                            class="w-full text-xs p-2 border border-purple-200 rounded-lg bg-white font-bold text-slate-900" />
+                            class="w-full text-xs p-2 border border-teal-200 rounded-lg bg-white font-bold text-slate-900" />
                         </div>
                         <div>
                           <label for="teacherMarks" class="block text-[10px] font-extrabold uppercase text-slate-700 mb-1">Max Marks</label>
                           <input type="number" id="teacherMarks" value="10" min="1" max="200" step="0.5" oninput="scheduleSilentRubricPrep()"
-                            class="w-full text-xs p-2 border border-purple-200 rounded-lg bg-white font-extrabold text-slate-900" />
+                            class="w-full text-xs p-2 border border-teal-200 rounded-lg bg-white font-extrabold text-slate-900" />
                         </div>
                       </div>
                       <textarea id="questionText" rows="3" oninput="scheduleSilentRubricPrep()"
                         placeholder="Paste exam questions text here..."
-                        class="w-full text-xs p-2 border border-purple-200 rounded-lg bg-white text-slate-900 font-medium leading-relaxed"></textarea>
+                        class="w-full text-xs p-2 border border-teal-200 rounded-lg bg-white text-slate-900 font-medium leading-relaxed"></textarea>
                     </div>
                   </details>
                 </div>
@@ -354,27 +360,27 @@
 
             <!-- CARD 2: OFFICIAL ANSWER KEY (OPTIONAL) -->
             <div id="uploadCard_answerKey" class="upload-feature-card rounded-3xl flex flex-col justify-between">
-              <div class="h-1.5 w-full bg-gradient-to-r from-indigo-950 via-indigo-600 to-violet-500"></div>
-              <div class="p-5 flex-1 flex flex-col justify-between space-y-4">
-                <div class="space-y-3.5">
+              <div class="h-1.5 w-full bg-gradient-to-r from-teal-950 via-teal-600 to-emerald-500"></div>
+              <div class="p-4 sm:p-5 flex-1 flex flex-col justify-between space-y-3.5">
+                <div class="space-y-3">
                   <div class="flex items-start justify-between gap-2">
-                    <div class="flex items-center gap-2.5">
-                      <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-900 to-violet-600 text-white flex items-center justify-center text-lg shadow-sm">
+                    <div class="flex items-center gap-2.5 min-w-0">
+                      <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-teal-900 to-emerald-600 text-white flex items-center justify-center text-base shadow-sm shrink-0">
                         🔑
                       </div>
-                      <div>
-                        <span class="inline-block text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md bg-indigo-100 text-indigo-950">Step 02</span>
-                        <h3 class="text-lg font-black text-slate-950 mt-0.5 heading-font">Official Answer Key</h3>
+                      <div class="min-w-0">
+                        <span class="inline-block text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md bg-teal-100 text-teal-950">Step 02</span>
+                        <h3 class="text-base font-black text-slate-950 mt-0.5 heading-font whitespace-nowrap">Official Answer Key</h3>
                       </div>
                     </div>
-                    <span id="dualRefStatusPill" class="text-[10px] font-extrabold px-2.5 py-1 rounded-full bg-purple-950/10 text-purple-950 border border-purple-300/60 shrink-0">
+                    <span id="dualRefStatusPill" class="text-[10px] font-extrabold px-2.5 py-1 rounded-full bg-teal-950/10 text-teal-950 border border-teal-300/60 shrink-0">
                       Optional
                     </span>
                   </div>
 
                   <div onclick="document.getElementById('answerKeyFile').click()"
-                    class="border-2 border-dashed border-indigo-300 hover:border-indigo-700 rounded-2xl p-5 text-center bg-indigo-50/70 hover:bg-indigo-100/70 transition cursor-pointer group">
-                    <div class="w-11 h-11 rounded-2xl bg-white border border-indigo-200 text-indigo-700 flex items-center justify-center text-xl mx-auto mb-2 shadow-xs group-hover:scale-105 transition">
+                    class="border-2 border-dashed border-teal-300 hover:border-emerald-600 rounded-2xl p-4 text-center bg-teal-50/70 hover:bg-emerald-50/80 transition cursor-pointer group">
+                    <div class="w-10 h-10 rounded-xl bg-white border border-teal-200 text-teal-700 flex items-center justify-center text-lg mx-auto mb-1.5 shadow-xs group-hover:scale-105 transition">
                       🔑
                     </div>
                     <p class="text-xs sm:text-sm font-extrabold text-slate-950">Optional: Upload Answer Key if available</p>
@@ -384,18 +390,18 @@
                   <div id="answerKeyThumbnail" class="hidden"></div>
                 </div>
 
-                <div class="space-y-2.5 pt-3 border-t border-purple-100">
+                <div class="space-y-2 pt-2.5 border-t border-teal-100">
                   <p id="answerKeyHelperNote" class="text-[11px] font-semibold text-slate-800 leading-snug">
                     If skipped, AI automatically generates expected model answers.
                   </p>
                   <details class="text-xs">
-                    <summary class="cursor-pointer font-bold text-indigo-800 hover:text-indigo-950 select-none">
+                    <summary class="cursor-pointer font-bold text-teal-800 hover:text-teal-950 select-none">
                       Paste answer key notes ▾
                     </summary>
-                    <div class="mt-2 bg-indigo-50/50 p-2.5 rounded-xl border border-indigo-200">
+                    <div class="mt-2 bg-teal-50/50 p-2.5 rounded-xl border border-teal-200">
                       <textarea id="answerKeyText" rows="3" oninput="updateDualRefBadge(); scheduleSilentRubricPrep()"
                         placeholder="Optional: Paste model answers or checkpoints..."
-                        class="w-full text-xs p-2 border border-indigo-200 rounded-lg bg-white text-slate-900 font-medium leading-relaxed"></textarea>
+                        class="w-full text-xs p-2 border border-teal-200 rounded-lg bg-white text-slate-900 font-medium leading-relaxed"></textarea>
                     </div>
                   </details>
                 </div>
@@ -404,37 +410,37 @@
 
             <!-- CARD 3: STUDENT ANSWER SHEET -->
             <div id="uploadCard_student" class="upload-feature-card rounded-3xl flex flex-col justify-between">
-              <div class="h-1.5 w-full bg-gradient-to-r from-purple-900 via-fuchsia-600 to-violet-500"></div>
-              <div class="p-5 flex-1 flex flex-col justify-between space-y-4">
-                <div class="space-y-3.5">
+              <div class="h-1.5 w-full bg-gradient-to-r from-cyan-800 via-teal-600 to-emerald-500"></div>
+              <div class="p-4 sm:p-5 flex-1 flex flex-col justify-between space-y-3.5">
+                <div class="space-y-3">
                   <div class="flex items-start justify-between gap-2">
-                    <div class="flex items-center gap-2.5">
-                      <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-800 to-fuchsia-600 text-white flex items-center justify-center text-lg shadow-sm">
+                    <div class="flex items-center gap-2.5 min-w-0">
+                      <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-cyan-800 to-teal-600 text-white flex items-center justify-center text-base shadow-sm shrink-0">
                         ✍️
                       </div>
-                      <div>
-                        <span class="inline-block text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md bg-fuchsia-100 text-purple-950">Step 03</span>
-                        <h3 class="text-lg font-black text-slate-950 mt-0.5 heading-font">Student Answer</h3>
+                      <div class="min-w-0">
+                        <span class="inline-block text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-950">Step 03</span>
+                        <h3 class="text-base font-black text-slate-950 mt-0.5 heading-font whitespace-nowrap">Student Answer</h3>
                       </div>
                     </div>
-                    <span class="text-[10px] font-extrabold px-2.5 py-1 rounded-full bg-gradient-to-r from-purple-800 to-violet-700 text-white shadow-2xs shrink-0">
+                    <span class="text-[10px] font-extrabold px-2.5 py-1 rounded-full bg-gradient-to-r from-teal-800 to-emerald-600 text-white shadow-2xs shrink-0">
                       Multi-Page
                     </span>
                   </div>
 
                   <div onclick="document.getElementById('studentPageFiles').click()"
-                    class="border-2 border-dashed border-fuchsia-300 hover:border-purple-700 rounded-2xl p-5 text-center bg-fuchsia-50/55 hover:bg-purple-100/70 transition cursor-pointer group">
-                    <div class="w-11 h-11 rounded-2xl bg-white border border-purple-200 text-purple-700 flex items-center justify-center text-xl mx-auto mb-2 shadow-xs group-hover:scale-105 transition">
+                    class="border-2 border-dashed border-emerald-300 hover:border-teal-700 rounded-2xl p-4 text-center bg-emerald-50/55 hover:bg-teal-50/80 transition cursor-pointer group">
+                    <div class="w-10 h-10 rounded-xl bg-white border border-teal-200 text-teal-700 flex items-center justify-center text-lg mx-auto mb-1.5 shadow-xs group-hover:scale-105 transition">
                       ✍️
                     </div>
                     <p class="text-xs sm:text-sm font-extrabold text-slate-950">Upload Handwritten Copy</p>
                     <p class="text-[11px] font-semibold text-slate-700 mt-0.5">Multiple JPG/PNG or 1–20+ page PDF</p>
                   </div>
                   <input type="file" id="studentPageFiles" multiple accept="image/*,application/pdf,.pdf" class="hidden" onchange="handleStudentFileChange(this)" />
-                  <div id="studentThumbnails" class="hidden space-y-1.5 max-h-32 overflow-y-auto custom-scrollbar"></div>
+                  <div id="studentThumbnails" class="hidden space-y-1.5 max-h-28 overflow-y-auto custom-scrollbar"></div>
                 </div>
 
-                <div class="pt-3 border-t border-purple-100 flex items-center justify-between gap-2 text-[11px] font-semibold text-slate-800">
+                <div class="pt-2.5 border-t border-teal-100 flex items-center justify-between gap-2 text-[11px] font-semibold text-slate-800">
                   <span>Skipped questions are auto-detected.</span>
                   <button type="button" onclick="clearStudentFiles()" id="clearStudentBtn" class="hidden text-rose-700 hover:text-rose-900 font-extrabold cursor-pointer">
                     Clear
@@ -446,27 +452,27 @@
           </div>
 
           <!-- Highlighted Strictness Slider + Evaluate Action Bar -->
-          <div class="rounded-3xl bg-white/95 border-[1.5px] border-purple-200/90 p-5 sm:p-6 shadow-lg shadow-purple-950/10 grid grid-cols-1 lg:grid-cols-12 gap-5 items-center">
-            <div class="lg:col-span-8 space-y-2.5">
+          <div class="rounded-3xl bg-white/95 border-[1.5px] border-teal-200/90 p-4 sm:p-5 shadow-lg shadow-teal-950/10 grid grid-cols-1 lg:grid-cols-12 gap-4 items-center">
+            <div class="lg:col-span-8 space-y-2">
               <div class="flex flex-wrap items-center justify-between gap-2">
                 <div class="flex items-center gap-2">
                   <span class="text-base">🎚️</span>
                   <span class="text-sm font-black text-slate-950 heading-font">Strictness Level</span>
-                  <span id="strictnessValueBadge" class="text-xs font-extrabold px-2.5 py-0.5 rounded-lg bg-purple-100 text-purple-900 border border-purple-300">
+                  <span id="strictnessValueBadge" class="text-xs font-extrabold px-2.5 py-0.5 rounded-lg bg-teal-100 text-teal-950 border border-teal-300">
                     Level 5 / 10 (Balanced)
                   </span>
                 </div>
                 <div class="flex items-center gap-1.5 text-[11px]">
                   <button type="button" onclick="updateStrictnessLevel(2)" id="strictBtnLenient"
-                    class="px-2.5 py-1 rounded-lg border border-purple-200 bg-white hover:bg-emerald-50 font-bold text-slate-800 transition cursor-pointer">
+                    class="px-2.5 py-1 rounded-lg border border-teal-200 bg-white hover:bg-emerald-50 font-bold text-slate-800 transition cursor-pointer">
                     Lenient (1–3)
                   </button>
                   <button type="button" onclick="updateStrictnessLevel(5)" id="strictBtnBalanced"
-                    class="px-2.5 py-1 rounded-lg border-2 border-purple-600 bg-purple-100 font-extrabold text-purple-950 transition cursor-pointer">
+                    class="px-2.5 py-1 rounded-lg border-2 border-teal-600 bg-teal-100 font-extrabold text-teal-950 transition cursor-pointer">
                     Balanced (4–7)
                   </button>
                   <button type="button" onclick="updateStrictnessLevel(9)" id="strictBtnStrict"
-                    class="px-2.5 py-1 rounded-lg border border-purple-200 bg-white hover:bg-rose-50 font-bold text-slate-800 transition cursor-pointer">
+                    class="px-2.5 py-1 rounded-lg border border-teal-200 bg-white hover:bg-rose-50 font-bold text-slate-800 transition cursor-pointer">
                     Strict (8–10)
                   </button>
                 </div>
@@ -474,15 +480,15 @@
 
               <input type="range" id="strictnessSlider" min="1" max="10" step="1" value="5"
                 oninput="updateStrictnessLevel(this.value)"
-                class="w-full h-2 bg-purple-100 rounded-lg appearance-none cursor-pointer accent-purple-700" />
+                class="w-full h-2 bg-teal-100 rounded-lg appearance-none cursor-pointer accent-teal-700" />
               <p id="strictnessDescBox" class="text-[11px] font-medium text-slate-800">
                 <b>Active Policy (Level 5/10 — Balanced):</b> Standard board/university evaluation—checks key terms, steps, and diagram labels fairly.
               </p>
             </div>
 
-            <div class="lg:col-span-4 flex flex-col gap-2">
+            <div class="lg:col-span-4 flex flex-col gap-1.5">
               <button type="button" id="gradeStudentBtn" onclick="evaluateStudentCopy()"
-                class="w-full py-3.5 px-6 bg-gradient-to-r from-purple-950 via-purple-700 to-violet-600 hover:from-purple-900 hover:via-purple-600 hover:to-violet-500 text-white font-black text-sm rounded-2xl shadow-lg shadow-purple-900/30 transition flex items-center justify-center gap-2 cursor-pointer heading-font">
+                class="w-full py-3 px-6 bg-gradient-to-r from-teal-950 via-teal-700 to-emerald-600 hover:from-teal-900 hover:via-teal-600 hover:to-emerald-500 text-white font-black text-sm rounded-2xl shadow-lg shadow-teal-900/25 transition flex items-center justify-center gap-2 cursor-pointer heading-font">
                 <span id="gradeBtnIcon">🚀</span>
                 <span id="gradeBtnText">Evaluate Copy</span>
               </button>
@@ -493,13 +499,13 @@
           </div>
 
           <!-- Live Multi-Page Progress Tracker Banner -->
-          <div id="gradingLoadingCard" class="hidden bg-white rounded-3xl shadow-lg shadow-purple-950/10 border-2 border-purple-300 p-5 space-y-4">
+          <div id="gradingLoadingCard" class="hidden bg-white rounded-3xl shadow-lg shadow-teal-950/10 border-2 border-teal-300 p-5 space-y-4">
             <div class="flex flex-wrap items-center justify-between gap-3">
               <div class="flex items-center gap-3">
-                <div id="liveSpinner" class="animate-spin rounded-full h-6 w-6 border-2 border-purple-700 border-t-transparent shrink-0"></div>
+                <div id="liveSpinner" class="animate-spin rounded-full h-6 w-6 border-2 border-teal-700 border-t-transparent shrink-0"></div>
                 <div>
                   <div class="flex items-center gap-2">
-                    <span class="text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded bg-purple-950 text-purple-100">
+                    <span class="text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded bg-teal-950 text-teal-100">
                       Live Evaluation Tracker
                     </span>
                     <span id="liveProgressPageCounter" class="text-xs font-bold text-slate-800">Initializing...</span>
@@ -509,11 +515,11 @@
                   </h3>
                 </div>
               </div>
-              <span id="liveProgressPercent" class="text-xl font-black text-purple-800 mono-font">0%</span>
+              <span id="liveProgressPercent" class="text-xl font-black text-teal-800 mono-font">0%</span>
             </div>
 
-            <div class="w-full bg-purple-100 h-2.5 rounded-full overflow-hidden border border-purple-200">
-              <div id="liveProgressBar" class="bg-gradient-to-r from-purple-900 via-violet-600 to-emerald-500 h-full transition-all duration-300 rounded-full" style="width: 4%"></div>
+            <div class="w-full bg-teal-100 h-2.5 rounded-full overflow-hidden border border-teal-200">
+              <div id="liveProgressBar" class="bg-gradient-to-r from-sky-800 via-teal-600 to-emerald-500 h-full transition-all duration-300 rounded-full" style="width: 4%"></div>
             </div>
             <div id="livePageStepsList" class="flex flex-wrap gap-2"></div>
           </div>
@@ -535,7 +541,7 @@
               Upload your Question Paper and Student Answer Sheet on the Upload page, then click <b>Evaluate Copy</b> to open the full-screen Split Review Workspace.
             </p>
             <button type="button" onclick="navigatePage('upload')"
-              class="px-5 py-2.5 rounded-xl bg-gradient-to-r from-purple-950 via-purple-700 to-violet-600 hover:from-purple-900 hover:to-violet-500 text-white text-xs font-extrabold cursor-pointer shadow-md shadow-purple-900/20">
+              class="px-5 py-2.5 rounded-xl bg-gradient-to-r from-teal-950 via-teal-700 to-emerald-600 hover:from-teal-900 hover:to-emerald-500 text-white text-xs font-extrabold cursor-pointer shadow-md shadow-teal-900/20">
               ← Go to Upload &amp; Evaluate
             </button>
           </div>
@@ -545,16 +551,16 @@
         <div id="gradingResultsCard" class="hidden flex-1 flex flex-col min-h-0 overflow-hidden">
 
           <!-- Compact Top Summary Strip -->
-          <div class="shrink-0 bg-white/95 border-b border-purple-200 px-4 py-2.5 flex flex-wrap items-center justify-between gap-3">
+          <div class="shrink-0 bg-white/95 border-b border-teal-200 px-4 py-2.5 flex flex-wrap items-center justify-between gap-3">
             <div class="flex flex-wrap items-center gap-2 min-w-0">
-              <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-extrabold bg-purple-950 text-white shadow-2xs" id="resStudentBannerPill">
+              <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-extrabold bg-teal-950 text-white shadow-2xs" id="resStudentBannerPill">
                 👤 <span id="resStudentHeaderName">Student Copy</span>
-                <span id="resStudentHeaderRollWrap" class="hidden font-mono text-[10px] bg-purple-800 px-1.5 rounded"></span>
+                <span id="resStudentHeaderRollWrap" class="hidden font-mono text-[10px] bg-teal-800 px-1.5 rounded"></span>
               </span>
-              <span class="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-purple-50 border border-purple-200 text-purple-950 truncate max-w-[240px]" id="resExamTitle">
+              <span class="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-teal-50 border border-teal-200 text-teal-950 truncate max-w-[240px]" id="resExamTitle">
                 Exam Assessment
               </span>
-              <span id="resRefModePill" class="hidden sm:inline-block px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-purple-100/70 text-purple-900">
+              <span id="resRefModePill" class="hidden sm:inline-block px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-teal-100/70 text-teal-900">
                 AI-Inferred
               </span>
               <span id="resStrictnessBadge" class="hidden md:inline-block px-2.5 py-0.5 rounded-full text-[11px] font-extrabold bg-emerald-50 text-emerald-800 border border-emerald-200">
@@ -578,14 +584,14 @@
             </div>
 
             <div class="flex flex-wrap items-center gap-2 shrink-0">
-              <div class="flex items-center gap-2 px-3 py-1 rounded-xl bg-purple-50 border border-purple-200">
+              <div class="flex items-center gap-2 px-3 py-1 rounded-xl bg-teal-50 border border-teal-200">
                 <span class="text-sm sm:text-base font-black text-slate-950 mono-font" id="resTotalMarks">0.00 / 0.00</span>
                 <span class="text-xs font-extrabold text-emerald-800" id="resPercent">0.0%</span>
-                <span class="px-1.5 py-0.5 rounded bg-gradient-to-r from-purple-900 to-violet-600 text-white font-black text-[11px]" id="resGradeBadge">-</span>
+                <span class="px-1.5 py-0.5 rounded bg-gradient-to-r from-teal-900 to-emerald-600 text-white font-black text-[11px]" id="resGradeBadge">-</span>
               </div>
 
               <button type="button" onclick="resetToAiMarks()" title="Reset to original AI marks"
-                class="px-2.5 py-1.5 rounded-lg border border-purple-200 bg-white hover:bg-purple-50 text-slate-800 font-bold text-xs transition cursor-pointer">
+                class="px-2.5 py-1.5 rounded-lg border border-teal-200 bg-white hover:bg-teal-50 text-slate-800 font-bold text-xs transition cursor-pointer">
                 🔄 Reset
               </button>
               <button type="button" onclick="finalizeVerifiedMarks()" id="finalizeTopBtn"
@@ -593,7 +599,7 @@
                 ✔ Finalize
               </button>
               <button type="button" onclick="navigatePage('report')"
-                class="px-3.5 py-1.5 rounded-lg bg-gradient-to-r from-purple-950 via-purple-700 to-violet-600 hover:from-purple-900 hover:to-violet-500 text-white font-extrabold text-xs shadow-2xs transition cursor-pointer">
+                class="px-3.5 py-1.5 rounded-lg bg-gradient-to-r from-teal-950 via-teal-700 to-emerald-600 hover:from-teal-900 hover:to-emerald-500 text-white font-extrabold text-xs shadow-2xs transition cursor-pointer">
                 📄 Export Report →
               </button>
             </div>
@@ -609,18 +615,18 @@
           <div id="splitDashboardGrid" class="flex-1 min-h-0 flex overflow-hidden">
 
             <!-- LEFT PANE: Original Handwritten Answer Sheet (43% default, draggable!) -->
-            <div id="leftViewerCol" class="bg-white border-r border-purple-200 flex flex-col min-h-0 overflow-hidden">
+            <div id="leftViewerCol" class="bg-white border-r border-teal-200 flex flex-col min-h-0 overflow-hidden">
               <!-- Compact Viewer Top Controls -->
-              <div class="px-3 py-2 bg-purple-50/75 border-b border-purple-200 flex flex-wrap items-center justify-between gap-2 shrink-0">
+              <div class="px-3 py-2 bg-teal-50/75 border-b border-teal-200 flex flex-wrap items-center justify-between gap-2 shrink-0">
                 <div class="flex items-center gap-2 min-w-0">
                   <span class="text-xs font-extrabold text-slate-950 truncate">🖼️ Answer Sheet</span>
-                  <span id="leftViewerPageMeta" class="text-[11px] font-bold text-purple-900 truncate">Page 1</span>
+                  <span id="leftViewerPageMeta" class="text-[11px] font-bold text-teal-900 truncate">Page 1</span>
                 </div>
 
                 <div class="flex items-center gap-1.5">
-                  <div class="flex items-center bg-purple-100/90 p-0.5 rounded-lg text-[11px] font-bold">
+                  <div class="flex items-center bg-teal-100/90 p-0.5 rounded-lg text-[11px] font-bold">
                     <button type="button" id="viewModeAnnotatedBtn" onclick="setViewerMode('annotated')"
-                      class="px-2 py-0.5 rounded-md bg-white text-purple-900 shadow-2xs cursor-pointer transition">
+                      class="px-2 py-0.5 rounded-md bg-white text-teal-900 shadow-2xs cursor-pointer transition">
                       🎯 Boxes
                     </button>
                     <button type="button" id="viewModeOriginalBtn" onclick="setViewerMode('original')"
@@ -632,61 +638,61 @@
               </div>
 
               <!-- Page Switcher & Zoom Toolbar -->
-              <div class="px-2.5 py-1.5 bg-white border-b border-purple-100 flex flex-wrap items-center justify-between gap-2 shrink-0">
+              <div class="px-2.5 py-1.5 bg-white border-b border-teal-100 flex flex-wrap items-center justify-between gap-2 shrink-0">
                 <div class="flex items-center gap-1 flex-1 min-w-0">
                   <button type="button" onclick="stepViewerPage(-1)"
-                    class="px-2 py-0.5 rounded-md text-[11px] font-bold bg-purple-50 hover:bg-purple-100 text-slate-800 border border-purple-200 shrink-0 cursor-pointer">
+                    class="px-2 py-0.5 rounded-md text-[11px] font-bold bg-teal-50 hover:bg-teal-100 text-slate-800 border border-teal-200 shrink-0 cursor-pointer">
                     ◀
                   </button>
                   <div id="leftPageTabs" class="flex items-center gap-1 overflow-x-auto custom-scrollbar"></div>
                   <button type="button" onclick="stepViewerPage(1)"
-                    class="px-2 py-0.5 rounded-md text-[11px] font-bold bg-purple-50 hover:bg-purple-100 text-slate-800 border border-purple-200 shrink-0 cursor-pointer">
+                    class="px-2 py-0.5 rounded-md text-[11px] font-bold bg-teal-50 hover:bg-teal-100 text-slate-800 border border-teal-200 shrink-0 cursor-pointer">
                     ▶
                   </button>
                 </div>
 
-                <div class="flex items-center gap-0.5 shrink-0 bg-purple-50/70 px-1.5 py-0.5 rounded-md border border-purple-200 text-[11px] font-bold">
-                  <button type="button" onclick="adjustZoom(-0.20)" class="px-1.5 py-0.5 hover:bg-purple-200 rounded cursor-pointer text-slate-900">−</button>
+                <div class="flex items-center gap-0.5 shrink-0 bg-teal-50/70 px-1.5 py-0.5 rounded-md border border-teal-200 text-[11px] font-bold">
+                  <button type="button" onclick="adjustZoom(-0.20)" class="px-1.5 py-0.5 hover:bg-teal-200 rounded cursor-pointer text-slate-900">−</button>
                   <span id="zoomLevelLabel" class="mono-font min-w-[38px] text-center text-slate-900">100%</span>
-                  <button type="button" onclick="adjustZoom(0.20)" class="px-1.5 py-0.5 hover:bg-purple-200 rounded cursor-pointer text-slate-900">+</button>
-                  <button type="button" onclick="resetZoom()" class="px-1.5 py-0.5 hover:bg-purple-200 rounded text-[10px] text-purple-800 cursor-pointer font-extrabold">Reset</button>
-                  <button type="button" onclick="openCurrentPageFullscreen()" title="Open Full Screen" class="px-1 py-0.5 hover:bg-purple-200 rounded text-purple-800 cursor-pointer">↗</button>
+                  <button type="button" onclick="adjustZoom(0.20)" class="px-1.5 py-0.5 hover:bg-teal-200 rounded cursor-pointer text-slate-900">+</button>
+                  <button type="button" onclick="resetZoom()" class="px-1.5 py-0.5 hover:bg-teal-200 rounded text-[10px] text-teal-800 cursor-pointer font-extrabold">Reset</button>
+                  <button type="button" onclick="openCurrentPageFullscreen()" title="Open Full Screen" class="px-1 py-0.5 hover:bg-teal-200 rounded text-teal-800 cursor-pointer">↗</button>
                 </div>
               </div>
 
               <!-- Full-Height Zoomable & Pannable Image Canvas -->
               <div id="sheetViewport"
-                   class="flex-1 min-h-0 bg-purple-50/40 overflow-auto flex items-start justify-center p-2.5 select-none custom-scrollbar cursor-grab active:cursor-grabbing">
+                   class="flex-1 min-h-0 bg-teal-50/40 overflow-auto flex items-start justify-center p-2.5 select-none custom-scrollbar cursor-grab active:cursor-grabbing">
                 <img id="sheetViewerImage" src="" alt="Student Answer Sheet Page"
-                     class="transition-transform duration-150 origin-top-left rounded-lg shadow-xs border border-purple-200 bg-white max-w-none"
+                     class="transition-transform duration-150 origin-top-left rounded-lg shadow-xs border border-teal-200 bg-white max-w-none"
                      style="width: 100%; height: auto;" />
               </div>
             </div>
 
             <!-- DRAGGABLE SPLIT RESIZER HANDLE (Adjust Left/Right Ratio Freely!) -->
             <div id="splitResizer" title="Drag to resize panels • Double-click to reset (43/57)"
-              class="w-2.5 shrink-0 cursor-col-resize bg-purple-100/80 hover:bg-purple-200 border-r border-purple-200 flex flex-col items-center justify-center transition select-none group">
-              <div class="w-1 h-12 rounded-full bg-purple-400 group-hover:bg-purple-700 transition"></div>
+              class="w-2.5 shrink-0 cursor-col-resize bg-teal-100/80 hover:bg-teal-200 border-r border-teal-200 flex flex-col items-center justify-center transition select-none group">
+              <div class="w-1 h-12 rounded-full bg-teal-400 group-hover:bg-teal-700 transition"></div>
             </div>
 
             <!-- RIGHT PANE: Clean Part-Wise Line-by-Line OCR & Review Panel -->
             <div id="rightVerificationCol" class="flex-1 min-w-0 flex flex-col min-h-0 overflow-hidden studio-canvas">
 
               <!-- Sticky Part Tabs + Filter Controls -->
-              <div class="shrink-0 bg-white/95 border-b border-purple-200 px-4 py-2.5 space-y-2">
+              <div class="shrink-0 bg-white/95 border-b border-teal-200 px-4 py-2.5 space-y-2">
                 <div class="flex flex-wrap items-center justify-between gap-2">
                   <div class="flex items-center gap-2 min-w-0">
                     <h3 id="rightPanelPageTitle" class="text-xs sm:text-sm font-black text-slate-950 truncate heading-font">
                       OCR &amp; Question Review
                     </h3>
-                    <span id="rightPanelQCountBadge" class="text-[11px] font-extrabold px-2.5 py-0.5 rounded-full bg-purple-100 text-purple-900 border border-purple-200 shrink-0">
+                    <span id="rightPanelQCountBadge" class="text-[11px] font-extrabold px-2.5 py-0.5 rounded-full bg-teal-100 text-teal-900 border border-teal-200 shrink-0">
                       0 Questions
                     </span>
                   </div>
 
                   <div class="flex flex-wrap items-center gap-1.5">
                     <!-- Quick Ratio Presets -->
-                    <div class="hidden xl:flex items-center bg-purple-50 border border-purple-200/70 p-0.5 rounded-lg text-[10px] font-extrabold text-purple-950">
+                    <div class="hidden xl:flex items-center bg-teal-50 border border-teal-200/70 p-0.5 rounded-lg text-[10px] font-extrabold text-teal-950">
                       <button type="button" onclick="setSplitRatio(38)" class="px-1.5 py-0.5 rounded hover:bg-white cursor-pointer" title="38% Sheet / 62% Review">38/62</button>
                       <button type="button" onclick="setSplitRatio(43)" class="px-1.5 py-0.5 rounded hover:bg-white cursor-pointer" title="Default Ratio">43/57</button>
                       <button type="button" onclick="setSplitRatio(52)" class="px-1.5 py-0.5 rounded hover:bg-white cursor-pointer" title="Wider Sheet">52/48</button>
@@ -694,16 +700,16 @@
 
                     <!-- Status Filter -->
                     <select id="statusFilterSelect" onchange="renderGradingBreakdownCards()"
-                      class="text-[11px] font-bold px-2 py-1 rounded-lg border border-purple-200 bg-white text-slate-900 cursor-pointer">
+                      class="text-[11px] font-bold px-2 py-1 rounded-lg border border-teal-200 bg-white text-slate-900 cursor-pointer">
                       <option value="all">All Status</option>
                       <option value="attempted">Attempted Only</option>
                       <option value="unattempted">Skipped / Zero Only</option>
                     </select>
 
                     <!-- All vs Page Only Toggle -->
-                    <div class="flex items-center bg-purple-100/80 p-0.5 rounded-lg text-[11px] font-bold">
+                    <div class="flex items-center bg-teal-100/80 p-0.5 rounded-lg text-[11px] font-bold">
                       <button type="button" id="filterAllQuestionsBtn" onclick="setRightPanelFilterMode(false)"
-                        class="px-2 py-0.5 rounded-md bg-purple-700 text-white shadow-2xs cursor-pointer transition">
+                        class="px-2 py-0.5 rounded-md bg-teal-700 text-white shadow-2xs cursor-pointer transition">
                         All
                       </button>
                       <button type="button" id="filterPageOnlyBtn" onclick="setRightPanelFilterMode(true)"
@@ -725,7 +731,7 @@
               <div id="resGradingBreakdown" class="flex-1 min-h-0 overflow-y-auto p-4 space-y-3 custom-scrollbar"></div>
 
               <!-- Compact Bottom Action Strip -->
-              <div class="shrink-0 bg-white/95 border-t border-purple-200 px-4 py-2.5 flex flex-wrap items-center justify-between gap-2">
+              <div class="shrink-0 bg-white/95 border-t border-teal-200 px-4 py-2.5 flex flex-wrap items-center justify-between gap-2">
                 <div class="flex items-center gap-3">
                   <span class="text-xs font-black text-slate-950" id="bottomTotalMarksSummary">
                     Verified Total: 0.00 / 0.00 Marks (0.0%)
@@ -738,7 +744,7 @@
                     💾 Save &amp; Finalize
                   </button>
                   <button type="button" onclick="navigatePage('report')"
-                    class="px-3.5 py-1.5 rounded-lg bg-gradient-to-r from-purple-950 via-purple-700 to-violet-600 hover:from-purple-900 hover:to-violet-500 text-white font-extrabold text-xs cursor-pointer shadow-2xs">
+                    class="px-3.5 py-1.5 rounded-lg bg-gradient-to-r from-teal-950 via-teal-700 to-emerald-600 hover:from-teal-900 hover:to-emerald-500 text-white font-extrabold text-xs cursor-pointer shadow-2xs">
                     📄 Generate Report →
                   </button>
                 </div>
@@ -761,18 +767,18 @@
             <div class="text-4xl">📄</div>
             <h3 class="text-lg font-black text-slate-950 heading-font">Evaluate a Copy First to Generate a Report</h3>
             <p class="text-xs sm:text-sm font-medium text-slate-700 max-w-md mx-auto">Once an answer sheet is evaluated and verified, you can export PDF, Printable Scorecard, Excel CSV, or save it permanently here.</p>
-            <button type="button" onclick="navigatePage('upload')" class="px-5 py-2.5 rounded-xl bg-gradient-to-r from-purple-950 via-purple-700 to-violet-600 text-white text-xs font-extrabold cursor-pointer shadow-md shadow-purple-900/20">
+            <button type="button" onclick="navigatePage('upload')" class="px-5 py-2.5 rounded-xl bg-gradient-to-r from-teal-950 via-teal-700 to-emerald-600 text-white text-xs font-extrabold cursor-pointer shadow-md shadow-teal-900/20">
               ← Go to Upload &amp; Evaluate
             </button>
           </div>
 
           <!-- Active Report Generator Card -->
           <div id="finalReportSection" class="hidden upload-feature-card rounded-3xl overflow-hidden">
-            <div class="h-1.5 w-full bg-gradient-to-r from-purple-950 via-violet-700 to-purple-500"></div>
+            <div class="h-1.5 w-full bg-gradient-to-r from-teal-950 via-teal-600 to-teal-500"></div>
             <div class="p-6 space-y-5">
-            <div class="flex flex-wrap items-start justify-between gap-4 border-b border-purple-100 pb-4">
+            <div class="flex flex-wrap items-start justify-between gap-4 border-b border-teal-100 pb-4">
               <div>
-                <span class="px-2.5 py-0.5 rounded-full bg-purple-950 text-purple-100 text-[11px] font-extrabold">
+                <span class="px-2.5 py-0.5 rounded-full bg-teal-950 text-teal-100 text-[11px] font-extrabold">
                   Final Scorecard &amp; Export Center
                 </span>
                 <h2 class="text-2xl font-black text-slate-950 mt-2 heading-font">Generate &amp; Save Evaluation Report</h2>
@@ -780,7 +786,7 @@
               </div>
               <div class="flex flex-wrap items-center gap-2">
                 <button type="button" onclick="navigatePage('review')"
-                  class="px-3.5 py-2 rounded-xl border border-purple-200 bg-white hover:bg-purple-50 text-slate-900 font-bold text-xs cursor-pointer">
+                  class="px-3.5 py-2 rounded-xl border border-teal-200 bg-white hover:bg-teal-50 text-slate-900 font-bold text-xs cursor-pointer">
                   ← Back to Split Review
                 </button>
                 <button type="button" onclick="downloadPdfReport()" id="downloadPdfBtn"
@@ -792,7 +798,7 @@
                   <span>📊</span> <span>Download CSV</span>
                 </button>
                 <button type="button" onclick="saveAndGenerateReport()" id="saveReportBtn"
-                  class="px-5 py-2 rounded-xl bg-gradient-to-r from-purple-950 via-purple-700 to-violet-600 hover:from-purple-900 hover:to-violet-500 text-white font-extrabold text-xs sm:text-sm shadow-md shadow-purple-900/20 cursor-pointer flex items-center gap-1.5">
+                  class="px-5 py-2 rounded-xl bg-gradient-to-r from-teal-950 via-teal-700 to-emerald-600 hover:from-teal-900 hover:to-emerald-500 text-white font-extrabold text-xs sm:text-sm shadow-md shadow-teal-900/20 cursor-pointer flex items-center gap-1.5">
                   <span>💾</span> <span>Save Full Report</span>
                 </button>
               </div>
@@ -802,35 +808,35 @@
               <div>
                 <label for="reportStudentName" class="block text-[11px] font-extrabold uppercase tracking-wider text-slate-800 mb-1">Student Name</label>
                 <input type="text" id="reportStudentName" placeholder="e.g., Stuti Gulati"
-                  class="w-full px-3 py-2 rounded-xl border border-purple-200 bg-purple-50/40 focus:bg-white focus:border-purple-600 focus:outline-hidden text-sm font-bold text-slate-950" />
+                  class="w-full px-3 py-2 rounded-xl border border-teal-200 bg-teal-50/40 focus:bg-white focus:border-teal-600 focus:outline-hidden text-sm font-bold text-slate-950" />
               </div>
               <div>
                 <label for="reportRollNo" class="block text-[11px] font-extrabold uppercase tracking-wider text-slate-800 mb-1">Roll No / Enrollment ID</label>
                 <input type="text" id="reportRollNo" placeholder="e.g., 23BTM053"
-                  class="w-full px-3 py-2 rounded-xl border border-purple-200 bg-purple-50/40 focus:bg-white focus:border-purple-600 focus:outline-hidden text-sm font-bold text-slate-950" />
+                  class="w-full px-3 py-2 rounded-xl border border-teal-200 bg-teal-50/40 focus:bg-white focus:border-teal-600 focus:outline-hidden text-sm font-bold text-slate-950" />
               </div>
               <div class="md:col-span-2">
                 <label for="reportOverallRemarks" class="block text-[11px] font-extrabold uppercase tracking-wider text-slate-800 mb-1">Examiner Overall Remarks</label>
                 <input type="text" id="reportOverallRemarks" placeholder="Optional overall feedback or verification note..."
-                  class="w-full px-3 py-2 rounded-xl border border-purple-200 bg-purple-50/40 focus:bg-white focus:border-purple-600 focus:outline-hidden text-sm font-medium text-slate-950" />
+                  class="w-full px-3 py-2 rounded-xl border border-teal-200 bg-teal-50/40 focus:bg-white focus:border-teal-600 focus:outline-hidden text-sm font-medium text-slate-950" />
               </div>
             </div>
 
             <!-- Live Scorecard Preview Table -->
-            <div id="reportScorePreviewTableWrap" class="rounded-xl border border-purple-200 overflow-hidden"></div>
+            <div id="reportScorePreviewTableWrap" class="rounded-xl border border-teal-200 overflow-hidden"></div>
 
             <!-- Saved Bundle Confirmation -->
-            <div id="savedReportLinksBox" class="hidden rounded-2xl bg-purple-50 border border-purple-200 p-4 space-y-3">
+            <div id="savedReportLinksBox" class="hidden rounded-2xl bg-teal-50 border border-teal-200 p-4 space-y-3">
               <div class="flex flex-wrap items-center justify-between gap-2">
-                <div class="flex items-center gap-2 text-purple-950 font-black text-sm">
+                <div class="flex items-center gap-2 text-teal-950 font-black text-sm">
                   <span>🎉</span>
                   <span id="savedReportStatusTitle">Report Saved Successfully on Disk!</span>
                 </div>
-                <span id="savedReportFolderBadge" class="text-[11px] font-mono bg-white text-purple-900 font-bold px-2.5 py-1 rounded-lg border border-purple-200"></span>
+                <span id="savedReportFolderBadge" class="text-[11px] font-mono bg-white text-teal-900 font-bold px-2.5 py-1 rounded-lg border border-teal-200"></span>
               </div>
               <div class="flex flex-wrap items-center gap-2.5">
                 <a id="savedPdfLink" href="#" target="_blank" download class="px-3.5 py-2 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs inline-flex items-center gap-1.5">📕 PDF</a>
-                <a id="savedHtmlLink" href="#" target="_blank" class="px-3.5 py-2 rounded-lg bg-purple-700 hover:bg-purple-800 text-white font-bold text-xs inline-flex items-center gap-1.5">🖨️ Printable Scorecard</a>
+                <a id="savedHtmlLink" href="#" target="_blank" class="px-3.5 py-2 rounded-lg bg-teal-700 hover:bg-teal-800 text-white font-bold text-xs inline-flex items-center gap-1.5">🖨️ Printable Scorecard</a>
                 <a id="savedCsvLink" href="#" target="_blank" download class="px-3.5 py-2 rounded-lg bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs inline-flex items-center gap-1.5">📊 Excel CSV</a>
                 <a id="savedJsonLink" href="#" target="_blank" download class="px-3.5 py-2 rounded-lg bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs inline-flex items-center gap-1.5">🧾 JSON</a>
               </div>
@@ -846,22 +852,22 @@
       <!-- ================================================================= -->
       <main id="page_history" class="page-view hidden flex-1 overflow-y-auto p-5 sm:p-8 custom-scrollbar">
         <div id="savedReportsHistoryCard" class="max-w-5xl mx-auto upload-feature-card rounded-3xl overflow-hidden">
-          <div class="h-1.5 w-full bg-gradient-to-r from-purple-950 via-violet-700 to-purple-500"></div>
+          <div class="h-1.5 w-full bg-gradient-to-r from-teal-950 via-teal-600 to-teal-500"></div>
           <div class="p-6 space-y-4">
-          <div class="flex flex-wrap items-center justify-between gap-3 border-b border-purple-100 pb-4">
+          <div class="flex flex-wrap items-center justify-between gap-3 border-b border-teal-100 pb-4">
             <div>
               <h2 class="text-xl font-black text-slate-950 flex items-center gap-2 heading-font">
                 <span>📁</span>
                 <span>Saved Evaluation Reports</span>
-                <span id="historyCountBadge" class="text-xs font-extrabold px-2.5 py-0.5 rounded-full bg-purple-950 text-purple-100">0</span>
+                <span id="historyCountBadge" class="text-xs font-extrabold px-2.5 py-0.5 rounded-full bg-teal-950 text-teal-100">0</span>
               </h2>
-              <p class="text-xs font-medium text-slate-700 mt-0.5">Reports saved here remain persisted inside <code class="text-[11px] bg-purple-50 text-purple-950 font-bold px-1.5 py-0.5 rounded">exam_grader_mvp/saved_reports/</code> across restarts.</p>
+              <p class="text-xs font-medium text-slate-700 mt-0.5">Reports saved here remain persisted inside <code class="text-[11px] bg-teal-50 text-teal-950 font-bold px-1.5 py-0.5 rounded">exam_grader_mvp/saved_reports/</code> across restarts.</p>
             </div>
             <div class="flex items-center gap-2">
               <input type="text" id="savedReportsSearch" oninput="renderSavedReportsFiltered()" placeholder="🔍 Search student or roll no..."
-                class="text-xs font-semibold text-slate-900 px-3 py-2 rounded-xl border border-purple-200 bg-purple-50/40 focus:bg-white focus:border-purple-600 focus:outline-hidden w-52" />
+                class="text-xs font-semibold text-slate-900 px-3 py-2 rounded-xl border border-teal-200 bg-teal-50/40 focus:bg-white focus:border-teal-600 focus:outline-hidden w-52" />
               <button type="button" onclick="loadSavedReportsList()"
-                class="px-3.5 py-2 rounded-xl bg-purple-100 hover:bg-purple-200 text-purple-950 font-extrabold text-xs cursor-pointer">
+                class="px-3.5 py-2 rounded-xl bg-teal-100 hover:bg-teal-200 text-teal-950 font-extrabold text-xs cursor-pointer">
                 🔄 Refresh
               </button>
             </div>
@@ -943,8 +949,8 @@
         const navBtn = document.getElementById(`navBtn_${p}`);
         if (navBtn) {
           navBtn.className = (p === currentPage)
-            ? "sidebar-nav-btn w-full flex items-center justify-between gap-2 px-3 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer bg-gradient-to-r from-violet-600 to-purple-500 text-white shadow-md shadow-purple-950/40 ring-1 ring-purple-300/35"
-            : "sidebar-nav-btn w-full flex items-center justify-between gap-2 px-3 py-2.5 rounded-xl text-xs font-semibold text-purple-100/85 hover:bg-white/10 hover:text-white transition cursor-pointer";
+            ? "sidebar-nav-btn w-full flex items-center justify-between gap-2 px-3 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer bg-gradient-to-r from-sky-600 via-teal-600 to-emerald-500 text-white shadow-md shadow-teal-950/40 ring-1 ring-teal-300/40"
+            : "sidebar-nav-btn w-full flex items-center justify-between gap-2 px-3 py-2.5 rounded-xl text-xs font-semibold text-teal-100/85 hover:bg-white/10 hover:text-white transition cursor-pointer";
         }
       });
 
@@ -1068,16 +1074,16 @@
 
       let tierName = 'Balanced';
       let desc = 'Standard board/university evaluation—checks key terms, steps, and diagram labels fairly.';
-      let badgeClass = 'bg-purple-100 text-purple-900 border-purple-300';
+      let badgeClass = 'bg-teal-100 text-teal-900 border-teal-300';
 
       const btnLenient = document.getElementById('strictBtnLenient');
       const btnBalanced = document.getElementById('strictBtnBalanced');
       const btnStrict = document.getElementById('strictBtnStrict');
 
       if (btnLenient && btnBalanced && btnStrict) {
-        btnLenient.className = "px-2.5 py-1 rounded-lg border border-purple-200 bg-white hover:bg-emerald-50 font-bold text-slate-800 transition cursor-pointer";
-        btnBalanced.className = "px-2.5 py-1 rounded-lg border border-purple-200 bg-white hover:bg-purple-50 font-bold text-slate-800 transition cursor-pointer";
-        btnStrict.className = "px-2.5 py-1 rounded-lg border border-purple-200 bg-white hover:bg-rose-50 font-bold text-slate-800 transition cursor-pointer";
+        btnLenient.className = "px-2.5 py-1 rounded-lg border border-teal-200 bg-white hover:bg-emerald-50 font-bold text-slate-800 transition cursor-pointer";
+        btnBalanced.className = "px-2.5 py-1 rounded-lg border border-teal-200 bg-white hover:bg-teal-50 font-bold text-slate-800 transition cursor-pointer";
+        btnStrict.className = "px-2.5 py-1 rounded-lg border border-teal-200 bg-white hover:bg-rose-50 font-bold text-slate-800 transition cursor-pointer";
       }
 
       if (lvl <= 3) {
@@ -1088,8 +1094,8 @@
       } else if (lvl <= 7) {
         tierName = 'Balanced';
         desc = 'Standard board/university evaluation—checks key terms, steps, and diagram labels fairly.';
-        badgeClass = 'bg-purple-100 text-purple-950 border-purple-300';
-        if (btnBalanced) btnBalanced.className = "px-2.5 py-1 rounded-lg border-2 border-purple-600 bg-purple-100 font-extrabold text-purple-950 transition cursor-pointer";
+        badgeClass = 'bg-teal-100 text-teal-950 border-teal-300';
+        if (btnBalanced) btnBalanced.className = "px-2.5 py-1 rounded-lg border-2 border-teal-600 bg-teal-100 font-extrabold text-teal-950 transition cursor-pointer";
       } else {
         tierName = 'Strict';
         desc = 'Strict keyword & exact formula/step verification with penalties for missing labels or incomplete steps.';
@@ -1153,7 +1159,7 @@
         }
       } else {
         if (pill) {
-          pill.className = "text-[10px] font-extrabold px-2.5 py-1 rounded-full bg-purple-950/10 text-purple-950 border border-purple-300/60 shrink-0";
+          pill.className = "text-[10px] font-extrabold px-2.5 py-1 rounded-full bg-teal-950/10 text-teal-950 border border-teal-300/60 shrink-0";
           pill.textContent = "Optional";
         }
         if (note) {
@@ -1296,14 +1302,14 @@
           const file = input.files[i];
           const isPdf = file.name.toLowerCase().endsWith('.pdf') || file.type === 'application/pdf';
           const div = document.createElement('div');
-          div.className = "flex items-center gap-2.5 p-2 bg-violet-50/50 border border-violet-200 rounded-xl text-xs";
+          div.className = "flex items-center gap-2.5 p-2 bg-teal-50/60 border border-teal-200 rounded-xl text-xs";
           div.innerHTML = `
-            <div class="w-8 h-8 flex items-center justify-center ${isPdf ? 'bg-rose-600' : 'bg-violet-600'} text-white rounded-lg text-[11px] font-bold shrink-0">
+            <div class="w-8 h-8 flex items-center justify-center ${isPdf ? 'bg-rose-600' : 'bg-teal-700'} text-white rounded-lg text-[11px] font-bold shrink-0">
               ${isPdf ? 'PDF' : `P${i + 1}`}
             </div>
             <div class="flex-1 truncate">
               <span class="font-bold text-slate-800 block truncate">${escapeHtmlSafe(file.name)}</span>
-              <span class="text-[10px] text-violet-700">${(file.size / 1024).toFixed(1)} KB • ${isPdf ? 'PDF' : 'Image'}</span>
+              <span class="text-[10px] text-teal-800">${(file.size / 1024).toFixed(1)} KB • ${isPdf ? 'PDF' : 'Image'}</span>
             </div>
             <span class="text-emerald-700 font-bold text-[10px] bg-emerald-50 px-2 py-0.5 rounded">Ready</span>
           `;
@@ -1359,11 +1365,11 @@
 
       const stThumb = document.getElementById('studentThumbnails');
       stThumb.innerHTML = `
-        <div class="flex items-center gap-2.5 p-2 bg-violet-50/50 border border-violet-200 rounded-xl text-xs">
+        <div class="flex items-center gap-2.5 p-2 bg-teal-50/60 border border-teal-200 rounded-xl text-xs">
           <span class="text-base">✍️</span>
           <div class="flex-1 truncate">
             <span class="font-bold text-slate-800 block">Sample_Photosynthesis_Student.jpg</span>
-            <span class="text-[10px] text-violet-700">Handwritten Answer + Leaf Diagram</span>
+            <span class="text-[10px] text-teal-800">Handwritten Answer + Leaf Diagram</span>
           </div>
           <span class="text-[10px] font-bold text-emerald-700 bg-white px-2 py-0.5 rounded">Ready</span>
         </div>
@@ -1633,10 +1639,10 @@
       const allBtn = document.getElementById('filterAllQuestionsBtn');
       if (pageBtn && allBtn) {
         if (filterByCurrentPage) {
-          pageBtn.className = "px-2 py-0.5 rounded-md bg-purple-700 text-white shadow-2xs cursor-pointer transition";
+          pageBtn.className = "px-2 py-0.5 rounded-md bg-teal-700 text-white shadow-2xs cursor-pointer transition";
           allBtn.className = "px-2 py-0.5 rounded-md text-slate-800 hover:text-slate-950 cursor-pointer transition";
         } else {
-          allBtn.className = "px-2 py-0.5 rounded-md bg-purple-700 text-white shadow-2xs cursor-pointer transition";
+          allBtn.className = "px-2 py-0.5 rounded-md bg-teal-700 text-white shadow-2xs cursor-pointer transition";
           pageBtn.className = "px-2 py-0.5 rounded-md text-slate-800 hover:text-slate-950 cursor-pointer transition";
         }
       }
@@ -1668,8 +1674,8 @@
         const pageQs = getQuestionsForPageNumber(p.page_number).map(item => formatDisplayQuestionId(item.res.question_id));
         const qSuffix = pageQs.length > 0 ? ` (${pageQs.slice(0, 2).join(',')}${pageQs.length > 2 ? '+' : ''})` : '';
         btn.className = isActive
-          ? "px-2.5 py-0.5 rounded-md text-[11px] font-extrabold bg-gradient-to-r from-purple-800 to-violet-600 text-white shrink-0 cursor-pointer shadow-2xs"
-          : "px-2 py-0.5 rounded-md text-[11px] font-bold bg-purple-100/70 text-purple-950 hover:bg-purple-200 shrink-0 cursor-pointer";
+          ? "px-2.5 py-0.5 rounded-md text-[11px] font-extrabold bg-gradient-to-r from-teal-800 to-emerald-600 text-white shrink-0 cursor-pointer shadow-2xs"
+          : "px-2 py-0.5 rounded-md text-[11px] font-bold bg-teal-100/70 text-teal-950 hover:bg-teal-200 shrink-0 cursor-pointer";
         btn.textContent = `P${p.page_number}${qSuffix}`;
         tabsContainer.appendChild(btn);
       });
@@ -1898,9 +1904,9 @@
                 else if (st === 'Missed') statusBadge = `<span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-100 text-rose-800 border border-rose-200 shrink-0">✗ Missed</span>`;
               }
               return `
-                <div class="flex items-start justify-between gap-2.5 px-3 py-2 rounded-xl bg-white border border-purple-200/80 shadow-2xs">
+                <div class="flex items-start justify-between gap-2.5 px-3 py-2 rounded-xl bg-white border border-teal-200/80 shadow-2xs">
                   <div class="flex items-start gap-2 min-w-0">
-                    <span class="px-1.5 py-0.5 rounded-md bg-purple-950 text-purple-100 font-extrabold text-[11px] mono-font shrink-0">(${escapeHtmlSafe(tok)})</span>
+                    <span class="px-1.5 py-0.5 rounded-md bg-teal-950 text-teal-100 font-extrabold text-[11px] mono-font shrink-0">(${escapeHtmlSafe(tok)})</span>
                     <span class="text-xs sm:text-sm font-semibold text-slate-950 leading-snug break-words">${escapeHtmlSafe(val)}</span>
                   </div>
                   ${statusBadge}
@@ -1910,7 +1916,7 @@
           </div>
         `;
       }
-      return `<div class="rounded-xl bg-white border border-purple-200/80 px-3.5 py-2.5 text-xs sm:text-sm text-slate-950 font-semibold leading-relaxed whitespace-pre-line shadow-2xs">${escapeHtmlSafe(text)}</div>`;
+      return `<div class="rounded-xl bg-white border border-teal-200/80 px-3.5 py-2.5 text-xs sm:text-sm text-slate-950 font-semibold leading-relaxed whitespace-pre-line shadow-2xs">${escapeHtmlSafe(text)}</div>`;
     }
 
     function formatDisplayStudentAnswer(rawText, qType) {
@@ -1923,7 +1929,7 @@
 
     function getQuestionTypeBadge(type) {
       switch (type) {
-        case 'mcq': return `<span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 border border-purple-200">MCQ</span>`;
+        case 'mcq': return `<span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-teal-50 text-teal-700 border border-teal-200">MCQ</span>`;
         case 'fill_blank': return `<span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">Fill Blanks</span>`;
         case 'one_word': return `<span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-teal-50 text-teal-700 border border-teal-200">Objective</span>`;
         case 'long_answer': return `<span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-50 text-rose-700 border border-rose-200">Long Answer</span>`;
@@ -2053,9 +2059,9 @@
 
       const allActive = activePartFilter === 'all' && !filterByCurrentPage;
       let html = `
-        <span class="text-[10px] font-black uppercase tracking-wider text-purple-900 mr-0.5">Parts:</span>
+        <span class="text-[10px] font-black uppercase tracking-wider text-teal-900 mr-0.5">Parts:</span>
         <button type="button" onclick="selectPartFilter('all')"
-          class="px-2.5 py-0.5 rounded-lg text-[11px] font-extrabold transition cursor-pointer ${allActive ? 'bg-purple-950 text-white shadow-2xs' : 'bg-purple-100/80 hover:bg-purple-200/80 text-purple-950'}">
+          class="px-2.5 py-0.5 rounded-lg text-[11px] font-extrabold transition cursor-pointer ${allActive ? 'bg-teal-950 text-white shadow-2xs' : 'bg-teal-100/80 hover:bg-teal-200/80 text-teal-950'}">
           All Parts (${Number(totAw).toFixed(1)}/${Number(totMx).toFixed(0)})
         </button>
       `;
@@ -2064,8 +2070,8 @@
         const isAct = activePartFilter === p.key && !filterByCurrentPage;
         html += `
           <button type="button" onclick="selectPartFilter('${escapeHtmlSafe(p.key)}')"
-            class="px-2.5 py-0.5 rounded-lg text-[11px] font-extrabold transition cursor-pointer border ${isAct ? 'bg-gradient-to-r from-purple-700 to-violet-600 text-white border-purple-700 shadow-2xs' : 'bg-white hover:bg-purple-50 text-slate-900 border-purple-200'}">
-            ${escapeHtmlSafe(p.label)} <span class="${isAct ? 'text-purple-100' : 'text-purple-800'} font-bold">(${p.awarded.toFixed(1)}/${p.maxMarks.toFixed(0)})</span>
+            class="px-2.5 py-0.5 rounded-lg text-[11px] font-extrabold transition cursor-pointer border ${isAct ? 'bg-gradient-to-r from-teal-700 to-emerald-600 text-white border-teal-700 shadow-2xs' : 'bg-white hover:bg-teal-50 text-slate-900 border-teal-200'}">
+            ${escapeHtmlSafe(p.label)} <span class="${isAct ? 'text-teal-100' : 'text-teal-800'} font-bold">(${p.awarded.toFixed(1)}/${p.maxMarks.toFixed(0)})</span>
           </button>
         `;
       });
@@ -2250,10 +2256,10 @@
           btn.className = "px-2.5 py-0.5 rounded-lg text-[11px] font-extrabold bg-rose-50 text-rose-800 border border-rose-300 shrink-0 cursor-pointer";
           btn.textContent = `${niceId} (Skipped)`;
         } else if (isOnActivePage) {
-          btn.className = "px-2.5 py-0.5 rounded-lg text-[11px] font-extrabold bg-gradient-to-r from-purple-800 to-violet-600 text-white shadow-2xs shrink-0 cursor-pointer";
+          btn.className = "px-2.5 py-0.5 rounded-lg text-[11px] font-extrabold bg-gradient-to-r from-teal-800 to-emerald-600 text-white shadow-2xs shrink-0 cursor-pointer";
           btn.textContent = `${niceId} (${Number(res.marks_awarded).toFixed(1)}/${res.max_marks})`;
         } else {
-          btn.className = "px-2.5 py-0.5 rounded-lg text-[11px] font-bold bg-purple-100/80 text-purple-950 hover:bg-purple-200 shrink-0 cursor-pointer";
+          btn.className = "px-2.5 py-0.5 rounded-lg text-[11px] font-bold bg-teal-100/80 text-teal-950 hover:bg-teal-200 shrink-0 cursor-pointer";
           btn.textContent = `${niceId} (${Number(res.marks_awarded).toFixed(1)}/${res.max_marks})`;
         }
         bar.appendChild(btn);
@@ -2350,10 +2356,10 @@
           const secAw = secItems.reduce((s, it) => s + (it.isOptionalOmitted ? 0 : (Number(it.res.marks_awarded) || 0)), 0);
           const secMx = secItems.reduce((s, it) => s + (it.isOptionalOmitted ? 0 : (Number(it.res.max_marks) || 0)), 0);
           const banner = document.createElement('div');
-          banner.className = "flex flex-wrap items-center justify-between gap-2 px-4 py-2.5 rounded-2xl bg-gradient-to-r from-purple-950 via-purple-900 to-violet-800 text-white shadow-sm";
+          banner.className = "flex flex-wrap items-center justify-between gap-2 px-4 py-2.5 rounded-2xl bg-gradient-to-r from-teal-950 via-teal-900 to-violet-800 text-white shadow-sm";
           banner.innerHTML = `
             <span class="text-xs font-extrabold tracking-tight heading-font">${escapeHtmlSafe(sectionLabel)}</span>
-            <span class="text-[11px] font-extrabold text-purple-950 bg-purple-100 px-2.5 py-0.5 rounded-lg">Subtotal: ${secAw.toFixed(1)} / ${secMx.toFixed(0)} Marks</span>
+            <span class="text-[11px] font-extrabold text-teal-950 bg-teal-100 px-2.5 py-0.5 rounded-lg">Subtotal: ${secAw.toFixed(1)} / ${secMx.toFixed(0)} Marks</span>
           `;
           breakdownList.appendChild(banner);
         }
@@ -2398,12 +2404,12 @@
               ? 'bg-rose-50/40 border-2 border-rose-200'
               : (stepAwarded >= stepMax * 0.9
                   ? 'bg-emerald-50/35 border-[1.5px] border-emerald-200'
-                  : (isHighlightedOnCurrentPage ? 'bg-white border-2 border-purple-500 ring-2 ring-purple-200/70' : 'bg-white border-[1.5px] border-purple-200 hover:border-purple-400'));
+                  : (isHighlightedOnCurrentPage ? 'bg-white border-2 border-teal-500 ring-2 ring-teal-200/70' : 'bg-white border-[1.5px] border-teal-200 hover:border-teal-400'));
             subCard.className = `${subTint} rounded-2xl shadow-sm p-4 space-y-3 transition`;
 
             const pagePill = (pageNums.length > 0)
               ? `<button type="button" onclick="selectViewerPage(${pageNums[0] - 1}, false)"
-                   class="text-[11px] font-bold px-2 py-0.5 rounded-md bg-purple-50 hover:bg-purple-100 text-purple-950 border border-purple-200 cursor-pointer flex items-center gap-1">
+                   class="text-[11px] font-bold px-2 py-0.5 rounded-md bg-teal-50 hover:bg-teal-100 text-teal-950 border border-teal-200 cursor-pointer flex items-center gap-1">
                    <span>📄</span> <span>Page ${pageNums.join(',')}</span>
                  </button>`
               : '';
@@ -2425,13 +2431,13 @@
                 </span>
               </div>
 
-              <div class="rounded-xl bg-white border border-purple-200/80 px-3.5 py-2 text-xs text-slate-900 font-medium leading-relaxed shadow-2xs">
+              <div class="rounded-xl bg-white border border-teal-200/80 px-3.5 py-2 text-xs text-slate-900 font-medium leading-relaxed shadow-2xs">
                 <span class="font-black text-slate-950">Question:</span> ${escapeHtmlSafe(subQuestion)}
               </div>
 
               <div class="space-y-1">
                 <span class="text-[11px] font-extrabold text-slate-800 block">Student's Transcribed Answer:</span>
-                <div id="subPrettyAns_${qIdx}_${sIdx}" class="rounded-xl bg-white border border-purple-200/80 px-3.5 py-2.5 text-xs sm:text-sm font-bold ${subAttempted ? 'text-slate-950' : 'text-rose-700 italic'} shadow-2xs">
+                <div id="subPrettyAns_${qIdx}_${sIdx}" class="rounded-xl bg-white border border-teal-200/80 px-3.5 py-2.5 text-xs sm:text-sm font-bold ${subAttempted ? 'text-slate-950' : 'text-rose-700 italic'} shadow-2xs">
                   ${escapeHtmlSafe(subAttempted ? subStudentAns : 'Not Attempted (No answer written by student)')}
                 </div>
                 <div id="subEditorWrap_${qIdx}_${sIdx}" class="hidden pt-1">
@@ -2495,15 +2501,15 @@
         card.className = !isAttempted
           ? 'bg-rose-50/45 rounded-2xl border-2 border-rose-200 p-4 sm:p-5 space-y-3 shadow-sm'
           : (isHighlightedOnCurrentPage
-              ? 'bg-white rounded-2xl border-2 border-purple-500 p-4 sm:p-5 space-y-3 shadow-md ring-2 ring-purple-200/70'
+              ? 'bg-white rounded-2xl border-2 border-teal-500 p-4 sm:p-5 space-y-3 shadow-md ring-2 ring-teal-200/70'
               : (fullScore
-                  ? 'bg-emerald-50/30 rounded-2xl border-[1.5px] border-emerald-200 p-4 sm:p-5 space-y-3 shadow-sm hover:border-purple-400 transition'
-                  : 'bg-white rounded-2xl border-[1.5px] border-purple-200 p-4 sm:p-5 space-y-3 shadow-sm hover:border-purple-400 transition'));
+                  ? 'bg-emerald-50/30 rounded-2xl border-[1.5px] border-emerald-200 p-4 sm:p-5 space-y-3 shadow-sm hover:border-teal-400 transition'
+                  : 'bg-white rounded-2xl border-[1.5px] border-teal-200 p-4 sm:p-5 space-y-3 shadow-sm hover:border-teal-400 transition'));
 
         const niceQid = formatDisplayQuestionId(res.question_id);
         const pagePill = (isAttempted && pageNums.length > 0)
           ? `<button type="button" onclick="selectViewerPage(${pageNums[0] - 1}, false)"
-               class="text-[11px] font-bold px-2 py-0.5 rounded-md bg-purple-50 hover:bg-purple-100 text-purple-950 border border-purple-200 cursor-pointer flex items-center gap-1">
+               class="text-[11px] font-bold px-2 py-0.5 rounded-md bg-teal-50 hover:bg-teal-100 text-teal-950 border border-teal-200 cursor-pointer flex items-center gap-1">
                <span>📄</span> <span>Page ${pageNums.join(', ')}</span>
              </button>`
           : '';
@@ -2515,7 +2521,7 @@
         const origAw = qIdx >= 0 ? getOrigQuestionAwarded(qIdx, res.marks_awarded) : 0;
 
         const headerHtml = `
-          <div class="flex flex-wrap items-center justify-between gap-2 border-b border-purple-100 pb-2.5">
+          <div class="flex flex-wrap items-center justify-between gap-2 border-b border-teal-100 pb-2.5">
             <div class="flex flex-wrap items-center gap-2">
               <span class="font-black text-sm text-slate-950 heading-font">${escapeHtmlSafe(niceQid)}</span>
               <span class="text-[11px] font-bold text-slate-600">[Max: ${Number(res.max_marks).toFixed(res.max_marks % 1 === 0 ? 0 : 2)} marks]</span>
@@ -2528,7 +2534,7 @@
         `;
 
         const questionAskedHtml = `
-          <div class="rounded-xl bg-white border border-purple-200/80 px-3.5 py-2 text-xs text-slate-900 font-medium leading-relaxed shadow-2xs">
+          <div class="rounded-xl bg-white border border-teal-200/80 px-3.5 py-2 text-xs text-slate-900 font-medium leading-relaxed shadow-2xs">
             <span class="font-black text-slate-950">Question:</span> ${escapeHtmlSafe(res.question_text || `Question ${niceQid} from Question Paper`)}
           </div>
         `;
@@ -2609,7 +2615,7 @@
               <textarea id="qOcrInput_${qIdx}" rows="4"
                 oninput="onQuestionOcrTextChanged(${qIdx}, this.value)"
                 placeholder="Edit transcribed answer text..."
-                class="w-full text-xs sm:text-sm p-3 bg-white rounded-xl border border-purple-300 focus:border-purple-600 text-slate-950 font-medium leading-relaxed">${escapeHtmlSafe(formattedOcrValue)}</textarea>
+                class="w-full text-xs sm:text-sm p-3 bg-white rounded-xl border border-teal-300 focus:border-teal-600 text-slate-950 font-medium leading-relaxed">${escapeHtmlSafe(formattedOcrValue)}</textarea>
             </div>
           </div>
 
@@ -2617,53 +2623,53 @@
           ${diagramHtml}
 
           ${res.model_answer ? `
-            <details class="text-xs rounded-xl bg-purple-50/70 border border-purple-200 px-3.5 py-2.5">
-              <summary class="cursor-pointer font-extrabold text-purple-950 select-none flex items-center justify-between">
+            <details class="text-xs rounded-xl bg-teal-50/70 border border-teal-200 px-3.5 py-2.5">
+              <summary class="cursor-pointer font-extrabold text-teal-950 select-none flex items-center justify-between">
                 <span>✅ Expected / Model Answer (${expectedAnswerOrigin})</span>
-                <span class="text-[10px] font-bold text-purple-700">Click to compare ▾</span>
+                <span class="text-[10px] font-bold text-teal-700">Click to compare ▾</span>
               </summary>
-              <div class="mt-2 pt-2 border-t border-purple-200">${renderAnswerContentHtml(res.model_answer, res.question_type, [], false)}</div>
+              <div class="mt-2 pt-2 border-t border-teal-200">${renderAnswerContentHtml(res.model_answer, res.question_type, [], false)}</div>
             </details>
           ` : ''}
 
-          <div class="rounded-xl bg-purple-50/50 border border-purple-200/80 px-3.5 py-2.5 text-xs space-y-1">
-            <span class="font-extrabold text-purple-900 flex items-center gap-1"><span>✨</span> <span>AI Feedback:</span></span>
+          <div class="rounded-xl bg-teal-50/50 border border-teal-200/80 px-3.5 py-2.5 text-xs space-y-1">
+            <span class="font-extrabold text-teal-900 flex items-center gap-1"><span>✨</span> <span>AI Feedback:</span></span>
             <p id="qFeedbackDisplay_${qIdx}" class="text-slate-900 font-medium leading-relaxed">${escapeHtmlSafe(res.student_feedback || '')}</p>
             <div id="qCommentWrap_${qIdx}" class="hidden pt-1">
               <textarea rows="2"
                 oninput="currentGradingReport.question_results[${qIdx}].student_feedback = this.value; document.getElementById('qFeedbackDisplay_${qIdx}').textContent = this.value;"
-                class="w-full text-xs p-2 bg-white rounded-lg border border-purple-300 text-slate-950">${escapeHtmlSafe(res.student_feedback || '')}</textarea>
+                class="w-full text-xs p-2 bg-white rounded-lg border border-teal-300 text-slate-950">${escapeHtmlSafe(res.student_feedback || '')}</textarea>
             </div>
           </div>
 
-          <div class="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-purple-100">
+          <div class="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-teal-100">
             <div class="flex items-center gap-2">
               <span class="text-xs font-extrabold text-slate-900">Marks:</span>
-              <div class="inline-flex items-center rounded-lg border border-purple-300 bg-white overflow-hidden shadow-2xs">
+              <div class="inline-flex items-center rounded-lg border border-teal-300 bg-white overflow-hidden shadow-2xs">
                 <button type="button" onclick="stepQuestionMarks(${qIdx}, -0.5)"
-                  class="px-2.5 py-1 text-xs font-black text-slate-800 hover:bg-purple-50 cursor-pointer border-r border-purple-200">−</button>
+                  class="px-2.5 py-1 text-xs font-black text-slate-800 hover:bg-teal-50 cursor-pointer border-r border-teal-200">−</button>
                 <input type="number" id="qMarksInput_${qIdx}" min="0" max="${res.max_marks}" step="0.25"
                   value="${Number(res.marks_awarded) % 1 === 0 ? Number(res.marks_awarded).toFixed(0) : Number(res.marks_awarded).toFixed(2)}"
                   oninput="onQuestionMarksChanged(${qIdx}, this.value)"
                   class="w-14 text-center text-xs font-black text-slate-950 py-1 focus:outline-hidden mono-font" />
                 <button type="button" onclick="stepQuestionMarks(${qIdx}, 0.5)"
-                  class="px-2.5 py-1 text-xs font-black text-slate-800 hover:bg-purple-50 cursor-pointer border-l border-purple-200">+</button>
+                  class="px-2.5 py-1 text-xs font-black text-slate-800 hover:bg-teal-50 cursor-pointer border-l border-teal-200">+</button>
               </div>
               <span class="text-xs font-bold text-slate-700">/ ${Number(res.max_marks).toFixed(res.max_marks % 1 === 0 ? 0 : 2)}</span>
-              <span class="text-[11px] font-bold px-2 py-0.5 rounded bg-purple-100/80 text-purple-950">AI: ${origAw % 1 === 0 ? origAw.toFixed(0) : origAw.toFixed(2)}</span>
+              <span class="text-[11px] font-bold px-2 py-0.5 rounded bg-teal-100/80 text-teal-950">AI: ${origAw % 1 === 0 ? origAw.toFixed(0) : origAw.toFixed(2)}</span>
             </div>
 
             <div class="flex items-center gap-1.5">
               <button type="button" id="toggleOcrEditBtn_${qIdx}" onclick="toggleOcrEditor(${qIdx})"
-                class="px-2.5 py-1 rounded-lg border border-purple-200 bg-white hover:bg-purple-50 text-slate-900 text-[11px] font-bold transition cursor-pointer">
+                class="px-2.5 py-1 rounded-lg border border-teal-200 bg-white hover:bg-teal-50 text-slate-900 text-[11px] font-bold transition cursor-pointer">
                 ✏️ Edit
               </button>
               <button type="button" onclick="toggleCommentEditor(${qIdx})"
-                class="px-2.5 py-1 rounded-lg border border-purple-200 bg-white hover:bg-purple-50 text-slate-900 text-[11px] font-bold transition cursor-pointer">
+                class="px-2.5 py-1 rounded-lg border border-teal-200 bg-white hover:bg-teal-50 text-slate-900 text-[11px] font-bold transition cursor-pointer">
                 💬 Comment
               </button>
               <button type="button" id="regradeBtn_${qIdx}" onclick="regradeSingleQuestion(${qIdx})"
-                class="px-2.5 py-1 rounded-lg border border-purple-300 bg-purple-50 hover:bg-purple-100 text-purple-950 text-[11px] font-extrabold transition cursor-pointer">
+                class="px-2.5 py-1 rounded-lg border border-teal-300 bg-teal-50 hover:bg-teal-100 text-teal-950 text-[11px] font-extrabold transition cursor-pointer">
                 🔄 Re-evaluate
               </button>
             </div>
