@@ -100,7 +100,7 @@ def build_fast_gemini_config(model_name: str, response_schema: Any = None) -> An
         kwargs["response_schema"] = response_schema
 
     lower_m = (model_name or "").lower()
-    if "3.5-flash-lite" in lower_m:
+    if "3.5-flash-lite" in lower_m or "3.1-flash-lite" in lower_m:
         kwargs["thinking_config"] = types.ThinkingConfig(thinking_level="MINIMAL")
 
     return types.GenerateContentConfig(**kwargs)
@@ -184,7 +184,7 @@ class SegmentationConfig:
     target_max_width: int = 1600
 
     # Denoising & Adaptive Thresholding
-    bilateral_d: int = 7
+    bilateral_d: int = 5
     bilateral_sigma_color: float = 50.0
     bilateral_sigma_space: float = 50.0
     adaptive_block_size: int = 31

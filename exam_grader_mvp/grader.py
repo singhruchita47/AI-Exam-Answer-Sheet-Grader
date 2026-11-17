@@ -1365,7 +1365,7 @@ class ExamGrader:
             "1. For OBJECTIVE questions / 6-item objective blocks ((i)..(vi), (1)..(6)): check each sub-item directly against the student's sub-answer. Award full marks ('Hit') for each factually correct sub-item (including valid examples like 'Kanha National Park Kisli' for 'Name of any valid national park in MP', and minor OCR typos like 'Federa' for 'Federal').\n"
             "2. For '[OR]' internal choices: award full credit if the student accurately answered EITHER option.\n"
             f"3. For SUBJECTIVE questions (Short/Long Answer): evaluate according to Global Strictness Level ({lvl}/10).\n"
-            "4. Keep notes and student_feedback concise (1 sentence). If any answer or sub-item is WRONG (0 marks despite an attempt), start its notes / student_feedback with 'Wrong — <short 1-line reason WHY it is wrong vs expected answer>'.\n"
+            "4. Keep `notes` very short (<= 10 words) and `student_feedback` concise (1 sentence <= 18 words). If any answer/sub-item is WRONG (0 marks despite attempt), start notes / student_feedback with 'Wrong — <brief reason vs expected answer>'.\n"
             "Return strict JSON with a result for every question_id below:\n"
         ]
 
@@ -1584,6 +1584,7 @@ class ExamGrader:
             else None
         )
 
+        batch_grades: dict[str, LLMGradeOutput] = {}
         try:
             for question in effective_questions:
                 qid = question.question_id
@@ -1651,57 +1652,86 @@ class ExamGrader:
                     [question, student_answer, overall_sim, kp_sims, diagram_path, diagram_eval, q_pages]
                 )
 
-            if diag_futures:
-                for entry in prepared_items:
-                    q = entry[0]
-                    if q.question_id in diag_futures:
-                        fut, is_fullpage_fallback, dpath, qobj = diag_futures[q.question_id]
+            # Split non-diagram items vs diagram items so text grading overlaps completely with diagram vision calls
+            non_diag_items: list[tuple[RubricQuestion, str, float, dict[str, float], DiagramEvaluation | None]] = []
+            diag_dep_qids: set[str] = set(diag_futures.keys())
+            if not self.offline and self.api_key:
+                for q, ans, osim, ksims, _, deval, _ in prepared_items:
+                    if q.question_id not in diag_dep_qids and (ans.strip() or deval is not None):
+                        non_diag_items.append((q, ans, osim, ksims, deval))
+
+            grade_pool: ThreadPoolExecutor | None = (
+                ThreadPoolExecutor(max_workers=6) if non_diag_items else None
+            )
+            non_diag_futures: list[Any] = []
+            try:
+                if grade_pool is not None and non_diag_items:
+                    if len(non_diag_items) == 1:
+                        q1, ans1, osim1, ksims1, deval1 = non_diag_items[0]
+                        non_diag_futures.append(
+                            ("single", q1.question_id, grade_pool.submit(self._grade_with_gemini, q1, ans1, osim1, ksims1, deval1, lvl))
+                        )
+                    else:
+                        chunk_size = 3
+                        for i in range(0, len(non_diag_items), chunk_size):
+                            chunk = non_diag_items[i : i + chunk_size]
+                            non_diag_futures.append(
+                                ("batch", "", grade_pool.submit(self._grade_batch_with_gemini, chunk, lvl))
+                            )
+
+                if diag_futures:
+                    for entry in prepared_items:
+                        q = entry[0]
+                        if q.question_id in diag_futures:
+                            fut, is_fullpage_fallback, dpath, qobj = diag_futures[q.question_id]
+                            try:
+                                deval = fut.result()
+                                if not is_fullpage_fallback or (deval.is_relevant and deval.structure_score >= 0.25):
+                                    entry[5] = deval
+                            except Exception as exc:
+                                if not is_fullpage_fallback:
+                                    entry[5] = self.local_vlm.evaluate_diagram(
+                                        dpath, qobj.question_text, qobj.diagram_criteria
+                                    )
+                                else:
+                                    logger.debug("Full-page Gemini diagram check skipped for %s: %s", q.question_id, exc)
+
+                # Grade remaining diagram-dependent questions concurrently while collecting non-diagram futures
+                if not self.offline and self.api_key and diag_dep_qids:
+                    diag_grade_items = [
+                        (q, ans, osim, ksims, deval)
+                        for q, ans, osim, ksims, _, deval, _ in prepared_items
+                        if q.question_id in diag_dep_qids and (ans.strip() or deval is not None)
+                    ]
+                    if len(diag_grade_items) == 1:
+                        qd, ansd, osimd, ksimsd, devald = diag_grade_items[0]
                         try:
-                            deval = fut.result()
-                            if not is_fullpage_fallback or (deval.is_relevant and deval.structure_score >= 0.25):
-                                entry[5] = deval
+                            batch_grades[qd.question_id] = self._grade_with_gemini(
+                                qd, ansd, osimd, ksimsd, devald, strictness_level=lvl
+                            )
                         except Exception as exc:
-                            if not is_fullpage_fallback:
-                                entry[5] = self.local_vlm.evaluate_diagram(
-                                    dpath, qobj.question_text, qobj.diagram_criteria
-                                )
-                            else:
-                                logger.debug("Full-page Gemini diagram check skipped for %s: %s", q.question_id, exc)
+                            logger.warning("Gemini single diagram grading fallback for %s: %s", qd.question_id, exc)
+                    elif diag_grade_items:
+                        try:
+                            batch_grades.update(self._grade_batch_with_gemini(diag_grade_items, lvl))
+                        except Exception as exc:
+                            logger.warning("Gemini diagram batch grading fallback: %s", exc)
+
+                for kind, qid_tag, gf in non_diag_futures:
+                    try:
+                        res_obj = gf.result()
+                        if kind == "single":
+                            batch_grades[qid_tag] = res_obj
+                        else:
+                            batch_grades.update(res_obj)
+                    except Exception as exc:
+                        logger.warning("Gemini parallel grading fallback triggered: %s", exc)
+            finally:
+                if grade_pool is not None:
+                    grade_pool.shutdown(wait=False)
         finally:
             if diag_pool is not None:
                 diag_pool.shutdown(wait=False)
-
-        batch_grades: dict[str, LLMGradeOutput] = {}
-        if not self.offline and self.api_key:
-            to_grade_online = [
-                (q, ans, osim, ksims, deval)
-                for q, ans, osim, ksims, _, deval, _ in prepared_items
-                if ans.strip() or deval is not None
-            ]
-            if len(to_grade_online) == 1:
-                q, ans, osim, ksims, deval = to_grade_online[0]
-                try:
-                    batch_grades[q.question_id] = self._grade_with_gemini(
-                        q, ans, osim, ksims, deval, strictness_level=lvl
-                    )
-                except Exception as exc:
-                    logger.warning("Gemini single grading fallback for %s: %s", q.question_id, exc)
-            elif to_grade_online:
-                chunk_size = 5
-                chunks = [
-                    to_grade_online[i : i + chunk_size]
-                    for i in range(0, len(to_grade_online), chunk_size)
-                ]
-                with ThreadPoolExecutor(max_workers=min(5, len(chunks))) as pool:
-                    futures = [
-                        pool.submit(self._grade_batch_with_gemini, chunk, lvl)
-                        for chunk in chunks
-                    ]
-                    for fut in futures:
-                        try:
-                            batch_grades.update(fut.result())
-                        except Exception as exc:
-                            logger.warning("Gemini batch grading fallback triggered: %s", exc)
 
         results: list[QuestionGradeResult] = []
         for question, student_answer, overall_sim, kp_sims, diagram_path, diagram_eval, q_pages in prepared_items:
