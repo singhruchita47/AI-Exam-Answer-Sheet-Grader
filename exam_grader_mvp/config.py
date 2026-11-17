@@ -62,13 +62,13 @@ def _mark_model_transient_cooldown(model_name: str, exc: Exception) -> None:
     """Put transient 503/504/429 models on a brief cooldown so parallel calls skip slow stalls."""
     msg = str(exc).upper()
     if any(tok in msg for tok in ("503", "UNAVAILABLE", "504", "DEADLINE_EXCEEDED", "429", "RESOURCE_EXHAUSTED")):
-        ttl = 90.0
+        ttl = 6.0
         with _COOLDOWN_LOCK:
             _MODEL_COOLDOWN_UNTIL[model_name] = time.monotonic() + ttl
 
 
 def get_gemini_client(api_key: str, timeout_ms: int = 15000) -> Any:
-    """Return a cached thread-safe Gemini Client configured for fast fail-over without retry backoff stalls."""
+    """Return a cached thread-safe Gemini Client configured for fast fail-over with robust retry on 503."""
     eff_timeout = max(10500, int(timeout_ms))
     cache_key = (api_key, eff_timeout)
     with _CLIENT_LOCK:
@@ -81,7 +81,7 @@ def get_gemini_client(api_key: str, timeout_ms: int = 15000) -> Any:
                 api_key=api_key,
                 http_options=types.HttpOptions(
                     timeout=eff_timeout,
-                    retry_options=types.HttpRetryOptions(attempts=1),
+                    retry_options=types.HttpRetryOptions(attempts=3),
                 ),
             )
             _GEMINI_CLIENT_CACHE[cache_key] = client
@@ -113,19 +113,25 @@ def generate_content_fast(
     response_schema: Any = None,
     timeout_ms: int = 14000,
 ) -> Any:
-    """Execute Gemini generate_content using adaptive cooldown routing across Flash-Lite models."""
+    """Execute Gemini generate_content using adaptive cooldown routing across Flash-Lite models with transient retry."""
     client = get_gemini_client(api_key, timeout_ms=timeout_ms)
     last_err: Exception | None = None
     for m_name in _ordered_healthy_models(models):
-        try:
-            return client.models.generate_content(
-                model=m_name,
-                contents=contents,
-                config=build_fast_gemini_config(m_name, response_schema=response_schema),
-            )
-        except Exception as exc:
-            _mark_model_transient_cooldown(m_name, exc)
-            last_err = exc
+        for attempt in range(2):
+            try:
+                return client.models.generate_content(
+                    model=m_name,
+                    contents=contents,
+                    config=build_fast_gemini_config(m_name, response_schema=response_schema),
+                )
+            except Exception as exc:
+                last_err = exc
+                msg = str(exc).upper()
+                if any(tok in msg for tok in ("503", "UNAVAILABLE", "429")) and attempt == 0:
+                    time.sleep(1.0)
+                    continue
+                _mark_model_transient_cooldown(m_name, exc)
+                break
     raise RuntimeError(f"Gemini fast generation failed across models: {last_err}")
 
 

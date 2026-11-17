@@ -1059,6 +1059,56 @@ class OCREngine:
             logger.debug("Cover metadata RapidOCR skipped: %s", exc)
         return meta
 
+    def _transcribe_single_page_gemini(
+        self,
+        image_path: str | Path,
+        page_number: int,
+        active_key: str,
+    ) -> str:
+        """Accurate single-page handwriting Vision OCR using Gemini to eliminate RapidOCR handwriting distortion."""
+        from google.genai import types
+        from config import (
+            GEMINI_FALLBACK_MODELS,
+            GEMINI_MODEL_NAME,
+            get_gemini_client,
+            _ordered_healthy_models,
+        )
+        import io
+        try:
+            pil_img = Image.open(image_path).convert("RGB")
+            if pil_img.width > 1650:
+                ratio = 1650.0 / float(pil_img.width)
+                pil_img = pil_img.resize((1650, int(round(pil_img.height * ratio))))
+            buf = io.BytesIO()
+            pil_img.save(buf, format="JPEG", quality=90, optimize=True)
+            part = types.Part.from_bytes(data=buf.getvalue(), mime_type="image/jpeg")
+
+            prompt = (
+                f"You are an expert handwriting examiner transcribing Page {page_number} of a student's handwritten English exam sheet. "
+                "Transcribe all handwritten student answers accurately into clean digital text. "
+                "Ignore printed university cover metadata. Keep all question numbering and markers: "
+                "Part-I, Q.1(A), Q.1(B), A-1, A-(i), P2_Q1:, P2_Q2:, P3_Q1:, etc. exactly as written by the student. "
+                "Return clean digital text."
+            )
+            client = get_gemini_client(active_key, timeout_ms=28000)
+            cfg = types.GenerateContentConfig(
+                temperature=0.0,
+                thinking_config=types.ThinkingConfig(thinking_level="MINIMAL"),
+            )
+            for m_name in _ordered_healthy_models([GEMINI_MODEL_NAME, *GEMINI_FALLBACK_MODELS]):
+                try:
+                    resp = client.models.generate_content(
+                        model=m_name,
+                        contents=[prompt, part],
+                        config=cfg,
+                    )
+                    return (resp.text or "").strip()
+                except Exception:
+                    continue
+        except Exception as exc:
+            logger.warning("Single page Gemini handwriting OCR failed for P%s: %s", page_number, exc)
+        return ""
+
     def _transcribe_pages_gemini(
         self,
         pages: list[PageOCRResult],
@@ -1090,7 +1140,7 @@ class OCREngine:
             subject: str = ""
             pages: list[PageItem]
 
-        batch_size = 3
+        batch_size = 2
         batches = [pages[i : i + batch_size] for i in range(0, len(pages), batch_size)]
 
         def _process_batch(batch: list[PageOCRResult]) -> tuple[dict[int, str], dict[str, str]]:
@@ -1134,7 +1184,7 @@ class OCREngine:
                     [GEMINI_MODEL_NAME, *GEMINI_FALLBACK_MODELS],
                     contents,
                     response_schema=BatchTranscript,
-                    timeout_ms=22000,
+                    timeout_ms=30000,
                 )
                 parsed = (
                     BatchTranscript.model_validate(resp.parsed)
@@ -1148,8 +1198,13 @@ class OCREngine:
                 }
                 return ({item.page_number: item.transcript.strip() for item in parsed.pages}, extracted_meta)
             except Exception as exc:
-                logger.warning("Gemini OCR batch failed: %s", exc)
-                return ({}, {"student_name": "", "roll_no": "", "subject": ""})
+                logger.warning("Gemini OCR batch failed (%s); running per-page Gemini handwriting fallback...", exc)
+                fb_map = {}
+                for p in batch:
+                    txt = self._transcribe_single_page_gemini(p.source_path, p.page_number, active_key)
+                    if txt:
+                        fb_map[p.page_number] = txt
+                return (fb_map, {"student_name": "", "roll_no": "", "subject": ""})
 
         page_map: dict[int, str] = {}
         try:
@@ -1379,7 +1434,11 @@ class OCREngine:
                             if idx_l < len(clean_lines):
                                 reg.text = clean_lines[idx_l]
                     if not p.transcript.strip() and p.text_lines:
-                        p.transcript = self._transcribe_page_rapidocr(p.source_path)
+                        active_k = get_gemini_api_key()
+                        if active_k:
+                            p.transcript = self._transcribe_single_page_gemini(p.source_path, p.page_number, active_k)
+                        if not p.transcript.strip():
+                            p.transcript = self._transcribe_page_rapidocr(p.source_path)
                 full_transcript = "\n".join(p.transcript for p in pages if p.transcript)
                 return OCRPipelineResult(
                     pages=pages,

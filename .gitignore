@@ -22,4 +22,5 @@ __pycache__/
 **/test_debug/
 **/test_debug_new/
 **/test_debug_user/
+scratch/
 *.log

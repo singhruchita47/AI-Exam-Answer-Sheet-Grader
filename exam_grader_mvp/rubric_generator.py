@@ -322,26 +322,33 @@ class RubricGenerator:
         active_key = get_gemini_api_key() or self.api_key
         if not force_offline and active_key:
             self.api_key = active_key
-            try:
-                rubric = self._generate_with_gemini(
-                    subject=subject,
-                    total_marks=total_marks,
-                    question_image_path=question_image_path,
-                    question_images=question_images,
-                    question_text=question_text,
-                    teacher_hints=teacher_hints,
-                    answer_key_image_path=answer_key_image_path,
-                    answer_key_images=answer_key_images,
-                    answer_key_text=answer_key_text,
-                )
-                normalize_and_expand_rubric_questions(rubric)
-                rubric.reference_mode = ref_mode
-                return rubric
-            except Exception as exc:
-                logger.warning(
-                    "Gemini auto-rubric generation failed (%s); falling back to local generator.",
-                    exc,
-                )
+            import time
+            for attempt in range(2):
+                try:
+                    rubric = self._generate_with_gemini(
+                        subject=subject,
+                        total_marks=total_marks,
+                        question_image_path=question_image_path,
+                        question_images=question_images,
+                        question_text=question_text,
+                        teacher_hints=teacher_hints,
+                        answer_key_image_path=answer_key_image_path,
+                        answer_key_images=answer_key_images,
+                        answer_key_text=answer_key_text,
+                    )
+                    normalize_and_expand_rubric_questions(rubric)
+                    rubric.reference_mode = ref_mode
+                    return rubric
+                except Exception as exc:
+                    logger.warning(
+                        "Gemini auto-rubric attempt %d failed (%s)",
+                        attempt + 1,
+                        exc,
+                    )
+                    if attempt == 0:
+                        time.sleep(1.5)
+                        continue
+                    logger.warning("All Gemini rubric attempts failed; falling back to local generator.")
 
         rubric = self._generate_local(
             subject=subject,
@@ -475,7 +482,7 @@ class RubricGenerator:
             [GEMINI_MODEL_NAME, *GEMINI_FALLBACK_MODELS],
             contents,
             response_schema=ExamRubric,
-            timeout_ms=20000,
+            timeout_ms=28000,
         )
 
         if response.parsed is not None:
