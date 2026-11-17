@@ -4,6 +4,13 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>ExamGrader AI — Minimal Assessment Workspace</title>
+  <script>
+    try {
+      if (localStorage.getItem('examGraderTheme') === 'dark') {
+        document.documentElement.classList.add('dark-mode');
+      }
+    } catch (_) {}
+  </script>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -175,6 +182,169 @@
       cursor: col-resize !important;
       user-select: none !important;
     }
+
+    /* ===================================================================== */
+    /* DARK MODE THEME (INDIGO-SLATE-TEAL OBSIDIAN PALETTE)                  */
+    /* ===================================================================== */
+    html.dark-mode body,
+    html.dark-mode .studio-canvas {
+      color: #e2e8f0 !important;
+      background:
+        radial-gradient(circle at 12% 10%, rgba(99, 102, 241, 0.14) 0%, transparent 42%),
+        radial-gradient(circle at 88% 18%, rgba(20, 184, 166, 0.12) 0%, transparent 40%),
+        linear-gradient(155deg, #070d19 0%, #0b1324 55%, #081520 100%) !important;
+    }
+    html.dark-mode .sidebar-purple-rail {
+      background: linear-gradient(185deg, #060b16 0%, #0a1428 55%, #071923 100%);
+      border-right-color: rgba(45, 212, 191, 0.22);
+    }
+    html.dark-mode #mainTopHeader {
+      background: rgba(11, 20, 38, 0.92) !important;
+      border-bottom-color: rgba(51, 65, 85, 0.85) !important;
+    }
+    html.dark-mode .hero-purple-banner {
+      background: linear-gradient(135deg, #0f1b30 0%, #11223a 58%, #0c212c 100%) !important;
+      border-color: rgba(45, 212, 191, 0.42) !important;
+      box-shadow: 0 12px 28px -14px rgba(0, 0, 0, 0.7), inset 0 1px 0 rgba(148, 163, 184, 0.12) !important;
+    }
+    html.dark-mode .upload-feature-card {
+      background: linear-gradient(180deg, #0f1b2e 0%, #0b1424 100%) !important;
+      border-color: rgba(45, 212, 191, 0.42) !important;
+      box-shadow: 0 14px 32px -12px rgba(0, 0, 0, 0.75), 0 0 0 1px rgba(99, 102, 241, 0.18) !important;
+    }
+    html.dark-mode .upload-feature-card:hover {
+      border-color: #2dd4bf !important;
+      box-shadow: 0 18px 36px -12px rgba(20, 184, 166, 0.25), 0 0 0 2px rgba(45, 212, 191, 0.22) !important;
+    }
+    html.dark-mode .upload-feature-card.card-uploaded-active {
+      border-color: #2dd4bf !important;
+      background: linear-gradient(180deg, #102036 0%, #0b1c2a 100%) !important;
+    }
+    html.dark-mode .bg-white,
+    html.dark-mode [class*="bg-white/"],
+    html.dark-mode .eval-modal-panel {
+      background-color: #0f1b2e !important;
+      color: #f1f5f9;
+    }
+    html.dark-mode [class*="from-indigo-50"],
+    html.dark-mode [class*="from-teal-50"],
+    html.dark-mode [class*="from-slate-100"],
+    html.dark-mode [class*="from-slate-50"] {
+      background-image: linear-gradient(135deg, rgba(19, 34, 60, 0.96), rgba(15, 30, 50, 0.9)) !important;
+    }
+    html.dark-mode .bg-slate-50,
+    html.dark-mode [class*="bg-slate-50/"],
+    html.dark-mode .bg-slate-100,
+    html.dark-mode [class*="bg-slate-100/"],
+    html.dark-mode .bg-indigo-50,
+    html.dark-mode [class*="bg-indigo-50/"],
+    html.dark-mode .bg-sky-50,
+    html.dark-mode [class*="bg-sky-50/"],
+    html.dark-mode .bg-teal-50,
+    html.dark-mode [class*="bg-teal-50/"],
+    html.dark-mode .bg-teal-100,
+    html.dark-mode [class*="bg-teal-100/"] {
+      background-color: rgba(19, 35, 58, 0.88) !important;
+    }
+    html.dark-mode .bg-emerald-50,
+    html.dark-mode [class*="bg-emerald-50/"],
+    html.dark-mode .bg-emerald-100,
+    html.dark-mode .badge-hit {
+      background-color: rgba(6, 78, 59, 0.45) !important;
+      border-color: rgba(16, 185, 129, 0.5) !important;
+      color: #a7f3d0 !important;
+    }
+    html.dark-mode .bg-rose-50,
+    html.dark-mode [class*="bg-rose-50/"],
+    html.dark-mode .bg-rose-100,
+    html.dark-mode .badge-missed {
+      background-color: rgba(127, 29, 29, 0.42) !important;
+      border-color: rgba(244, 63, 94, 0.5) !important;
+      color: #fecdd3 !important;
+    }
+    html.dark-mode .bg-amber-50,
+    html.dark-mode [class*="bg-amber-50/"],
+    html.dark-mode .bg-amber-100,
+    html.dark-mode .badge-partial {
+      background-color: rgba(120, 53, 15, 0.42) !important;
+      border-color: rgba(245, 158, 11, 0.5) !important;
+      color: #fde68a !important;
+    }
+    html.dark-mode [class*="border-slate-"],
+    html.dark-mode [class*="border-teal-"],
+    html.dark-mode [class*="border-indigo-"],
+    html.dark-mode [class*="border-sky-"] {
+      border-color: rgba(71, 102, 138, 0.52) !important;
+    }
+    html.dark-mode .text-slate-950,
+    html.dark-mode .text-slate-900,
+    html.dark-mode .text-slate-800 {
+      color: #f1f5f9 !important;
+    }
+    html.dark-mode .text-slate-700,
+    html.dark-mode .text-slate-600 {
+      color: #cbd5e1 !important;
+    }
+    html.dark-mode .text-slate-500,
+    html.dark-mode .text-slate-400 {
+      color: #94a3b8 !important;
+    }
+    html.dark-mode .text-indigo-950,
+    html.dark-mode .text-indigo-900,
+    html.dark-mode .text-indigo-800,
+    html.dark-mode .text-indigo-700 {
+      color: #a5b4fc !important;
+    }
+    html.dark-mode .text-teal-950,
+    html.dark-mode .text-teal-900,
+    html.dark-mode .text-teal-800,
+    html.dark-mode .text-teal-700,
+    html.dark-mode .text-sky-950 {
+      color: #5eead4 !important;
+    }
+    html.dark-mode .text-emerald-950,
+    html.dark-mode .text-emerald-900,
+    html.dark-mode .text-emerald-800,
+    html.dark-mode .text-emerald-700 {
+      color: #6ee7b7 !important;
+    }
+    html.dark-mode .text-rose-950,
+    html.dark-mode .text-rose-900,
+    html.dark-mode .text-rose-800,
+    html.dark-mode .text-rose-700 {
+      color: #fda4af !important;
+    }
+    /* Keep white text intact on solid dark/accent buttons and badges */
+    html.dark-mode .text-white,
+    html.dark-mode .bg-emerald-600,
+    html.dark-mode .bg-rose-600,
+    html.dark-mode .bg-indigo-600,
+    html.dark-mode .bg-teal-600,
+    html.dark-mode .bg-teal-700,
+    html.dark-mode .bg-teal-900,
+    html.dark-mode .bg-teal-950,
+    html.dark-mode .bg-slate-900 {
+      color: #ffffff !important;
+    }
+    html.dark-mode .bg-amber-500 {
+      color: #0f172a !important;
+    }
+    html.dark-mode input,
+    html.dark-mode textarea,
+    html.dark-mode select {
+      background-color: #0b1628 !important;
+      color: #f8fafc !important;
+      border-color: rgba(94, 130, 175, 0.55) !important;
+    }
+    html.dark-mode #sheetViewport {
+      background-color: #162235 !important;
+    }
+    html.dark-mode .hero-purple-banner h2 span.bg-clip-text {
+      background-image: linear-gradient(90deg, #818cf8, #38bdf8, #2dd4bf) !important;
+    }
+    html.dark-mode .custom-scrollbar::-webkit-scrollbar-thumb {
+      background: #334155;
+    }
   </style>
 </head>
 <body class="studio-canvas text-slate-900 antialiased">
@@ -246,8 +416,14 @@
         </nav>
       </div>
 
-      <!-- Bottom Status & Quick Demo Rail -->
+      <!-- Bottom Status, Theme Toggle & Quick Demo Rail -->
       <div class="sidebar-inner-pad p-2.5 border-t border-white/10 space-y-2">
+        <button type="button" id="themeToggleSidebarBtn" onclick="toggleDarkMode()" title="Switch Light / Dark Mode"
+          class="sidebar-nav-btn w-full flex items-center gap-2 px-2.5 py-1.5 rounded-xl border border-white/15 bg-white/10 hover:bg-white/20 text-slate-100 text-xs font-bold transition cursor-pointer">
+          <span id="themeIconSidebar" class="shrink-0">🌙</span>
+          <span id="themeLabelSidebar" class="sidebar-label truncate">Dark Mode</span>
+        </button>
+
         <button type="button" onclick="loadSampleDemoSetup(); navigatePage('upload');" title="Load Sample Photosynthesis Exam"
           class="sidebar-nav-btn w-full flex items-center gap-2 px-2.5 py-1.5 rounded-xl border border-white/15 bg-white/10 hover:bg-white/15 text-slate-100 text-xs font-bold transition cursor-pointer">
           <span class="shrink-0">⚡</span>
@@ -281,6 +457,11 @@
         </div>
 
         <div class="flex items-center gap-2.5 shrink-0">
+          <button type="button" id="themeToggleHeaderBtn" onclick="toggleDarkMode()" title="Toggle Dark / Light Mode"
+            class="flex items-center gap-1.5 px-2.5 py-1 rounded-xl border border-slate-200 bg-white hover:bg-slate-100 text-slate-900 text-xs font-extrabold transition cursor-pointer shadow-2xs">
+            <span id="themeIconHeader">🌙</span>
+            <span id="themeLabelHeader">Dark</span>
+          </button>
           <div class="hidden sm:flex items-center gap-1.5 px-3 py-1 rounded-xl bg-slate-100/80 border border-slate-200 text-xs">
             <span class="text-slate-700 font-bold">Strictness:</span>
             <span id="headerStrictnessBadge" class="font-extrabold text-indigo-800">5/10 • Balanced</span>
@@ -1107,6 +1288,29 @@
     let filterByCurrentPage = false;
     let activeTopPart = 'all';
     let activePartFilter = 'all';
+
+    function applyThemeMode(mode) {
+      const isDark = mode === 'dark';
+      document.documentElement.classList.toggle('dark-mode', isDark);
+      try {
+        localStorage.setItem('examGraderTheme', isDark ? 'dark' : 'light');
+      } catch (_) {}
+
+      const icon = isDark ? '☀️' : '🌙';
+      const hIcon = document.getElementById('themeIconHeader');
+      const hLbl = document.getElementById('themeLabelHeader');
+      const sIcon = document.getElementById('themeIconSidebar');
+      const sLbl = document.getElementById('themeLabelSidebar');
+      if (hIcon) hIcon.textContent = icon;
+      if (hLbl) hLbl.textContent = isDark ? 'Light' : 'Dark';
+      if (sIcon) sIcon.textContent = icon;
+      if (sLbl) sLbl.textContent = isDark ? 'Light Mode' : 'Dark Mode';
+    }
+
+    function toggleDarkMode() {
+      const next = document.documentElement.classList.contains('dark-mode') ? 'light' : 'dark';
+      applyThemeMode(next);
+    }
 
     function escapeHtmlSafe(val) {
       return String(val ?? '')
@@ -4244,7 +4448,14 @@
       }
     });
 
-    window.addEventListener('DOMContentLoaded', init);
+    window.addEventListener('DOMContentLoaded', () => {
+      try {
+        applyThemeMode(localStorage.getItem('examGraderTheme') || 'light');
+      } catch (_) {
+        applyThemeMode('light');
+      }
+      init();
+    });
   </script>
 </body>
 </html>
