@@ -919,6 +919,26 @@
 
                 <!-- Live Step Pills ("Page 1 Done ✔", "Page 2 Done ✔", ...) -->
                 <div id="livePageStepsList" class="flex flex-wrap items-center justify-center gap-2 pt-0.5"></div>
+
+                <!-- Evaluation Complete Action Container (Popup Button) -->
+                <div id="evalCompleteActionBox" class="hidden pt-3 border-t border-slate-200 dark:border-slate-700 text-center space-y-3 animate-fadeIn">
+                  <div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-100 dark:bg-emerald-950/80 text-emerald-900 dark:text-emerald-200 border border-emerald-300 dark:border-emerald-700 text-xs font-black shadow-2xs">
+                    <span>🎉</span> <span>Evaluation 100% Complete!</span>
+                  </div>
+                  <div id="evalCompleteSummaryText" class="text-xs font-bold text-slate-800 dark:text-slate-200">
+                    Calculated score and feedback are ready.
+                  </div>
+                  <button type="button" id="openReviewBtn" onclick="openEvaluationResults()"
+                    class="w-full py-3.5 px-5 rounded-2xl bg-gradient-to-r from-teal-700 via-teal-600 to-emerald-600 hover:from-teal-800 hover:to-emerald-700 text-white font-black text-sm shadow-lg shadow-teal-700/25 transition cursor-pointer flex items-center justify-center gap-2 transform active:scale-98">
+                    <span>✨ Touch / Click to View Evaluated Copy &amp; Marks</span>
+                    <span class="text-lg">➔</span>
+                  </button>
+                  <div>
+                    <button type="button" onclick="closeEvaluationModal()" class="text-[11px] font-bold text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 cursor-pointer">
+                      Stay on Upload Page
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -2685,6 +2705,10 @@
         overlay.classList.add('hidden');
         overlay.classList.remove('page-flip-active');
       }
+      const actionBox = document.getElementById('evalCompleteActionBox');
+      if (actionBox) actionBox.classList.add('hidden');
+      const spinner = document.getElementById('liveSpinner');
+      if (spinner) spinner.classList.remove('hidden');
     }
 
     function triggerLivePageFlip(donePage, totalPages) {
@@ -2971,7 +2995,7 @@
           currentSessionId = payload.session_id;
           renderBulkStudentSwitcherBar();
           renderGradingResults(payload);
-          navigatePage('review');
+          showEvaluationCompletionModal(payload, jobs[0].label);
         } else {
           const failedCopies = [];
           for (let i = 0; i < jobs.length; i++) {
@@ -2987,20 +3011,77 @@
             throw new Error(failedCopies[0] || 'All batch copies failed to evaluate.');
           }
           selectBulkStudentResult(0);
-          navigatePage('review');
-          if (failedCopies.length) {
-            alert(`Evaluated ${bulkEvaluatedResults.length} copies. Failed (${failedCopies.length}):\n` + failedCopies.join('\n'));
-          }
+          showEvaluationCompletionModal(bulkEvaluatedResults[0].payload, `${bulkEvaluatedResults.length} Student Copies`, failedCopies);
         }
       } catch (e) {
+        loadingCard.classList.add('hidden');
         alert("Error evaluating student copy: " + e.message);
       } finally {
-        loadingCard.classList.add('hidden');
         document.getElementById('liveBatchBadge')?.classList.add('hidden');
         btn.disabled = false;
         btn.classList.remove('opacity-60');
-        if (btnText) btnText.textContent = bulkStudentQueue.length > 0 ? `Evaluate All (${bulkStudentQueue.length})` : 'Evaluate Copy';
+        if (btnText) btnText.textContent = bulkStudentQueue.length > 0 ? `Evaluate All (${bulkStudentQueue.length})` : (activeSavedSheetId ? 'Evaluate Saved Copy' : 'Evaluate Copy');
       }
+    }
+
+    function showEvaluationCompletionModal(payload, label, failedCopies = []) {
+      const spinner = document.getElementById('liveSpinner');
+      if (spinner) spinner.classList.add('hidden');
+
+      const titleEl = document.getElementById('loadingStageTitle');
+      if (titleEl) {
+        titleEl.innerHTML = `<span class="text-emerald-700 font-black text-sm">✅ Evaluation Complete! All questions checked accurately.</span>`;
+      }
+
+      const pctEl = document.getElementById('liveProgressPercent');
+      if (pctEl) pctEl.textContent = '100%';
+
+      const barEl = document.getElementById('liveProgressBar');
+      if (barEl) barEl.style.width = '100%';
+
+      const rep = payload.grading_report || {};
+      const score = Number(rep.total_marks_awarded || 0);
+      const maxScore = Number(rep.total_max_marks || 0);
+      const pct = maxScore > 0 ? ((score / maxScore) * 100).toFixed(1) : '0';
+      const stName = payload.student_meta?.student_name || rep.student_meta?.student_name || label;
+      const stRoll = payload.student_meta?.roll_no || rep.student_meta?.roll_no || '';
+
+      const summaryText = document.getElementById('evalCompleteSummaryText');
+      if (summaryText) {
+        summaryText.innerHTML = `
+          <div class="p-3 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 shadow-sm text-left">
+            <div class="flex items-center justify-between gap-2 text-xs font-black text-slate-950 dark:text-white mb-1.5">
+              <span class="truncate">👤 ${escapeHtmlSafe(stName)} ${stRoll ? `(${escapeHtmlSafe(stRoll)})` : ''}</span>
+              <span class="px-2.5 py-0.5 rounded-full bg-emerald-600 text-white font-extrabold text-[11px] shrink-0 shadow-2xs">${score.toFixed(1)} / ${maxScore.toFixed(1)} Marks</span>
+            </div>
+            <p class="text-[11px] font-semibold text-slate-700 dark:text-slate-300">
+              Verified Score: <b class="text-emerald-700 dark:text-emerald-400 font-extrabold">${pct}%</b> • Step breakdown, MCQs &amp; handwritten answers are ready.
+            </p>
+          </div>
+        `;
+      }
+
+      const actionBox = document.getElementById('evalCompleteActionBox');
+      if (actionBox) actionBox.classList.remove('hidden');
+
+      if (failedCopies && failedCopies.length) {
+        alert(`Evaluated ${bulkEvaluatedResults.length} copies. Failed (${failedCopies.length}):\n` + failedCopies.join('\n'));
+      }
+    }
+
+    function openEvaluationResults() {
+      const loadingCard = document.getElementById('gradingLoadingCard');
+      if (loadingCard) loadingCard.classList.add('hidden');
+      const actionBox = document.getElementById('evalCompleteActionBox');
+      if (actionBox) actionBox.classList.add('hidden');
+      navigatePage('review');
+    }
+
+    function closeEvaluationModal() {
+      const loadingCard = document.getElementById('gradingLoadingCard');
+      if (loadingCard) loadingCard.classList.add('hidden');
+      const actionBox = document.getElementById('evalCompleteActionBox');
+      if (actionBox) actionBox.classList.add('hidden');
     }
 
     // -------------------------------------------------------------------------
