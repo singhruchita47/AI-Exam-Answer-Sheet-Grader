@@ -1467,27 +1467,62 @@
 
     function detectMaxMarksFromText(rawText) {
       const text = String(rawText || '');
-      const patterns = [
-        /(?:maximum\s*marks|max\.?\s*marks|total\s*marks|full\s*marks|m\.?\s*m\.?)\s*[:\-–=]?\s*(\d+(?:\.\d+)?)/i,
-        /(\d{2,3})\s*(?:total\s*marks|maximum\s*marks)/i,
+      const headerPatterns = [
+        /(?:maximum\s*marks|max\.?\s*marks|total\s*marks|full\s*marks|m\.?\s*m\.?)\s*[:\-–=]?\s*\(?\s*(\d+(?:\.\d+)?)\s*\)?/i,
+        /\b(\d{2,3})\s*(?:total\s*marks|maximum\s*marks|max\.?\s*marks)\b/i,
       ];
-      for (const p of patterns) {
+      for (const p of headerPatterns) {
         const m = text.match(p);
         if (m && m[1]) {
           const v = parseFloat(m[1]);
           if (v >= 1 && v <= 500) return v;
         }
       }
-      // Fallback: sum per-question mark weights such as "[5 Marks]" or "(10 Marks)"
+
+      // Check top header lines for "Marks: 30" or "(30 Marks)"
+      const topLines = text.split('\n').slice(0, 10).join('\n');
+      const topMarks = topLines.match(/(?:^|\n|\s)marks\s*[:\-–=]\s*(\d+(?:\.\d+)?)\b/i);
+      if (topMarks && topMarks[1]) {
+        const tv = parseFloat(topMarks[1]);
+        if (tv >= 5 && tv <= 500) return tv;
+      }
+
+      // Section totals like "(5x1=5)", "[4 x 4 = 16]", "(2x10=20)"
+      let secSum = 0;
+      let secHits = 0;
+      const secRe = /[\(\[]?\s*\d{1,2}\s*[xX\*×]\s*\d+(?:\.\d+)?\s*=\s*(\d+(?:\.\d+)?)\s*[\)\]]?/g;
+      let sm;
+      while ((sm = secRe.exec(text)) !== null) {
+        const sv = parseFloat(sm[1]);
+        if (sv >= 1 && sv <= 200) {
+          secSum += sv;
+          secHits++;
+        }
+      }
+      if (secHits > 0 && secSum >= 5 && secSum <= 500) {
+        return Number.isInteger(secSum) ? secSum : Number(secSum.toFixed(1));
+      }
+
+      // Fallback: sum non-OR per-question weights like "[5 Marks]" or "(10 Marks)"
       let sum = 0;
       let count = 0;
-      const qMarksRe = /(?:[\[\(]\s*(\d+(?:\.\d+)?)\s*(?:marks?|pts?)\s*[\]\)]|\b(\d+(?:\.\d+)?)\s*marks?\b)/gi;
-      let match;
-      while ((match = qMarksRe.exec(text)) !== null) {
-        const val = parseFloat(match[1] || match[2]);
-        if (val > 0 && val <= 100) {
-          sum += val;
-          count++;
+      let prevWasOr = false;
+      for (const line of text.split('\n')) {
+        if (/^\s*(?:\[\s*or\s*\]|\(\s*or\s*\)|or)\s*$/i.test(line)) {
+          prevWasOr = true;
+          continue;
+        }
+        const m = line.match(/(?:[\[\(]\s*(\d+(?:\.\d+)?)\s*(?:marks?|pts?|m)\s*[\]\)]|\b(\d+(?:\.\d+)?)\s*marks?\b)/i);
+        if (m) {
+          const val = parseFloat(m[1] || m[2]);
+          if (val > 0 && val <= 100) {
+            if (prevWasOr) {
+              prevWasOr = false;
+              continue;
+            }
+            sum += val;
+            count++;
+          }
         }
       }
       if (count > 0 && sum >= 1 && sum <= 500) {
@@ -1503,8 +1538,9 @@
       const mPill = document.getElementById('cardDetectedMarks');
       const hasPaper = hasQuestionPaperInput();
       if (sPill) {
-        sPill.textContent = hasPaper
-          ? `Subject: ${(subjEl?.value || '').trim() || 'Auto'}`
+        const sv = (subjEl?.value || '').trim();
+        sPill.textContent = hasPaper && sv && sv.toLowerCase() !== 'auto'
+          ? `Subject: ${sv}`
           : 'Subject: Auto';
       }
       if (mPill) {
@@ -1522,18 +1558,21 @@
       let combined = String(textHint || '');
       if (rubricObj) {
         const qTexts = (rubricObj.questions || []).map(q => `${q.question_text || ''} ${q.model_answer || ''}`).join(' ');
-        combined = `${rubricObj.exam_title || ''} ${combined} ${qTexts}`;
+        combined = `${rubricObj.detected_subject || ''} ${rubricObj.exam_title || ''} ${combined} ${qTexts}`;
       }
 
-      const detectedSubj = detectSubjectFromText(combined);
+      const detectedSubj = String(rubricObj?.detected_subject || '').trim() || detectSubjectFromText(combined);
       if (subjEl && !subjEl.dataset.userEdited && detectedSubj) {
         subjEl.value = detectedSubj;
       }
 
-      let detectedMarks = detectMaxMarksFromText(combined);
-      if (rubricObj && Array.isArray(rubricObj.questions) && rubricObj.questions.length > 0) {
+      // Priority: 1) Authoritative printed_max_marks from Question Paper header/schema, 2) parsed text header/sections, 3) sum of questions
+      let detectedMarks = Number(rubricObj?.printed_max_marks) > 0
+        ? Number(rubricObj.printed_max_marks)
+        : detectMaxMarksFromText(combined);
+      if ((!detectedMarks || detectedMarks <= 0) && rubricObj && Array.isArray(rubricObj.questions) && rubricObj.questions.length > 0) {
         const rawSum = rubricObj.questions.reduce((acc, q) => acc + (Number(q.max_marks) || 0), 0);
-        if (rawSum > 0) detectedMarks = detectedMarks || rawSum;
+        if (rawSum > 0) detectedMarks = rawSum;
       }
       if (marksEl && !marksEl.dataset.userEdited && detectedMarks && detectedMarks > 0) {
         marksEl.value = Number(detectedMarks) % 1 === 0 ? detectedMarks.toFixed(0) : detectedMarks.toFixed(1);
@@ -1541,7 +1580,7 @@
 
       if (rubricObj && subjEl && subjEl.value.trim()) {
         const title = String(rubricObj.exam_title || '');
-        if (!title || /^Science\s+Examination/i.test(title) && subjEl.value.trim().toLowerCase() !== 'science') {
+        if (!title || (/^Science\s+Examination/i.test(title) && subjEl.value.trim().toLowerCase() !== 'science')) {
           rubricObj.exam_title = `${subjEl.value.trim()} Examination Rubric`;
         }
       }
@@ -1551,7 +1590,7 @@
     function onQuestionTextInputChanged() {
       const qTxt = document.getElementById('questionText')?.value || '';
       applyAutoDetectedPaperMeta(qTxt, null);
-      scheduleSilentRubricPrep();
+      scheduleSilentRubricPrep(false);
     }
 
     function handleQuestionFileChange(input) {
@@ -1561,11 +1600,12 @@
         if (activePreset === 'photosynthesis') activePreset = 'custom';
         const subjEl = document.getElementById('teacherSubject');
         const marksEl = document.getElementById('teacherMarks');
-        if (subjEl) delete subjEl.dataset.userEdited;
-        if (marksEl) delete marksEl.dataset.userEdited;
+        const existingQText = document.getElementById('questionText')?.value || '';
+        if (subjEl) { delete subjEl.dataset.userEdited; if (!existingQText.trim()) subjEl.value = 'Auto'; }
+        if (marksEl) { delete marksEl.dataset.userEdited; if (!existingQText.trim()) marksEl.value = ''; }
 
         const file = input.files[0];
-        applyAutoDetectedPaperMeta(`${file.name} ${document.getElementById('questionText')?.value || ''}`, null);
+        applyAutoDetectedPaperMeta(`${file.name} ${existingQText}`, null);
 
         const isPdf = file.name.toLowerCase().endsWith('.pdf') || file.type === 'application/pdf';
         container.innerHTML = `
@@ -1579,7 +1619,7 @@
           </div>
         `;
         container.classList.remove('hidden');
-        scheduleSilentRubricPrep();
+        scheduleSilentRubricPrep(true);
       } else {
         container.classList.add('hidden');
         currentRubric = null;
@@ -1955,7 +1995,7 @@
       setSilentRubricStatus('loading', 'Preparing questions silently in background...');
       rubricDebounceTimer = setTimeout(() => {
         triggerSilentRubricPrep(false);
-      }, 950);
+      }, immediate ? 180 : 600);
     }
 
     function triggerSilentRubricPrep(immediate = false) {
@@ -1987,8 +2027,10 @@
       setSilentRubricStatus('loading', 'Extracting questions & model answers silently...');
 
       activeRubricPromise = (async () => {
-        const subject = (document.getElementById('teacherSubject')?.value || '').trim() || 'Science';
-        const marks = parseFloat(document.getElementById('teacherMarks')?.value) || 10.0;
+        const subjEl = document.getElementById('teacherSubject');
+        const marksEl = document.getElementById('teacherMarks');
+        const subject = subjEl?.dataset.userEdited ? ((subjEl.value || '').trim() || 'Science') : 'Auto';
+        const marks = marksEl?.dataset.userEdited ? (parseFloat(marksEl.value) || 0.0) : 0.0;
         const qText = (document.getElementById('questionText')?.value || '').trim();
         const akText = (document.getElementById('answerKeyText')?.value || '').trim();
         const offline = Boolean(document.getElementById('offlineMode')?.checked);
@@ -2692,13 +2734,13 @@
     }
 
     function syncStudentHeaderPill() {
-      const nameVal = (document.getElementById('reportStudentName')?.value || '').trim() || 'Student Copy';
+      const nameVal = (document.getElementById('reportStudentName')?.value || '').trim() || 'No Name';
       const rollVal = (document.getElementById('reportRollNo')?.value || '').trim();
       const nameEl = document.getElementById('resStudentHeaderName');
       const rollEl = document.getElementById('resStudentHeaderRollWrap');
       if (nameEl) nameEl.textContent = nameVal;
       if (rollEl) {
-        if (rollVal) {
+        if (rollVal && !/^no\s*roll/i.test(rollVal)) {
           rollEl.textContent = `Roll: ${rollVal}`;
           rollEl.classList.remove('hidden');
         } else {
@@ -2990,21 +3032,19 @@
       const cleanRoll = sanitizeCoverMetaClient(rawMeta.roll_no);
       const cleanSubject = sanitizeCoverMetaClient(rawMeta.subject);
 
-      const nameInput = document.getElementById('reportStudentName');
-      const rollInput = document.getElementById('reportRollNo');
-      if (uploadedStudentFilename) populateReportMetaFromFilename(uploadedStudentFilename);
-
-      if (cleanName && nameInput && !nameInput.dataset.userEdited) nameInput.value = cleanName;
-      if (cleanRoll && rollInput && !rollInput.dataset.userEdited) rollInput.value = cleanRoll;
-
-      const resolvedName = cleanName || (nameInput?.value || '').trim() || 'Student Candidate';
-      const resolvedRoll = cleanRoll || (rollInput?.value || '').trim() || '—';
+      const resolvedName = cleanName || 'No Name';
+      const resolvedRoll = cleanRoll || 'No Roll No.';
       const detectedSubjPill = (document.getElementById('teacherSubject')?.value || '').trim();
       const resolvedSubject = cleanSubject
-        || (detectedSubjPill && detectedSubjPill !== 'Science' ? detectedSubjPill : '')
+        || (detectedSubjPill && !/^(science|auto)$/i.test(detectedSubjPill) ? detectedSubjPill : '')
         || currentGradingReport?.exam_title
         || detectedSubjPill
-        || 'Assessment';
+        || 'No Subject';
+
+      const nameInput = document.getElementById('reportStudentName');
+      const rollInput = document.getElementById('reportRollNo');
+      if (nameInput && !nameInput.dataset.userEdited) nameInput.value = resolvedName;
+      if (rollInput && !rollInput.dataset.userEdited) rollInput.value = resolvedRoll;
 
       const dNameEl = document.getElementById('detectedMetaName');
       const dRollEl = document.getElementById('detectedMetaRoll');
@@ -3991,31 +4031,18 @@
 
     function populateReportMetaFromFilename(filename) {
       if (!filename) return;
-      const stem = filename.replace(/\.[^.]+$/, '').trim();
-      const parts = stem.split(/[_\-]+/).map(s => s.trim()).filter(Boolean);
-      const rollRegex = /^(?=.*\d)[A-Za-z0-9]{4,16}$/;
-      let guessedRoll = '';
-      const nameParts = [];
-
-      for (const part of parts) {
-        if (!guessedRoll && rollRegex.test(part)) guessedRoll = part.toUpperCase();
-        else if (!/^(cse|ece|it|bca|mca|btech|sem|mst|exam|answer|sheet|copy|pdf|img|page)$/i.test(part) && !/^[A-Z]$/i.test(part)) {
-          nameParts.push(part);
-        }
-      }
-
-      const guessedName = (nameParts.join(' ') || stem.replace(/[_]+/g, ' ')).trim();
       const nameInput = document.getElementById('reportStudentName');
       const rollInput = document.getElementById('reportRollNo');
-      if (nameInput && !nameInput.dataset.userEdited) nameInput.value = guessedName || 'Student Candidate';
-      if (rollInput && !rollInput.dataset.userEdited) rollInput.value = guessedRoll;
+      if (nameInput && !nameInput.dataset.userEdited) nameInput.value = 'No Name';
+      if (rollInput && !rollInput.dataset.userEdited) rollInput.value = 'No Roll No.';
     }
 
     function buildReportPayload() {
       if (!currentGradingReport) throw new Error('No graded answer sheet is currently loaded.');
       recalculateGrandTotal(false);
-      const studentName = (document.getElementById('reportStudentName')?.value || '').trim() || 'Student Candidate';
-      const rollNo = (document.getElementById('reportRollNo')?.value || '').trim();
+      const studentName = (document.getElementById('reportStudentName')?.value || '').trim() || 'No Name';
+      const rawRoll = (document.getElementById('reportRollNo')?.value || '').trim();
+      const rollNo = (!rawRoll || /^no\s*roll/i.test(rawRoll)) ? '' : rawRoll;
       const overallRemarks = (document.getElementById('reportOverallRemarks')?.value || '').trim();
       const sourceFilename = uploadedStudentFilename || (activePreset === 'photosynthesis' ? 'Sample_Photosynthesis_Student.jpg' : 'Uploaded_Answer_Sheet');
 

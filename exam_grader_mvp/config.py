@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import threading
+import time
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
@@ -24,14 +25,14 @@ TROCR_MODEL_NAME: str = os.getenv(
     "TROCR_MODEL_NAME", "microsoft/trocr-base-handwritten"
 )
 EMBEDDING_MODEL_NAME: str = os.getenv("EMBEDDING_MODEL_NAME", "all-MiniLM-L6-v2")
-GEMINI_MODEL_NAME: str = os.getenv("GEMINI_MODEL_NAME", "gemini-3.5-flash-lite")
+GEMINI_MODEL_NAME: str = os.getenv("GEMINI_MODEL_NAME", "gemini-3.1-flash-lite")
 GEMINI_FALLBACK_MODELS: tuple[str, ...] = (
-    "gemini-3.5-flash-lite",
     "gemini-3.1-flash-lite",
+    "gemini-3.5-flash-lite",
 )
 GEMINI_FAST_GRADING_MODELS: tuple[str, ...] = (
-    "gemini-3.5-flash-lite",
     "gemini-3.1-flash-lite",
+    "gemini-3.5-flash-lite",
 )
 LOCAL_VLM_MODEL_NAME: str = os.getenv(
     "LOCAL_VLM_MODEL_NAME", "Qwen/Qwen2.5-VL-7B-Instruct"
@@ -40,11 +41,36 @@ GEMINI_API_KEY: str | None = os.getenv("GEMINI_API_KEY")
 
 _CLIENT_LOCK = threading.Lock()
 _GEMINI_CLIENT_CACHE: dict[tuple[str, int], Any] = {}
+_COOLDOWN_LOCK = threading.Lock()
+_MODEL_COOLDOWN_UNTIL: dict[str, float] = {}
 
 
-def get_gemini_client(api_key: str, timeout_ms: int = 16000) -> Any:
+def _ordered_healthy_models(models: tuple[str, ...] | list[str]) -> list[str]:
+    """Return deduplicated models prioritizing healthy endpoints not currently in 503/rate cooldown."""
+    unique = list(dict.fromkeys(models))
+    now = time.monotonic()
+    with _COOLDOWN_LOCK:
+        ready = [m for m in unique if _MODEL_COOLDOWN_UNTIL.get(m, 0.0) <= now]
+        cooling = sorted(
+            [m for m in unique if m not in ready],
+            key=lambda m: _MODEL_COOLDOWN_UNTIL.get(m, 0.0),
+        )
+    return ready + cooling
+
+
+def _mark_model_transient_cooldown(model_name: str, exc: Exception) -> None:
+    """Put transient 503/504/429 models on a brief cooldown so parallel calls skip slow stalls."""
+    msg = str(exc).upper()
+    if any(tok in msg for tok in ("503", "UNAVAILABLE", "504", "DEADLINE_EXCEEDED", "429", "RESOURCE_EXHAUSTED")):
+        ttl = 90.0
+        with _COOLDOWN_LOCK:
+            _MODEL_COOLDOWN_UNTIL[model_name] = time.monotonic() + ttl
+
+
+def get_gemini_client(api_key: str, timeout_ms: int = 15000) -> Any:
     """Return a cached thread-safe Gemini Client configured for fast fail-over without retry backoff stalls."""
-    cache_key = (api_key, int(timeout_ms))
+    eff_timeout = max(10500, int(timeout_ms))
+    cache_key = (api_key, eff_timeout)
     with _CLIENT_LOCK:
         client = _GEMINI_CLIENT_CACHE.get(cache_key)
         if client is None:
@@ -54,7 +80,7 @@ def get_gemini_client(api_key: str, timeout_ms: int = 16000) -> Any:
             client = genai.Client(
                 api_key=api_key,
                 http_options=types.HttpOptions(
-                    timeout=int(timeout_ms),
+                    timeout=eff_timeout,
                     retry_options=types.HttpRetryOptions(attempts=1),
                 ),
             )
@@ -78,6 +104,29 @@ def build_fast_gemini_config(model_name: str, response_schema: Any = None) -> An
         kwargs["thinking_config"] = types.ThinkingConfig(thinking_level="MINIMAL")
 
     return types.GenerateContentConfig(**kwargs)
+
+
+def generate_content_fast(
+    api_key: str,
+    models: tuple[str, ...] | list[str],
+    contents: Any,
+    response_schema: Any = None,
+    timeout_ms: int = 14000,
+) -> Any:
+    """Execute Gemini generate_content using adaptive cooldown routing across Flash-Lite models."""
+    client = get_gemini_client(api_key, timeout_ms=timeout_ms)
+    last_err: Exception | None = None
+    for m_name in _ordered_healthy_models(models):
+        try:
+            return client.models.generate_content(
+                model=m_name,
+                contents=contents,
+                config=build_fast_gemini_config(m_name, response_schema=response_schema),
+            )
+        except Exception as exc:
+            _mark_model_transient_cooldown(m_name, exc)
+            last_err = exc
+    raise RuntimeError(f"Gemini fast generation failed across models: {last_err}")
 
 
 def _read_key_from_file(path: Path) -> str | None:

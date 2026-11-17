@@ -24,9 +24,8 @@ from config import (
     GRADING_CONFIG,
     LOCAL_VLM_MODEL_NAME,
     GradingConfig,
-    build_fast_gemini_config,
+    generate_content_fast,
     get_gemini_api_key,
-    get_gemini_client,
 )
 
 if TYPE_CHECKING:
@@ -65,6 +64,8 @@ class ExamRubric(BaseModel):
     """Top-level exam rubric loaded from JSON."""
 
     exam_title: str = "Automated Exam Grading"
+    detected_subject: str = ""
+    printed_max_marks: float = 0.0
     reference_mode: Literal["dual_reference", "auto_inferred"] = "auto_inferred"
     questions: list[RubricQuestion]
 
@@ -861,7 +862,6 @@ def _evaluate_diagram_gemini(
     import io
     from google.genai import types
 
-    client = get_gemini_client(api_key, timeout_ms=14000)
     pil_image = Image.open(diagram_path).convert("RGB")
     if pil_image.width > 960:
         ratio = 960.0 / float(pil_image.width)
@@ -880,20 +880,16 @@ def _evaluate_diagram_gemini(
         "- critique: concise, constructive 1-2 sentence feedback on what is drawn well and what is missing."
     )
 
-    last_err: Exception | None = None
-    for m_name in dict.fromkeys([GEMINI_MODEL_NAME, *GEMINI_FAST_GRADING_MODELS]):
-        try:
-            response = client.models.generate_content(
-                model=m_name,
-                contents=[prompt, img_part],
-                config=build_fast_gemini_config(m_name, response_schema=DiagramEvaluation),
-            )
-            if response.parsed is not None:
-                return DiagramEvaluation.model_validate(response.parsed)
-            return DiagramEvaluation.model_validate_json(response.text)
-        except Exception as exc:
-            last_err = exc
-    raise RuntimeError(f"Gemini diagram evaluation failed: {last_err}")
+    response = generate_content_fast(
+        api_key,
+        [GEMINI_MODEL_NAME, *GEMINI_FAST_GRADING_MODELS],
+        [prompt, img_part],
+        response_schema=DiagramEvaluation,
+        timeout_ms=14000,
+    )
+    if response.parsed is not None:
+        return DiagramEvaluation.model_validate(response.parsed)
+    return DiagramEvaluation.model_validate_json(response.text)
 
 
 # ---------------------------------------------------------------------------
@@ -1246,7 +1242,6 @@ class ExamGrader:
             return _grade_objective_answer(question, student_answer, strictness_level=lvl)
 
         assert self.api_key is not None
-        client = get_gemini_client(self.api_key, timeout_ms=15000)
 
         text_budget = (
             question.max_marks * (1.0 - self.cfg.diagram_weight_when_required)
@@ -1299,26 +1294,23 @@ class ExamGrader:
             "- student_feedback: 1-2 short sentences. If the overall answer is wrong (0 marks despite an attempt), start directly with 'Wrong — ' and briefly explain WHY in 1 crisp sentence."
         )
 
-        last_err: Exception | None = None
-        for m_name in dict.fromkeys([GEMINI_MODEL_NAME, *GEMINI_FAST_GRADING_MODELS]):
-            try:
-                response = client.models.generate_content(
-                    model=m_name,
-                    contents=[prompt],
-                    config=build_fast_gemini_config(m_name, response_schema=LLMGradeOutput),
-                )
-                if response.parsed is not None:
-                    parsed = LLMGradeOutput.model_validate(response.parsed)
-                else:
-                    parsed = LLMGradeOutput.model_validate_json(response.text)
-                parsed = self._enforce_verified_hits(parsed, question, kp_sims, text_budget)
-                parsed.marks_awarded = _round_quarter(
-                    max(0.0, min(question.max_marks, parsed.marks_awarded))
-                )
-                return parsed
-            except Exception as exc:
-                last_err = exc
-        raise RuntimeError(f"Gemini grading failed across fallback models: {last_err}")
+        response = generate_content_fast(
+            self.api_key,
+            [GEMINI_MODEL_NAME, *GEMINI_FAST_GRADING_MODELS],
+            [prompt],
+            response_schema=LLMGradeOutput,
+            timeout_ms=14000,
+        )
+        parsed = (
+            LLMGradeOutput.model_validate(response.parsed)
+            if response.parsed is not None
+            else LLMGradeOutput.model_validate_json(response.text)
+        )
+        parsed = self._enforce_verified_hits(parsed, question, kp_sims, text_budget)
+        parsed.marks_awarded = _round_quarter(
+            max(0.0, min(question.max_marks, parsed.marks_awarded))
+        )
+        return parsed
 
     @staticmethod
     def _select_diagram_for_question(
@@ -1355,7 +1347,6 @@ class ExamGrader:
     ) -> dict[str, LLMGradeOutput]:
         """Grade a batch of questions in a SINGLE Gemini API call with automatic retry & model fallback."""
         assert self.api_key is not None
-        client = get_gemini_client(self.api_key, timeout_ms=18000)
         lvl = max(1, min(10, int(strictness_level if strictness_level is not None else self.strictness_level)))
 
         class BatchQuestionGrade(BaseModel):
@@ -1399,32 +1390,28 @@ class ExamGrader:
                 f"Student Answer: {student_answer if student_answer.strip() else '[NO ANSWER]'}\n"
             )
 
-        last_err: Exception | None = None
-        for m_name in dict.fromkeys([GEMINI_MODEL_NAME, *GEMINI_FAST_GRADING_MODELS]):
-            try:
-                response = client.models.generate_content(
-                    model=m_name,
-                    contents=["\n".join(blocks)],
-                    config=build_fast_gemini_config(m_name, response_schema=BatchGradeResponse),
+        response = generate_content_fast(
+            self.api_key,
+            [GEMINI_MODEL_NAME, *GEMINI_FAST_GRADING_MODELS],
+            ["\n".join(blocks)],
+            response_schema=BatchGradeResponse,
+            timeout_ms=16000,
+        )
+        parsed = (
+            BatchGradeResponse.model_validate(response.parsed)
+            if response.parsed is not None
+            else BatchGradeResponse.model_validate_json(response.text)
+        )
+        out: dict[str, LLMGradeOutput] = {}
+        for item in parsed.results:
+            if item.question_id in q_map:
+                q_obj, k_sims, t_bud = q_map[item.question_id]
+                item.grade = self._enforce_verified_hits(item.grade, q_obj, k_sims, t_bud)
+                item.grade.marks_awarded = _round_quarter(
+                    max(0.0, min(q_obj.max_marks, item.grade.marks_awarded))
                 )
-                parsed = (
-                    BatchGradeResponse.model_validate(response.parsed)
-                    if response.parsed is not None
-                    else BatchGradeResponse.model_validate_json(response.text)
-                )
-                out: dict[str, LLMGradeOutput] = {}
-                for item in parsed.results:
-                    if item.question_id in q_map:
-                        q_obj, k_sims, t_bud = q_map[item.question_id]
-                        item.grade = self._enforce_verified_hits(item.grade, q_obj, k_sims, t_bud)
-                        item.grade.marks_awarded = _round_quarter(
-                            max(0.0, min(q_obj.max_marks, item.grade.marks_awarded))
-                        )
-                    out[item.question_id] = item.grade
-                return out
-            except Exception as exc:
-                last_err = exc
-        raise RuntimeError(f"Batch Gemini grading failed across fallback models: {last_err}")
+            out[item.question_id] = item.grade
+        return out
 
     def grade_single_question(
         self,

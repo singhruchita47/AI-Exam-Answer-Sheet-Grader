@@ -1060,9 +1060,8 @@ class OCREngine:
         from config import (
             GEMINI_FALLBACK_MODELS,
             GEMINI_MODEL_NAME,
-            build_fast_gemini_config,
+            generate_content_fast,
             get_gemini_api_key,
-            get_gemini_client,
         )
 
         active_key = get_gemini_api_key()
@@ -1079,7 +1078,6 @@ class OCREngine:
             subject: str = ""
             pages: list[PageItem]
 
-        client = get_gemini_client(active_key, timeout_ms=24000)
         batch_size = 3
         batches = [pages[i : i + batch_size] for i in range(0, len(pages), batch_size)]
 
@@ -1088,10 +1086,10 @@ class OCREngine:
                 "You are an expert handwriting recognition specialist. Transcribe the student's handwritten English answers from each attached exam sheet page into clean, accurate, properly spelled digital text.\n"
                 "CRITICAL RULES:\n"
                 "1. IGNORE COVER / INTRODUCTION / COLLEGE METADATA IN TRANSCRIPTS: Completely ignore all university/college/school names (e.g. 'SCOPE GLOBAL SKILLS UNIVERSITY', 'ANSWER BOOK FOR MST / PUT EXAMINATION', 'MP Board'), course/branch/year/sem, date, marks-awarded grid, examiner/invigilator names & signatures, printed Hindi headers, and crossed-out words inside `pages[].transcript`. Focus `pages[].transcript` ONLY on the student's main handwritten exam answers.\n"
-                "   HOWEVER, if Page 1 has a student header block, extract ONLY these 3 clean top-level metadata fields (leave empty string '' if not clearly written; NEVER put college/university/examiner names here):\n"
-                "   - student_name: handwritten student name (ignore university/college name)\n"
-                "   - roll_no: handwritten roll / enrollment number\n"
-                "   - subject: handwritten subject name on the cover sheet (ignore course/branch)\n"
+                "   HOWEVER, if Page 1 visibly shows handwritten or printed student identity fields, extract ONLY these 3 top-level fields (leave empty string '' if NOT visibly written; NEVER guess from university/college names, filenames, or answer body text):\n"
+                "   - student_name: visibly written student name on cover/top header (else '')\n"
+                "   - roll_no: visibly written roll/enrollment number (else '')\n"
+                "   - subject: visibly written subject name on cover/top header (else '')\n"
                 "2. QUESTION & PART NUMBERING:\n"
                 "   - Standard sequential exams (Answer no. 01, Q2, Ans 3, etc.): start each main question on its own line with 'Q1:', 'Q2:', 'Q3:', etc.\n"
                 "   - OBJECTIVE / MULTI-ITEM SUB-ANSWERS (MCQ, Fill in blanks, True/False, One-word items): put EACH sub-item on its OWN separate line in strict top-to-bottom order using '(i) ...', '(ii) ...', '(iii) ...', etc. (never merge multiple objective answers onto a single line).\n"
@@ -1108,36 +1106,36 @@ class OCREngine:
 
             for p in batch:
                 pil_img = Image.open(p.source_path).convert("RGB")
-                if pil_img.width > 1080:
-                    ratio = 1080.0 / float(pil_img.width)
-                    pil_img = pil_img.resize((1080, int(round(pil_img.height * ratio))))
+                if pil_img.width > 1024:
+                    ratio = 1024.0 / float(pil_img.width)
+                    pil_img = pil_img.resize((1024, int(round(pil_img.height * ratio))))
                 buf = io.BytesIO()
-                pil_img.save(buf, format="JPEG", quality=76, optimize=True)
+                pil_img.save(buf, format="JPEG", quality=74, optimize=True)
                 contents.append(f"--- PAGE {p.page_number} ---")
                 contents.append(types.Part.from_bytes(data=buf.getvalue(), mime_type="image/jpeg"))
 
-            models_to_try = [GEMINI_MODEL_NAME, *GEMINI_FALLBACK_MODELS]
-            for m_name in dict.fromkeys(models_to_try):
-                try:
-                    resp = client.models.generate_content(
-                        model=m_name,
-                        contents=contents,
-                        config=build_fast_gemini_config(m_name, response_schema=BatchTranscript),
-                    )
-                    parsed = (
-                        BatchTranscript.model_validate(resp.parsed)
-                        if resp.parsed is not None
-                        else BatchTranscript.model_validate_json(resp.text)
-                    )
-                    extracted_meta = {
-                        "student_name": _clean_cover_meta_value(parsed.student_name, "student_name"),
-                        "roll_no": _clean_cover_meta_value(parsed.roll_no, "roll_no"),
-                        "subject": _clean_cover_meta_value(parsed.subject, "subject"),
-                    }
-                    return ({item.page_number: item.transcript.strip() for item in parsed.pages}, extracted_meta)
-                except Exception as exc:
-                    logger.warning("Gemini OCR batch attempt (%s) failed: %s", m_name, exc)
-            return ({}, {"student_name": "", "roll_no": "", "subject": ""})
+            try:
+                resp = generate_content_fast(
+                    active_key,
+                    [GEMINI_MODEL_NAME, *GEMINI_FALLBACK_MODELS],
+                    contents,
+                    response_schema=BatchTranscript,
+                    timeout_ms=22000,
+                )
+                parsed = (
+                    BatchTranscript.model_validate(resp.parsed)
+                    if resp.parsed is not None
+                    else BatchTranscript.model_validate_json(resp.text)
+                )
+                extracted_meta = {
+                    "student_name": _clean_cover_meta_value(parsed.student_name, "student_name"),
+                    "roll_no": _clean_cover_meta_value(parsed.roll_no, "roll_no"),
+                    "subject": _clean_cover_meta_value(parsed.subject, "subject"),
+                }
+                return ({item.page_number: item.transcript.strip() for item in parsed.pages}, extracted_meta)
+            except Exception as exc:
+                logger.warning("Gemini OCR batch failed: %s", exc)
+                return ({}, {"student_name": "", "roll_no": "", "subject": ""})
 
         page_map: dict[int, str] = {}
         try:

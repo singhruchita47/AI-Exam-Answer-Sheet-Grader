@@ -17,7 +17,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
-from config import GEMINI_API_KEY, TROCR_MODEL_NAME, get_gemini_api_key
+from config import GEMINI_API_KEY, TROCR_MODEL_NAME, get_gemini_api_key, get_gemini_client
 from grader import ExamGrader, ExamRubric, RubricQuestion, SemanticScorer
 from ocr_engine import OCREngine
 from report_exporter import (
@@ -84,6 +84,10 @@ def _prewarm_models_background() -> None:
         try:
             get_semantic_scorer()._ensure_loaded()
             get_ocr_engine()._get_rapid_ocr()
+            key = get_gemini_api_key()
+            if key:
+                get_gemini_client(key, timeout_ms=16000)
+                get_gemini_client(key, timeout_ms=24000)
         except Exception as exc:
             logger.debug("Background pre-warm skipped: %s", exc)
 
@@ -151,10 +155,10 @@ def _extract_reference_upload(
             if len(p_text) > 40:
                 extracted_chunks.append(p_text)
 
-        if len(doc) > 0:
-            first_page = doc[0].render(scale=1.2).to_pil()
+        if len(doc) > 0 and (not extracted_chunks or sum(len(c) for c in extracted_chunks) < 120):
+            first_page = doc[0].render(scale=1.1).to_pil()
             image_path = target_dir / f"{prefix}_page_1.jpg"
-            first_page.save(image_path, "JPEG", quality=88)
+            first_page.save(image_path, "JPEG", quality=82)
 
         if not extracted_chunks:
             if not offline and get_gemini_api_key():
@@ -183,8 +187,8 @@ def _extract_reference_upload(
 
 @app.post("/api/generate_rubric")
 async def api_generate_rubric(
-    subject: str = Form("Physics"),
-    total_marks: float = Form(10.0),
+    subject: str = Form("Auto"),
+    total_marks: float = Form(0.0),
     question_text: str = Form(""),
     teacher_hints: str = Form(""),
     answer_key_text: str = Form(""),
@@ -215,6 +219,9 @@ async def api_generate_rubric(
         )
         if not question_text.strip() and pdf_q_text:
             question_text = pdf_q_text
+        # Native text-layer PDF already contains complete printed text; skip heavy image upload to Gemini
+        if pdf_q_text and len(pdf_q_text.strip()) >= 120 and not question_images:
+            image_path = None
 
     if answer_key_image is not None and getattr(answer_key_image, "filename", None):
         q_dir.mkdir(parents=True, exist_ok=True)
@@ -227,6 +234,8 @@ async def api_generate_rubric(
                 if answer_key_text.strip()
                 else pdf_ak_text
             )
+            if len(pdf_ak_text.strip()) >= 120 and not ak_images:
+                ak_image_path = None
 
     try:
         generator = RubricGenerator(api_key=get_gemini_api_key())

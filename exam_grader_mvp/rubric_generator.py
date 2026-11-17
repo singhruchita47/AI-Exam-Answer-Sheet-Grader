@@ -15,9 +15,8 @@ from config import (
     GEMINI_API_KEY,
     GEMINI_FALLBACK_MODELS,
     GEMINI_MODEL_NAME,
-    build_fast_gemini_config,
+    generate_content_fast,
     get_gemini_api_key,
-    get_gemini_client,
 )
 from grader import ExamRubric, KeyPoint, RubricQuestion
 
@@ -77,6 +76,83 @@ def filter_hindi_keep_english(text: str) -> str:
             cleaned_lines.append(clean_en)
 
     return "\n".join(cleaned_lines)
+
+
+def _detect_printed_subject(raw_text: str) -> str:
+    """Detect subject name explicitly written in question paper headers."""
+    text = str(raw_text or "").strip()
+    if not text:
+        return ""
+    m = re.search(
+        r"(?:^|\n|\b)(?:Subject(?:\s*Name)?|Course(?:\s*Name)?|Paper(?:\s*Title)?)\s*[:\-–=]\s*([A-Za-z][A-Za-z0-9 &/+.\-]{2,45})",
+        text,
+        re.IGNORECASE,
+    )
+    if m and m.group(1):
+        val = re.sub(r"\b(?:exam|examination|paper|mst|put|sem|semester|code|time|max)\b", "", m.group(1), flags=re.I).strip(" :-–.,")
+        if len(val) >= 3:
+            return val
+    return ""
+
+
+def _detect_printed_max_marks(raw_text: str) -> float:
+    """Detect printed Maximum Marks from header labels, section equations, or question weights."""
+    text = str(raw_text or "").strip()
+    if not text:
+        return 0.0
+
+    # 1. Explicit header patterns (M.M., Max. Marks, Maximum Marks, Total Marks, Full Marks)
+    header_patterns = (
+        r"(?:maximum\s*marks|max\.?\s*marks|total\s*marks|full\s*marks|m\.?\s*m\.?)\s*[:\-–=]?\s*\(?\s*(\d+(?:\.\d+)?)\s*\)?",
+        r"\b(\d{2,3})\s*(?:total\s*marks|maximum\s*marks|max\.?\s*marks)\b",
+    )
+    for pat in header_patterns:
+        hm = re.search(pat, text, re.IGNORECASE)
+        if hm and hm.group(1):
+            val = float(hm.group(1))
+            if 1 <= val <= 500:
+                return val
+
+    # Check top 10 lines for compact header like "Marks: 30" or "(30 Marks)"
+    top_lines = "\n".join(text.splitlines()[:10])
+    top_m = re.search(r"(?:^|\n|\s)marks\s*[:\-–=]\s*(\d+(?:\.\d+)?)\b", top_lines, re.IGNORECASE)
+    if top_m and top_m.group(1):
+        val = float(top_m.group(1))
+        if 5 <= val <= 500:
+            return val
+
+    # 2. Sum explicit section totals like "(5x1=5)", "[4 x 4 = 16]", "(2x5=10)"
+    sec_sum = 0.0
+    sec_hits = 0
+    for sm in re.finditer(r"[\(\[]?\s*\d{1,2}\s*[xX\*×]\s*\d+(?:\.\d+)?\s*=\s*(\d+(?:\.\d+)?)\s*[\)\]]?", text):
+        v = float(sm.group(1))
+        if 1 <= v <= 200:
+            sec_sum += v
+            sec_hits += 1
+    if sec_hits > 0 and 5 <= sec_sum <= 500:
+        return round(sec_sum, 2)
+
+    # 3. Sum non-OR per-question weights like "[5 Marks]" / "(4)" / "10 marks"
+    total_q_marks = 0.0
+    q_hits = 0
+    prev_was_or = False
+    for line in text.splitlines():
+        if re.match(r"^\s*(?:\[\s*or\s*\]|\(\s*or\s*\)|or)\s*$", line, re.IGNORECASE):
+            prev_was_or = True
+            continue
+        wm = re.search(r"[\[\(]\s*(\d+(?:\.\d+)?)\s*(?:marks?|pts?|m)?\s*[\]\)]|\b(\d+(?:\.\d+)?)\s*marks?\b", line, re.IGNORECASE)
+        if wm:
+            v = float(wm.group(1) or wm.group(2))
+            if 0.5 <= v <= 100:
+                if prev_was_or:
+                    prev_was_or = False
+                    continue
+                total_q_marks += v
+                q_hits += 1
+    if q_hits > 0 and 1 <= total_q_marks <= 500:
+        return round(total_q_marks, 2)
+
+    return 0.0
 
 
 class RubricGenerator:
@@ -166,19 +242,21 @@ class RubricGenerator:
         from google.genai import types
 
         assert self.api_key is not None
-        client = get_gemini_client(self.api_key, timeout_ms=22000)
-
         has_answer_key = bool(
             (answer_key_text and answer_key_text.strip())
             or answer_key_image_path
             or answer_key_images
             or (teacher_hints and teacher_hints.strip())
         )
-
+        subj_label = subject.strip() if subject and subject.strip().lower() not in ("auto", "default") else ""
+        marks_hint_line = (
+            f"Teacher Marks Hint: {total_marks} (use ONLY if the Question Paper does not print marks)"
+            if total_marks and total_marks > 0
+            else "Target Total Marks: AUTO-DETECT exact printed Maximum Marks from the Question Paper"
+        )
         prompt_parts: list[str] = [
-            f"You are a Chief Academic Examiner and Curriculum Specialist in '{subject}'.",
-            f"Subject: {subject}",
-            f"Target Total Marks: {total_marks}",
+            f"You are an expert Academic Examiner parsing an exam Question Paper{f' ({subj_label})' if subj_label else ''}.",
+            marks_hint_line,
         ]
 
         if has_answer_key:
@@ -235,15 +313,18 @@ class RubricGenerator:
                 "   - 'long_answer' : For Long descriptive/analytical questions (6+ marks). Provide 3-5 concise key points.",
                 "5. Keep question_text, model_answer, and key_point descriptions concise, accurate, and clear.",
                 "6. Set requires_diagram = true ONLY if the question explicitly asks the student to draw/sketch a diagram or map.",
-                "7. EXACT PRINTED MARKS: Use the exact per-question marks printed on the question paper (e.g. 5 marks for Q1A, 5 marks for Q1B, 6 marks for each Part II question, 10 marks for each Part III question). Only distribute Target Total Marks if no marks are printed on the paper.",
-                f"8. Set exam_title to '{subject} Examination Rubric'.",
+                "7. EXACT PRINTED MARKS & SUBJECT DETECTION (CRITICAL):\n"
+                "   - Set `detected_subject` to the exact Subject/Course name printed on the Question Paper header (or concise subject topic if unprinted).\n"
+                "   - Set `printed_max_marks` to the exact Maximum Marks printed on the Question Paper header (e.g., 'Max. Marks: 34', 'Maximum Marks: 50', 'M.M.: 30'). If no top header total is printed, sum the attemptable exam marks across sections (NEVER double-count '[OR]' alternatives or extra choice questions like 'Attempt any 4 of 6').\n"
+                "   - Set each question's `max_marks` strictly from its printed mark weight on the paper.\n"
+                "8. Set `exam_title` to '<detected_subject> Examination Rubric'.",
                 "\nReturn strict JSON matching the ExamRubric schema.",
             ]
         )
 
         import io
 
-        def _to_jpeg_part(pil_img: Image.Image, max_w: int = 1120, quality: int = 78) -> Any:
+        def _to_jpeg_part(pil_img: Image.Image, max_w: int = 1000, quality: int = 74) -> Any:
             rgb = pil_img.convert("RGB")
             if rgb.width > max_w:
                 ratio = max_w / float(rgb.width)
@@ -273,20 +354,13 @@ class RubricGenerator:
                 contents.append("--- OFFICIAL ANSWER KEY IMAGE ---")
                 contents.append(_to_jpeg_part(Image.open(ak_path)))
 
-        last_err: Exception | None = None
-        response = None
-        for m_name in dict.fromkeys([GEMINI_MODEL_NAME, *GEMINI_FALLBACK_MODELS]):
-            try:
-                response = client.models.generate_content(
-                    model=m_name,
-                    contents=contents,
-                    config=build_fast_gemini_config(m_name, response_schema=ExamRubric),
-                )
-                break
-            except Exception as exc:
-                last_err = exc
-        if response is None:
-            raise RuntimeError(f"Gemini rubric generation failed across fallback models: {last_err}")
+        response = generate_content_fast(
+            self.api_key,
+            [GEMINI_MODEL_NAME, *GEMINI_FALLBACK_MODELS],
+            contents,
+            response_schema=ExamRubric,
+            timeout_ms=20000,
+        )
 
         if response.parsed is not None:
             rubric = ExamRubric.model_validate(response.parsed)
@@ -302,10 +376,26 @@ class RubricGenerator:
             qid_clean = re.sub(r"^(?:Part|Section|P)[\s_\-]*(?:III|3)[\s_\-]*Q(?:uestion)?[\s_\-\.]*(\d+)$", r"P3_Q\1", qid_clean, flags=re.IGNORECASE)
             q.question_id = qid_clean.upper()
 
-        # Preserve printed per-question marks on multi-question exam papers; only rescale single/custom rubrics
+        # Backfill printed_max_marks / detected_subject deterministically if omitted or partial
+        text_det_marks = _detect_printed_max_marks(cleaned_q_text)
+        if rubric.printed_max_marks <= 0 and text_det_marks > 0:
+            rubric.printed_max_marks = text_det_marks
+        text_det_subj = _detect_printed_subject(cleaned_q_text)
+        if not rubric.detected_subject and text_det_subj:
+            rubric.detected_subject = text_det_subj
+        if rubric.detected_subject and (not rubric.exam_title or rubric.exam_title.lower().startswith(("auto", "default"))):
+            rubric.exam_title = f"{rubric.detected_subject} Examination Rubric"
+
         current_sum = sum(q.max_marks for q in rubric.questions)
+        if rubric.printed_max_marks <= 0 and current_sum > 0:
+            rubric.printed_max_marks = round(current_sum, 2)
+
+        # ONLY rescale when teacher explicitly specified a target_total AND paper had no printed marks
         if (
-            current_sum > 0
+            total_marks > 0
+            and text_det_marks <= 0
+            and rubric.printed_max_marks <= 0
+            and current_sum > 0
             and abs(current_sum - total_marks) > 0.01
             and len(rubric.questions) < 3
             and current_sum < 15.0
@@ -314,6 +404,8 @@ class RubricGenerator:
             for q in rubric.questions:
                 q.max_marks = round(q.max_marks * ratio, 2)
         elif not rubric.questions:
+            fallback_marks = text_det_marks or (total_marks if total_marks > 0 else 10.0)
+            rubric.printed_max_marks = fallback_marks
             rubric.questions.append(
                 RubricQuestion(
                     question_id="Q1",
@@ -327,7 +419,7 @@ class RubricGenerator:
                         )
                     ],
                     requires_diagram=False,
-                    max_marks=total_marks,
+                    max_marks=fallback_marks,
                 )
             )
 
@@ -381,8 +473,12 @@ class RubricGenerator:
         parsed_key_map = parse_questions(combined_hints) if combined_hints else {}
 
         raw_text = filter_hindi_keep_english(raw_text)
+        det_marks_local = _detect_printed_max_marks(raw_text)
+        det_subj_local = _detect_printed_subject(raw_text)
+        effective_total = det_marks_local if det_marks_local > 0 else (total_marks if total_marks > 0 else 10.0)
+        eff_subject = det_subj_local or (subject if subject and subject.lower() not in ("auto", "default") else "Science")
         if not raw_text:
-            raw_text = f"Explain key principles of {subject}."
+            raw_text = f"Explain key principles of {eff_subject}."
 
         # Detect questions formatted like Q1, Q.1, 1), 1., (1), (i), etc.
         q_lines = [ln.strip() for ln in raw_text.splitlines() if ln.strip()]
@@ -423,7 +519,7 @@ class RubricGenerator:
             detected_questions = [raw_text]
 
         num_q = len(detected_questions)
-        marks_per_q = round(total_marks / num_q, 2)
+        marks_per_q = round(effective_total / num_q, 2)
 
         # Regex to detect inline marks e.g. [5 Marks], (5 marks), 5M
         inline_marks_re = re.compile(
@@ -532,7 +628,10 @@ class RubricGenerator:
                 )
             )
 
+        final_sum = round(sum(q.max_marks for q in questions), 2)
         return ExamRubric(
-            exam_title=f"{subject} Examination Rubric",
+            exam_title=f"{eff_subject} Examination Rubric",
+            detected_subject=det_subj_local or eff_subject,
+            printed_max_marks=det_marks_local if det_marks_local > 0 else final_sum,
             questions=questions,
         )
