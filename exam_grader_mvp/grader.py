@@ -141,24 +141,24 @@ _EXPLICIT_MARKER_PATTERNS: tuple[re.Pattern[str], ...] = (
         r"^\s*(?:P(?:art)?[\s_\-]*(II|III|I|2|3|1)[\s_\-]*)Q(?:uestion)?\s*(?:no\.?|number)?\s*[\.\-:#]?\s*0*([0-9]{1,2}[ABab]?)\s*[\)\.\-:#]*(?:\s+(.*))?$",
         re.IGNORECASE,
     ),
-    # Matches: Q1A, Q1B, Q.1(A), Q.1 (B):
+    # Matches: Q1A, Q1B, Q.1(A), Q.1 (B), Q1: (A), Q.1: (B)
     re.compile(
-        r"^\s*Q(?:uestion)?\s*[\.\-:#]?\s*0*1\s*\(?\s*([ABab])\s*\)?\s*[\)\.\-:#]*(?:\s+(.*))?$",
+        r"^\s*Q(?:uestion)?\s*[\.\-:#]?\s*0*1\s*[:\-#]?\s*\(?\s*([ABab])\s*\)?\s*[\)\.\-:#]*(?:\s+(.*))?$",
         re.IGNORECASE,
     ),
     # Matches: Q1, Q.1, Q. No. 1, Question no. - 01, Q1), Question 1:
     re.compile(
-        r"^\s*Q(?:uestion)?\s*(?:no\.?|number)?\s*[\.\-:#]?\s*0*([0-9]{1,2}|[!lI|])\s*(?:\[?\s*or\s*\]?|\(\s*or\s*\))?\s*[\)\.\-:#]*(?:\s+(.*))?$",
+        r"^\s*Q(?:uestion)?\s*(?:no\.?|number)?\s*[\.\-:#]?\s*0*([0-9]{1,2}|[!lI|])\s*(?:\[?\s*or\s*\]?|\(\s*or\s*\))?\s*(?:[:\)\-]|\.(?!\.))*\s*(.*)$",
         re.IGNORECASE,
     ),
     # Matches: Answer no. - 01, Answer no.-06 [or], Ans. No. 2, Ans 1, A-1, A-2
     re.compile(
-        r"^\s*(?:ans(?:wer)?|an[a-z]{2,5}|[a-z]{0,2}[ns]|[a-z]?s|[Aa])\s*(?:no\.?|m?no\.?|number)?\s*[\.\-:#\s]+\s*0*([0-9]{1,2}|[!lI|])\s*(?:\[?\s*or\s*\]?|\(\s*or\s*\))?\s*(?:[\.\-:#]\s*(?:[0-9]{1,2}\b)?)?\s*[\)\.\-:#]*(?:\s*(.*))?$",
+        r"^\s*(?:ans(?:wer)?|an[a-z]{2,5}|[a-z]{0,2}[ns]|[a-z]?s|[Aa])\s*(?:no\.?|m?no\.?|number)?\s*[\.\-:#\s]*\s*0*([0-9]{1,2}|[!lI|])\s*(?:\[?\s*or\s*\]?|\(\s*or\s*\))?\s*(?:[:\)\-]|\.(?!\.))*\s*(.*)$",
         re.IGNORECASE,
     ),
     # Also matches Ans1, Ans2 (no space) with digits
     re.compile(
-        r"^\s*(?:ans(?:wer)?|[a-z]{0,2}[ns]|[a-z]?s|[Aa])0*([0-9]{1,2})\s*(?:\[?\s*or\s*\]?)?\s*(?:[\.\-:#]\s*(?:[0-9]{1,2}\b)?)?\s*[\)\.\-:#]*(?:\s*(.*))?$",
+        r"^\s*(?:ans(?:wer)?|[a-z]{0,2}[ns]|[a-z]?s|[Aa])0*([0-9]{1,2})\s*(?:\[?\s*or\s*\]?)?\s*(?:[:\)\-]|\.(?!\.))*\s*(.*)$",
         re.IGNORECASE,
     ),
 )
@@ -269,13 +269,20 @@ def _match_question_marker(
                 except ValueError:
                     continue
             if 1 <= q_num <= 50:
-                remainder = (match.group(2) or "").strip()
-                remainder = re.sub(
-                    r"^(?:\[?\s*or\s*\]?|\(\s*or\s*\)|[\.\(\)\-–!|:\s])+(?:\d{1,2}\s*[\.\)]\s*)?",
-                    "",
-                    remainder,
-                    flags=re.IGNORECASE,
-                ).strip()
+                raw_rem = (match.group(2) or "").strip()
+                if raw_rem in ("..", "(..)", ".") or raw_rem.startswith("..") or raw_rem.startswith("(..)"):
+                    remainder = raw_rem
+                else:
+                    m_dot = re.match(r"^[:\-–!|]\s*(\(\.\.\)|\.\.)\s*$", raw_rem)
+                    if m_dot:
+                        remainder = m_dot.group(1)
+                    else:
+                        remainder = re.sub(
+                            r"^(?:\[?\s*or\s*\]?|\(\s*or\s*\)|[\.\(\)\-–!|:\s])+(?:\d{1,2}\s*[\.\)]\s*)?",
+                            "",
+                            raw_rem,
+                            flags=re.IGNORECASE,
+                        ).strip()
                 remainder = _clean_ocr_handwriting_text(remainder)
                 return f"Q{q_num}", remainder
     return None
@@ -378,7 +385,7 @@ def parse_questions_with_page_texts(
         re.IGNORECASE,
     )
     sub_b_header_re = re.compile(
-        r"^\s*(?:Q\.?\s*1\s*)?\(\s*([AB])\s*\)\s*(.*)$",
+        r"^\s*(?:Q\.?\s*1\s*[:\-#]*)?\s*\(\s*([AB])\s*\)\s*(.*)$",
         re.IGNORECASE,
     )
     sub_roman_ans_re = re.compile(
@@ -507,6 +514,12 @@ def parse_questions_with_page_texts(
                 cleaned_line = _clean_ocr_handwriting_text(line)
                 if not cleaned_line:
                     continue
+                # If the previous line was a bare sub-item label like "(v)" and current line is the answer e.g. ".."
+                if mapped.get(current_qid) and re.match(r"^\s*\([ivxIVX]{1,4}\)\s*$", mapped[current_qid][-1]):
+                    mapped[current_qid][-1] = f"{mapped[current_qid][-1]} {cleaned_line}".strip()
+                    if page_texts_list.get(current_qid, {}).get(p_str) and re.match(r"^\s*\([ivxIVX]{1,4}\)\s*$", page_texts_list[current_qid][p_str][-1]):
+                        page_texts_list[current_qid][p_str][-1] = f"{page_texts_list[current_qid][p_str][-1]} {cleaned_line}".strip()
+                    continue
                 mapped.setdefault(current_qid, [])
                 question_pages.setdefault(current_qid, [])
                 page_texts_list.setdefault(current_qid, {})
@@ -596,7 +609,11 @@ class SemanticScorer:
 
             start_pos = m.end()
             end_pos = matches[i + 1].start() if i + 1 < len(matches) else len(text)
-            seg = text[start_pos:end_pos].strip(" ,;.-:\n")
+            raw_seg = text[start_pos:end_pos].strip(" \t\r\n")
+            if raw_seg.startswith("..") or raw_seg == "." or raw_seg.startswith("(..)"):
+                seg = raw_seg.strip(" ,;:\n")
+            else:
+                seg = raw_seg.strip(" ,;.-:\n")
             if idx_num is not None and 1 <= idx_num <= 15 and seg:
                 sub_items[idx_num] = seg
         return sub_items
@@ -1704,6 +1721,28 @@ class ExamGrader:
                     mapped_answers.update(reassigned_ans)
                     question_pages.update(reassigned_pages)
                     question_page_texts.update(reassigned_ptexts)
+
+        # Cross-part healing: if an answer is tagged as P3_Q4 / P3_Q5 or generic Q4/Q5 (when Part III only has 1-2 questions),
+        # but P2_Q4 / P2_Q5 exists in the rubric and is not yet mapped, heal to the correct rubric question:
+        rubric_qids = {q.question_id for q in rubric.questions}
+        for k in list(mapped_answers.keys()):
+            if k not in rubric_qids and mapped_answers.get(k, "").strip():
+                m_num = re.search(r"\d+", k)
+                if m_num:
+                    num_str = m_num.group(0)
+                    for target_prefix in ("P2_Q", "P3_Q", "Q"):
+                        cand = f"{target_prefix}{num_str}"
+                        if cand in rubric_qids and not mapped_answers.get(cand, "").strip():
+                            # Verify candidate has reasonable semantic relevance (> 0.25)
+                            cand_q = next((q for q in rubric.questions if q.question_id == cand), None)
+                            cand_sim = self.semantic_scorer.score_answer(mapped_answers[k], cand_q)[0] if cand_q else 0.0
+                            if cand_sim >= 0.25:
+                                mapped_answers[cand] = mapped_answers.pop(k)
+                                if k in question_pages:
+                                    question_pages[cand] = question_pages.pop(k)
+                                if k in question_page_texts:
+                                    question_page_texts[cand] = question_page_texts.pop(k)
+                                break
 
         # In multi-part university papers with optional choice sections (e.g. P2_Q1..P2_Q6 "Attempt Any 4/5",
         # P3_Q1..P3_Q3 "Attempt Any 2"), omit unattempted optional questions when other questions in that Part are attempted.

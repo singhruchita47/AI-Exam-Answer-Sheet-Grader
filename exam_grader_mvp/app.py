@@ -41,11 +41,15 @@ TEMPLATES_DIR = BASE_DIR / "templates"
 UPLOADS_DIR = BASE_DIR / "ui_uploads"
 DEBUG_CROPS_DIR = BASE_DIR / "debug_crops"
 SAVED_REPORTS_DIR = BASE_DIR / "saved_reports"
+SAVED_PAPERS_DIR = BASE_DIR / "saved_papers"
+SAVED_SHEETS_DIR = BASE_DIR / "saved_sheets"
 
 TEMPLATES_DIR.mkdir(parents=True, exist_ok=True)
 UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
 DEBUG_CROPS_DIR.mkdir(parents=True, exist_ok=True)
 SAVED_REPORTS_DIR.mkdir(parents=True, exist_ok=True)
+SAVED_PAPERS_DIR.mkdir(parents=True, exist_ok=True)
+SAVED_SHEETS_DIR.mkdir(parents=True, exist_ok=True)
 
 app = FastAPI(title="Exam Grader Testing UI")
 app.add_middleware(
@@ -63,6 +67,56 @@ app.mount("/ui_uploads", StaticFiles(directory=str(UPLOADS_DIR)), name="ui_uploa
 app.mount(
     "/saved_reports", StaticFiles(directory=str(SAVED_REPORTS_DIR)), name="saved_reports"
 )
+app.mount(
+    "/saved_papers", StaticFiles(directory=str(SAVED_PAPERS_DIR)), name="saved_papers"
+)
+app.mount(
+    "/saved_sheets", StaticFiles(directory=str(SAVED_SHEETS_DIR)), name="saved_sheets"
+)
+
+def list_saved_papers() -> list[dict[str, Any]]:
+    """Return all saved question papers and their rubrics."""
+    papers = []
+    if not SAVED_PAPERS_DIR.exists():
+        return papers
+    import re
+    for d in sorted(SAVED_PAPERS_DIR.iterdir(), key=lambda p: p.stat().st_mtime, reverse=True):
+        if d.is_dir() and (d / "meta.json").exists():
+            try:
+                meta = json.loads((d / "meta.json").read_text(encoding="utf-8"))
+                meta["has_rubric"] = (d / "rubric.json").exists()
+                for img_ext in (".jpg", ".jpeg", ".png"):
+                    candidate = d / f"paper_file{img_ext}"
+                    if candidate.exists():
+                        meta["preview_url"] = f"/saved_papers/{d.name}/{candidate.name}"
+                        break
+                papers.append(meta)
+            except Exception:
+                pass
+    return papers
+
+def list_saved_sheets() -> list[dict[str, Any]]:
+    """Return all saved student answer sheets and page previews."""
+    sheets = []
+    if not SAVED_SHEETS_DIR.exists():
+        return sheets
+    import re
+    for d in sorted(SAVED_SHEETS_DIR.iterdir(), key=lambda p: p.stat().st_mtime, reverse=True):
+        if d.is_dir() and (d / "meta.json").exists():
+            try:
+                meta = json.loads((d / "meta.json").read_text(encoding="utf-8"))
+                p1 = d / "page_1.jpg"
+                if p1.exists():
+                    meta["preview_url"] = f"/saved_sheets/{d.name}/page_1.jpg"
+                pages_list = sorted(
+                    [f.name for f in d.glob("page_*.jpg")],
+                    key=lambda x: int(re.search(r"\d+", x).group(0)) if re.search(r"\d+", x) else 999
+                )
+                meta["pages"] = [f"/saved_sheets/{d.name}/{p_name}" for p_name in pages_list]
+                sheets.append(meta)
+            except Exception:
+                pass
+    return sheets
 
 _ocr_engine: OCREngine | None = None
 _semantic_scorer: SemanticScorer | None = None
@@ -128,6 +182,8 @@ def api_config() -> dict[str, Any]:
         "trocr_model": TROCR_MODEL_NAME,
         "default_rubric": default_rubric,
         "photo_rubric": photo_rubric,
+        "saved_papers": list_saved_papers(),
+        "saved_sheets": list_saved_sheets(),
     }
 
 
@@ -295,7 +351,29 @@ async def api_generate_rubric(
             answer_key_text=answer_key_text,
             force_offline=offline,
         )
-        return rubric.model_dump()
+        
+        # Persist paper & generated rubric so user never has to re-upload it
+        paper_id = f"paper_{session_id}"
+        save_p_dir = SAVED_PAPERS_DIR / paper_id
+        save_p_dir.mkdir(parents=True, exist_ok=True)
+        (save_p_dir / "rubric.json").write_text(json.dumps(rubric.model_dump(), indent=2), encoding="utf-8")
+        if image_path and Path(image_path).exists():
+            shutil.copy2(image_path, save_p_dir / f"paper_file{Path(image_path).suffix.lower() or '.jpg'}")
+        p_title = f"{rubric.detected_subject or subject} Paper ({rubric.printed_max_marks or total_marks} Marks)"
+        paper_meta = {
+            "id": paper_id,
+            "title": p_title,
+            "filename": getattr(question_image, "filename", "question_paper"),
+            "subject": rubric.detected_subject or subject,
+            "printed_max_marks": rubric.printed_max_marks or total_marks,
+            "total_questions": len(rubric.questions),
+            "created_at": datetime.now().isoformat(),
+        }
+        (save_p_dir / "meta.json").write_text(json.dumps(paper_meta, indent=2), encoding="utf-8")
+
+        res_dict = rubric.model_dump()
+        res_dict["saved_paper_id"] = paper_id
+        return res_dict
     except Exception as exc:
         logger.exception("Error generating rubric automatically")
         raise HTTPException(status_code=500, detail=f"Failed to generate rubric: {exc}")
@@ -306,9 +384,27 @@ def _prepare_student_pages(
     use_photosynthesis_sample: bool,
     use_sample_pages: bool,
     pages: list[UploadFile],
-) -> list[Path]:
-    """Save uploaded student images/PDFs (or copy samples) into session_upload_dir and return page paths."""
+    saved_sheet_id: str = "",
+) -> tuple[list[Path], str]:
+    """Save uploaded student images/PDFs (or copy samples/saved sheet) into session_upload_dir and return page paths and sheet_id."""
     page_paths: list[Path] = []
+    
+    if saved_sheet_id:
+        safe_sheet_id = Path(saved_sheet_id).name
+        src_sheet_dir = SAVED_SHEETS_DIR / safe_sheet_id
+        if src_sheet_dir.exists() and src_sheet_dir.is_dir():
+            import re
+            page_files = sorted(
+                list(src_sheet_dir.glob("page_*.jpg")),
+                key=lambda x: int(re.search(r"\d+", x.name).group(0)) if re.search(r"\d+", x.name) else 999
+            )
+            for p in page_files:
+                dest = session_upload_dir / p.name
+                shutil.copy2(p, dest)
+                page_paths.append(dest)
+            if page_paths:
+                return page_paths, safe_sheet_id
+
     if use_photosynthesis_sample:
         p_photo = BASE_DIR / "sample_photosynthesis_student.jpg"
         if not p_photo.exists():
@@ -318,6 +414,7 @@ def _prepare_student_pages(
         dest = session_upload_dir / "page_1.jpg"
         shutil.copy2(p_photo, dest)
         page_paths = [dest]
+        return page_paths, "sheet_photosynthesis_sample"
     elif use_sample_pages:
         p1 = BASE_DIR / "sample_page1.jpg"
         p2 = BASE_DIR / "sample_page2.jpg"
@@ -330,6 +427,7 @@ def _prepare_student_pages(
         shutil.copy2(p1, d1)
         shutil.copy2(p2, d2)
         page_paths = [d1, d2]
+        return page_paths, "sample_pages"
     else:
         if not pages:
             raise HTTPException(
@@ -338,9 +436,11 @@ def _prepare_student_pages(
         import pypdfium2 as pdfium
 
         page_counter = 1
+        uploaded_pdf_name = ""
         for upload in pages:
             file_ext = Path(upload.filename or "page.jpg").suffix.lower()
             if file_ext == ".pdf":
+                uploaded_pdf_name = upload.filename or "uploaded.pdf"
                 pdf_dest = session_upload_dir / f"uploaded_{upload.filename}"
                 with pdf_dest.open("wb") as f:
                     shutil.copyfileobj(upload.file, f)
@@ -365,7 +465,27 @@ def _prepare_student_pages(
                     shutil.copyfileobj(upload.file, f)
                 page_paths.append(dest)
                 page_counter += 1
-    return page_paths
+
+        # Auto-persist newly uploaded sheet so user never has to re-upload it
+        new_sheet_id = f"sheet_{session_upload_dir.name}"
+        sheet_save_dir = SAVED_SHEETS_DIR / new_sheet_id
+        sheet_save_dir.mkdir(parents=True, exist_ok=True)
+        for p in page_paths:
+            shutil.copy2(p, sheet_save_dir / p.name)
+        if uploaded_pdf_name and (session_upload_dir / f"uploaded_{uploaded_pdf_name}").exists():
+            shutil.copy2(session_upload_dir / f"uploaded_{uploaded_pdf_name}", sheet_save_dir / uploaded_pdf_name)
+
+        sheet_meta = {
+            "id": new_sheet_id,
+            "filename": uploaded_pdf_name or (pages[0].filename if pages else "student_copy.jpg"),
+            "student_name": "",
+            "roll_no": "",
+            "subject": "",
+            "page_count": len(page_paths),
+            "created_at": datetime.now().isoformat(),
+        }
+        (sheet_save_dir / "meta.json").write_text(json.dumps(sheet_meta, indent=2), encoding="utf-8")
+        return page_paths, new_sheet_id
 
 
 def _build_final_payload(
@@ -489,6 +609,7 @@ async def api_grade(
     use_sample_pages: bool = Form(False),
     use_photosynthesis_sample: bool = Form(False),
     rubric_json: str = Form(...),
+    saved_sheet_id: str = Form(""),
     pages: list[UploadFile] = File([]),
 ) -> dict[str, Any]:
     """Process uploaded pages or built-in samples, run OCR + Grading, and return JSON."""
@@ -504,8 +625,12 @@ async def api_grade(
     session_crops_dir = DEBUG_CROPS_DIR / f"session_{session_id}"
     session_crops_dir.mkdir(parents=True, exist_ok=True)
 
-    page_paths = _prepare_student_pages(
-        session_upload_dir, use_photosynthesis_sample, use_sample_pages, pages
+    page_paths, active_sheet_id = _prepare_student_pages(
+        session_upload_dir,
+        use_photosynthesis_sample,
+        use_sample_pages,
+        pages,
+        saved_sheet_id=saved_sheet_id,
     )
 
     try:
@@ -518,6 +643,21 @@ async def api_grade(
         grader = ExamGrader(offline=offline, strictness_level=strictness_level)
         grader.semantic_scorer = get_semantic_scorer()
         report = grader.grade_exam(ocr_result, rubric, strictness_level=strictness_level)
+
+        # Update saved sheet metadata with extracted student details
+        if active_sheet_id:
+            safe_s = Path(active_sheet_id).name
+            s_meta_path = SAVED_SHEETS_DIR / safe_s / "meta.json"
+            if s_meta_path.exists():
+                try:
+                    sm = json.loads(s_meta_path.read_text(encoding="utf-8"))
+                    if getattr(ocr_result, "student_meta", None):
+                        for k in ("student_name", "roll_no", "subject"):
+                            if ocr_result.student_meta.get(k):
+                                sm[k] = ocr_result.student_meta[k]
+                        s_meta_path.write_text(json.dumps(sm, indent=2), encoding="utf-8")
+                except Exception:
+                    pass
 
         return _build_final_payload(session_id, ocr_result, report, rubric=rubric)
     except Exception as exc:
@@ -532,6 +672,7 @@ async def api_grade_stream(
     use_sample_pages: bool = Form(False),
     use_photosynthesis_sample: bool = Form(False),
     rubric_json: str = Form(...),
+    saved_sheet_id: str = Form(""),
     pages: list[UploadFile] = File([]),
 ) -> StreamingResponse:
     """Stream live page-by-page evaluation progress (NDJSON) followed by the final grading report."""
@@ -547,8 +688,12 @@ async def api_grade_stream(
     session_crops_dir = DEBUG_CROPS_DIR / f"session_{session_id}"
     session_crops_dir.mkdir(parents=True, exist_ok=True)
 
-    page_paths = _prepare_student_pages(
-        session_upload_dir, use_photosynthesis_sample, use_sample_pages, pages
+    page_paths, active_sheet_id = _prepare_student_pages(
+        session_upload_dir,
+        use_photosynthesis_sample,
+        use_sample_pages,
+        pages,
+        saved_sheet_id=saved_sheet_id,
     )
     total_pages = len(page_paths)
     lvl = max(1, min(10, int(strictness_level)))
@@ -596,6 +741,21 @@ async def api_grade_stream(
             grader = ExamGrader(offline=offline, strictness_level=lvl)
             grader.semantic_scorer = get_semantic_scorer()
             report = grader.grade_exam(ocr_result, rubric, strictness_level=lvl)
+
+            # Update saved sheet metadata with extracted student details
+            if active_sheet_id:
+                safe_s = Path(active_sheet_id).name
+                s_meta_path = SAVED_SHEETS_DIR / safe_s / "meta.json"
+                if s_meta_path.exists():
+                    try:
+                        sm = json.loads(s_meta_path.read_text(encoding="utf-8"))
+                        if getattr(ocr_result, "student_meta", None):
+                            for k in ("student_name", "roll_no", "subject"):
+                                if ocr_result.student_meta.get(k):
+                                    sm[k] = ocr_result.student_meta[k]
+                            s_meta_path.write_text(json.dumps(sm, indent=2), encoding="utf-8")
+                    except Exception:
+                        pass
 
             payload = _build_final_payload(session_id, ocr_result, report, rubric=rubric)
             push_event(
@@ -760,6 +920,51 @@ async def api_delete_saved_report(report_id: str) -> dict[str, str]:
         raise HTTPException(status_code=404, detail="Saved report not found")
     shutil.rmtree(target)
     return {"status": "deleted", "report_id": safe_id}
+
+
+@app.get("/api/saved_papers")
+async def api_get_saved_papers() -> dict[str, Any]:
+    """Return all saved question papers and their rubrics."""
+    return {"papers": list_saved_papers()}
+
+
+@app.get("/api/saved_papers/{paper_id}/rubric")
+async def api_get_saved_paper_rubric(paper_id: str) -> dict[str, Any]:
+    """Return the cached rubric JSON for a saved question paper."""
+    safe_id = Path(paper_id).name
+    p_dir = SAVED_PAPERS_DIR / safe_id
+    r_file = p_dir / "rubric.json"
+    if not r_file.exists():
+        raise HTTPException(status_code=404, detail="Rubric not found for this saved paper")
+    return json.loads(r_file.read_text(encoding="utf-8"))
+
+
+@app.delete("/api/saved_papers/{paper_id}")
+async def api_delete_saved_paper(paper_id: str) -> dict[str, Any]:
+    """Delete a saved paper and its cached rubric."""
+    safe_id = Path(paper_id).name
+    p_dir = SAVED_PAPERS_DIR / safe_id
+    if p_dir.exists() and p_dir.is_dir():
+        shutil.rmtree(p_dir)
+        return {"status": "deleted", "paper_id": safe_id}
+    raise HTTPException(status_code=404, detail="Saved paper not found")
+
+
+@app.get("/api/saved_sheets")
+async def api_get_saved_sheets() -> dict[str, Any]:
+    """Return all saved student copies and their page previews."""
+    return {"sheets": list_saved_sheets()}
+
+
+@app.delete("/api/saved_sheets/{sheet_id}")
+async def api_delete_saved_sheet(sheet_id: str) -> dict[str, Any]:
+    """Delete a saved student answer sheet."""
+    safe_id = Path(sheet_id).name
+    s_dir = SAVED_SHEETS_DIR / safe_id
+    if s_dir.exists() and s_dir.is_dir():
+        shutil.rmtree(s_dir)
+        return {"status": "deleted", "sheet_id": safe_id}
+    raise HTTPException(status_code=404, detail="Saved sheet not found")
 
 
 if __name__ == "__main__":

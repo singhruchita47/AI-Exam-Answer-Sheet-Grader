@@ -500,9 +500,14 @@
               </p>
             </div>
             <div class="flex items-center gap-2 shrink-0">
+              <button type="button" onclick="loadLinuxDemoSetup()" id="linuxDemoBtn"
+                class="px-3 py-1.5 rounded-xl bg-gradient-to-r from-indigo-700 via-indigo-600 to-teal-600 hover:from-indigo-800 hover:to-teal-700 text-white font-extrabold text-xs shadow-sm transition cursor-pointer flex items-center gap-1.5 whitespace-nowrap"
+                title="1-Click: Loads the 60-mark Scope Global Skills Univ Linux Exam &amp; Kanak Patel 9-Page Copy">
+                <span>🚀</span> <span>Load Linux 60M Exam</span>
+              </button>
               <button type="button" onclick="loadSampleDemoSetup()" id="sampleDemoBtn"
                 class="px-3 py-1.5 rounded-xl bg-gradient-to-r from-slate-900 via-indigo-900 to-teal-800 hover:from-slate-800 hover:to-teal-700 text-white font-extrabold text-xs shadow-sm transition cursor-pointer flex items-center gap-1.5 whitespace-nowrap">
-                <span>⚡</span> <span>Try Sample Paper</span>
+                <span>⚡</span> <span>Try Biology Sample</span>
               </button>
               <div class="hidden sm:flex w-8 h-8 rounded-xl bg-white border border-slate-200 shadow-2xs items-center justify-center text-base">
                 📋
@@ -535,6 +540,32 @@
 
               <div class="p-4 sm:p-5 flex-1 flex flex-col justify-between space-y-3">
                 <div class="space-y-2.5">
+                  <!-- Saved Question Papers Dropdown -->
+                  <div class="p-2.5 rounded-2xl bg-indigo-50/80 border border-indigo-200/90 shadow-2xs">
+                    <div class="flex items-center justify-between mb-1.5">
+                      <label for="savedPapersSelect" class="text-[10px] font-black uppercase tracking-wider text-indigo-950 flex items-center gap-1">
+                        <span>💾</span> Saved Question Papers
+                      </label>
+                      <span id="savedPaperBadge" class="text-[9px] font-extrabold px-1.5 py-0.5 rounded-full bg-indigo-200/80 text-indigo-950">Available</span>
+                    </div>
+                    <div class="flex items-center gap-1.5">
+                      <select id="savedPapersSelect" onchange="handleSelectSavedPaper(this.value)"
+                        class="flex-1 text-xs font-bold py-1.5 px-2.5 rounded-xl bg-white border border-indigo-200 text-slate-900 shadow-2xs hover:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer">
+                        <option value="">-- Choose a Saved Question Paper --</option>
+                      </select>
+                      <button type="button" onclick="deleteActiveSavedPaper()" id="deleteSavedPaperBtn" title="Delete this saved paper"
+                        class="hidden px-2.5 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-bold transition cursor-pointer">
+                        🗑️
+                      </button>
+                    </div>
+                  </div>
+
+                  <div class="flex items-center gap-2 my-1 text-[9px] font-black text-slate-400 uppercase tracking-wider">
+                    <div class="flex-1 h-px bg-slate-200"></div>
+                    <span>OR UPLOAD NEW</span>
+                    <div class="flex-1 h-px bg-slate-200"></div>
+                  </div>
+
                   <div onclick="document.getElementById('questionImageFile').click()"
                     ondragover="handleCardDragOver(event, this)"
                     ondragleave="handleCardDragLeave(event, this)"
@@ -619,6 +650,32 @@
 
               <div class="p-4 sm:p-5 flex-1 flex flex-col justify-between space-y-3">
                 <div class="space-y-2.5">
+                  <!-- Saved Student Copies Dropdown -->
+                  <div class="p-2.5 rounded-2xl bg-teal-50/80 border border-teal-200/90 shadow-2xs">
+                    <div class="flex items-center justify-between mb-1.5">
+                      <label for="savedSheetsSelect" class="text-[10px] font-black uppercase tracking-wider text-teal-950 flex items-center gap-1">
+                        <span>💾</span> Saved Student Copies
+                      </label>
+                      <span id="savedSheetBadge" class="text-[9px] font-extrabold px-1.5 py-0.5 rounded-full bg-teal-200/80 text-teal-950">Available</span>
+                    </div>
+                    <div class="flex items-center gap-1.5">
+                      <select id="savedSheetsSelect" onchange="handleSelectSavedSheet(this.value)"
+                        class="flex-1 text-xs font-bold py-1.5 px-2.5 rounded-xl bg-white border border-teal-200 text-slate-900 shadow-2xs hover:border-teal-400 focus:outline-none focus:ring-2 focus:ring-teal-500 cursor-pointer">
+                        <option value="">-- Choose a Saved Student Copy --</option>
+                      </select>
+                      <button type="button" onclick="deleteActiveSavedSheet()" id="deleteSavedSheetBtn" title="Delete this saved student copy"
+                        class="hidden px-2.5 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-bold transition cursor-pointer">
+                        🗑️
+                      </button>
+                    </div>
+                  </div>
+
+                  <div class="flex items-center gap-2 my-1 text-[9px] font-black text-slate-400 uppercase tracking-wider">
+                    <div class="flex-1 h-px bg-slate-200"></div>
+                    <span>OR UPLOAD NEW</span>
+                    <div class="flex-1 h-px bg-slate-200"></div>
+                  </div>
+
                   <div onclick="document.getElementById('studentPageFiles').click()"
                     ondragover="handleCardDragOver(event, this)"
                     ondragleave="handleCardDragLeave(event, this)"
@@ -1278,6 +1335,10 @@
     let activeBulkIndex = 0;
     let lastSavedReportMeta = null;
     let cachedSavedReports = [];
+    let activeSavedPaperId = '';
+    let activeSavedSheetId = '';
+    let savedPapersList = [];
+    let savedSheetsList = [];
 
     // Split-screen & Navigation state
     let currentPage = 'upload';
@@ -1451,6 +1512,15 @@
           try { defaultPhotoRubric = JSON.parse(cfg.photo_rubric); } catch (e) {}
         }
 
+        if (cfg.saved_papers) {
+          savedPapersList = cfg.saved_papers;
+          renderSavedPapersDropdown(savedPapersList);
+        }
+        if (cfg.saved_sheets) {
+          savedSheetsList = cfg.saved_sheets;
+          renderSavedSheetsDropdown(savedSheetsList);
+        }
+
         updateStrictnessLevel(5);
         updateDualRefBadge();
         initViewportDragPan();
@@ -1523,8 +1593,10 @@
       const akCard = document.getElementById('uploadCard_answerKey');
       const stCard = document.getElementById('uploadCard_student');
       const qHas = Boolean(
+        activeSavedPaperId ||
         document.getElementById('questionImageFile')?.files?.[0] ||
         (document.getElementById('questionText')?.value || '').trim() ||
+        (currentRubric && currentRubric.questions && currentRubric.questions.length > 0) ||
         activePreset === 'photosynthesis'
       );
       const akHas = Boolean(
@@ -1532,6 +1604,7 @@
         (document.getElementById('answerKeyText')?.value || '').trim()
       );
       const stHas = Boolean(
+        activeSavedSheetId ||
         (document.getElementById('studentPageFiles')?.files?.length || 0) > 0 ||
         bulkStudentQueue.length > 0 ||
         activePreset === 'photosynthesis'
@@ -1626,7 +1699,7 @@
     function hasQuestionPaperInput() {
       const qFile = document.getElementById('questionImageFile')?.files?.[0];
       const qTxt = (document.getElementById('questionText')?.value || '').trim();
-      return Boolean(qFile || qTxt || activePreset === 'photosynthesis');
+      return Boolean(activeSavedPaperId || (currentRubric && currentRubric.questions && currentRubric.questions.length > 0) || qFile || qTxt || activePreset === 'photosynthesis');
     }
 
     function detectSubjectFromText(rawText) {
@@ -1822,6 +1895,11 @@
       const container = document.getElementById('questionThumbnail');
       container.innerHTML = '';
       if (input.files && input.files[0]) {
+        activeSavedPaperId = '';
+        const pSel = document.getElementById('savedPapersSelect');
+        if (pSel) pSel.value = '';
+        document.getElementById('deleteSavedPaperBtn')?.classList.add('hidden');
+
         if (activePreset === 'photosynthesis') activePreset = 'custom';
         const subjEl = document.getElementById('teacherSubject');
         const marksEl = document.getElementById('teacherMarks');
@@ -1858,7 +1936,12 @@
 
     function clearQuestionFile() {
       const input = document.getElementById('questionImageFile');
-      input.value = '';
+      if (input) input.value = '';
+      activeSavedPaperId = '';
+      const pSel = document.getElementById('savedPapersSelect');
+      if (pSel) pSel.value = '';
+      document.getElementById('deleteSavedPaperBtn')?.classList.add('hidden');
+
       const container = document.getElementById('questionThumbnail');
       container.classList.add('hidden');
       container.innerHTML = '';
@@ -2088,6 +2171,11 @@
       if (container) container.innerHTML = '';
 
       if (input.files && input.files.length > 0) {
+        activeSavedSheetId = '';
+        const sSel = document.getElementById('savedSheetsSelect');
+        if (sSel) sSel.value = '';
+        document.getElementById('deleteSavedSheetBtn')?.classList.add('hidden');
+
         const filesArr = Array.from(input.files);
         const pdfCount = filesArr.filter(f => f.name.toLowerCase().endsWith('.pdf') || f.type === 'application/pdf').length;
         // Selecting 2+ student PDFs automatically engages Bulk Batch mode
@@ -2139,6 +2227,27 @@
     function clearStudentFiles() {
       const input = document.getElementById('studentPageFiles');
       if (input) input.value = '';
+      const b1 = document.getElementById('studentBulkFiles');
+      if (b1) b1.value = '';
+      const b2 = document.getElementById('studentBulkFolder');
+      if (b2) b2.value = '';
+      activeSavedSheetId = '';
+      const sSel = document.getElementById('savedSheetsSelect');
+      if (sSel) sSel.value = '';
+      document.getElementById('deleteSavedSheetBtn')?.classList.add('hidden');
+      const modeBadge = document.getElementById('studentModeBadge');
+      if (modeBadge) {
+        modeBadge.textContent = 'Single / Bulk';
+        modeBadge.className = 'text-[10px] font-extrabold px-2.5 py-0.5 rounded-full bg-slate-900 text-white shadow-2xs shrink-0';
+      }
+      const helperNote = document.getElementById('studentHelperNote');
+      if (helperNote) {
+        helperNote.textContent = 'Supports 1 copy or bulk batch of copies.';
+      }
+      const btnText = document.getElementById('gradeBtnText');
+      if (btnText) {
+        btnText.textContent = 'Evaluate Copy';
+      }
       resetBulkStudentState();
       bulkEvaluatedResults = [];
       activeBulkIndex = 0;
@@ -2152,6 +2261,245 @@
       }
       document.getElementById('clearStudentBtn')?.classList.add('hidden');
       syncUploadCardHighlights();
+    }
+
+    // -------------------------------------------------------------------------
+    // SAVED PAPERS & SAVED STUDENT SHEETS MANAGEMENT
+    // -------------------------------------------------------------------------
+    function renderSavedPapersDropdown(papers) {
+      const sel = document.getElementById('savedPapersSelect');
+      const badge = document.getElementById('savedPaperBadge');
+      if (badge) badge.textContent = `${papers.length} Available`;
+      if (!sel) return;
+
+      const currentVal = activeSavedPaperId || sel.value;
+      sel.innerHTML = '<option value="">-- Choose a Saved Question Paper --</option>';
+      papers.forEach(p => {
+        const opt = document.createElement('option');
+        opt.value = p.id;
+        opt.textContent = `📄 ${p.title} (${p.total_questions || '?'} Qs • ${p.printed_max_marks || '?'}M)`;
+        sel.appendChild(opt);
+      });
+      if (currentVal && papers.some(p => p.id === currentVal)) {
+        sel.value = currentVal;
+      }
+    }
+
+    function renderSavedSheetsDropdown(sheets) {
+      const sel = document.getElementById('savedSheetsSelect');
+      const badge = document.getElementById('savedSheetBadge');
+      if (badge) badge.textContent = `${sheets.length} Available`;
+      if (!sel) return;
+
+      const currentVal = activeSavedSheetId || sel.value;
+      sel.innerHTML = '<option value="">-- Choose a Saved Student Copy --</option>';
+      sheets.forEach(s => {
+        const opt = document.createElement('option');
+        opt.value = s.id;
+        const sName = s.student_name ? `${s.student_name} (${s.roll_no || 'No Roll'})` : s.filename;
+        opt.textContent = `✍️ ${sName} — ${s.page_count || 1} Pgs (${s.subject || 'Exam'})`;
+        sel.appendChild(opt);
+      });
+      if (currentVal && sheets.some(s => s.id === currentVal)) {
+        sel.value = currentVal;
+      }
+    }
+
+    async function refreshSavedPapers() {
+      try {
+        const resp = await fetch('/api/saved_papers');
+        const data = await resp.json();
+        savedPapersList = data.papers || [];
+        renderSavedPapersDropdown(savedPapersList);
+      } catch (e) {
+        console.error('Failed to refresh saved papers:', e);
+      }
+    }
+
+    async function refreshSavedSheets() {
+      try {
+        const resp = await fetch('/api/saved_sheets');
+        const data = await resp.json();
+        savedSheetsList = data.sheets || [];
+        renderSavedSheetsDropdown(savedSheetsList);
+      } catch (e) {
+        console.error('Failed to refresh saved sheets:', e);
+      }
+    }
+
+    async function handleSelectSavedPaper(paperId) {
+      if (!paperId) {
+        activeSavedPaperId = '';
+        document.getElementById('deleteSavedPaperBtn')?.classList.add('hidden');
+        syncUploadCardHighlights();
+        return;
+      }
+      activeSavedPaperId = paperId;
+      document.getElementById('deleteSavedPaperBtn')?.classList.remove('hidden');
+
+      const qFileInput = document.getElementById('questionImageFile');
+      if (qFileInput) qFileInput.value = '';
+      const qTxt = document.getElementById('questionText');
+      if (qTxt) qTxt.value = '';
+
+      const paperObj = savedPapersList.find(p => p.id === paperId);
+      const pTitle = paperObj ? paperObj.title : paperId;
+      const pSubj = paperObj ? (paperObj.subject || 'Exam') : 'Exam';
+      const pMarks = paperObj ? (paperObj.printed_max_marks || 60) : 60;
+
+      const subjEl = document.getElementById('teacherSubject');
+      const marksEl = document.getElementById('teacherMarks');
+      if (subjEl) { subjEl.value = pSubj; subjEl.dataset.userEdited = 'true'; }
+      if (marksEl) { marksEl.value = pMarks; marksEl.dataset.userEdited = 'true'; }
+
+      const cardSubj = document.getElementById('cardDetectedSubject');
+      const cardMarks = document.getElementById('cardDetectedMarks');
+      if (cardSubj) cardSubj.textContent = `Subject: ${pSubj}`;
+      if (cardMarks) cardMarks.textContent = `Max: ${pMarks}`;
+
+      setSilentRubricStatus('loading', `Loading saved rubric for ${pTitle}...`);
+      try {
+        const resp = await fetch(`/api/saved_papers/${encodeURIComponent(paperId)}/rubric`);
+        if (!resp.ok) throw new Error('Could not load saved rubric.');
+        const rubricData = await resp.json();
+        currentRubric = rubricData;
+        cachedRubricSignature = `saved:${paperId}`;
+
+        const qThumb = document.getElementById('questionThumbnail');
+        if (qThumb) {
+          qThumb.classList.remove('hidden');
+          qThumb.innerHTML = `
+            <div class="flex items-center justify-between p-2 bg-indigo-50 border border-indigo-200 rounded-xl text-xs">
+              <div class="flex items-center gap-2">
+                <span class="text-base">📄</span>
+                <div>
+                  <span class="font-extrabold text-indigo-950 block">${escapeHtmlSafe(pTitle)}</span>
+                  <span class="text-[10px] text-indigo-700">${rubricData.questions?.length || 0} Questions • Saved Rubric Ready (Instant 0s)</span>
+                </div>
+              </div>
+              <button type="button" onclick="clearQuestionFile()" class="text-slate-400 hover:text-rose-600 font-bold px-1" title="Clear">✕</button>
+            </div>
+          `;
+        }
+
+        setSilentRubricStatus('ready', `✅ Saved Paper Ready: ${rubricData.questions?.length || 0} questions (${pSubj}, ${pMarks} Marks)`);
+        syncUploadCardHighlights();
+      } catch (err) {
+        console.error(err);
+        setSilentRubricStatus('idle', `Error loading saved paper: ${err.message}`);
+      }
+    }
+
+    async function handleSelectSavedSheet(sheetId) {
+      if (!sheetId) {
+        activeSavedSheetId = '';
+        document.getElementById('deleteSavedSheetBtn')?.classList.add('hidden');
+        syncUploadCardHighlights();
+        return;
+      }
+      activeSavedSheetId = sheetId;
+      document.getElementById('deleteSavedSheetBtn')?.classList.remove('hidden');
+
+      const sFileInput = document.getElementById('studentPageFiles');
+      if (sFileInput) sFileInput.value = '';
+      const bulkFileInput = document.getElementById('studentBulkFiles');
+      if (bulkFileInput) bulkFileInput.value = '';
+      const bulkFolderInput = document.getElementById('studentBulkFolder');
+      if (bulkFolderInput) bulkFolderInput.value = '';
+      bulkStudentQueue = [];
+
+      const sheetObj = savedSheetsList.find(s => s.id === sheetId);
+      const sName = sheetObj?.student_name || 'Student Copy';
+      const sRoll = sheetObj?.roll_no || '';
+      const sSubj = sheetObj?.subject || '';
+      const pCount = sheetObj?.page_count || (sheetObj?.pages?.length || 1);
+      uploadedStudentFilename = sheetObj?.filename || `${sName}_${sRoll}.pdf`;
+
+      const modeBadge = document.getElementById('studentModeBadge');
+      if (modeBadge) {
+        modeBadge.textContent = `Saved (${pCount} Pgs)`;
+        modeBadge.className = 'text-[10px] font-bold px-2 py-0.5 rounded-full bg-teal-700 text-white shrink-0';
+      }
+      const helperNote = document.getElementById('studentHelperNote');
+      if (helperNote) {
+        helperNote.textContent = `Selected: ${sName} (${sRoll}) • ${pCount} pages`;
+      }
+      const btnText = document.getElementById('gradeBtnText');
+      if (btnText) {
+        btnText.textContent = 'Evaluate Saved Copy';
+      }
+
+      const container = document.getElementById('studentThumbnails');
+      const clearBtn = document.getElementById('clearStudentBtn');
+      if (container) {
+        container.classList.remove('hidden');
+        if (clearBtn) clearBtn.classList.remove('hidden');
+
+        let pagesHtml = '';
+        if (sheetObj?.pages && sheetObj.pages.length) {
+          pagesHtml = sheetObj.pages.slice(0, 5).map((pUrl, pIdx) => `
+            <span class="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded bg-teal-100/80 text-teal-900 border border-teal-200">
+              Pg ${pIdx + 1}
+            </span>
+          `).join('');
+          if (sheetObj.pages.length > 5) {
+            pagesHtml += `<span class="text-[10px] text-teal-800 font-bold">+${sheetObj.pages.length - 5} more</span>`;
+          }
+        }
+
+        container.innerHTML = `
+          <div class="flex items-center justify-between p-2 bg-teal-50 border border-teal-200 rounded-xl text-xs">
+            <div class="flex items-center gap-2 min-w-0">
+              <span class="text-base">✍️</span>
+              <div class="min-w-0">
+                <span class="font-extrabold text-teal-950 block truncate">${escapeHtmlSafe(sName)} ${sRoll ? '(' + escapeHtmlSafe(sRoll) + ')' : ''}</span>
+                <span class="text-[10px] text-teal-700">${escapeHtmlSafe(sSubj)} • ${pCount} Handwritten Pages</span>
+                <div class="flex flex-wrap items-center gap-1 mt-1">${pagesHtml}</div>
+              </div>
+            </div>
+            <button type="button" onclick="clearStudentFiles()" class="text-slate-400 hover:text-rose-600 font-bold px-1" title="Clear">✕</button>
+          </div>
+        `;
+      }
+
+      syncUploadCardHighlights();
+    }
+
+    async function deleteActiveSavedPaper() {
+      if (!activeSavedPaperId) return;
+      if (!confirm('Are you sure you want to delete this saved Question Paper and its cached rubric?')) return;
+      try {
+        const resp = await fetch(`/api/saved_papers/${encodeURIComponent(activeSavedPaperId)}`, { method: 'DELETE' });
+        if (!resp.ok) throw new Error('Failed to delete saved paper.');
+        activeSavedPaperId = '';
+        await refreshSavedPapers();
+        clearQuestionFile();
+      } catch (e) {
+        alert(e.message);
+      }
+    }
+
+    async function deleteActiveSavedSheet() {
+      if (!activeSavedSheetId) return;
+      if (!confirm('Are you sure you want to delete this saved Student Answer Sheet?')) return;
+      try {
+        const resp = await fetch(`/api/saved_sheets/${encodeURIComponent(activeSavedSheetId)}`, { method: 'DELETE' });
+        if (!resp.ok) throw new Error('Failed to delete saved sheet.');
+        activeSavedSheetId = '';
+        await refreshSavedSheets();
+        clearStudentFiles();
+      } catch (e) {
+        alert(e.message);
+      }
+    }
+
+    async function loadLinuxDemoSetup() {
+      await handleSelectSavedPaper('paper_linux_60m');
+      const selP = document.getElementById('savedPapersSelect');
+      if (selP) selP.value = 'paper_linux_60m';
+      await handleSelectSavedSheet('sheet_kanak_patel');
+      const selS = document.getElementById('savedSheetsSelect');
+      if (selS) selS.value = 'sheet_kanak_patel';
     }
 
     function loadSampleDemoSetup() {
@@ -2237,6 +2585,9 @@
     }
 
     async function ensureRubricReady() {
+      if (activeSavedPaperId && currentRubric) {
+        return currentRubric;
+      }
       if (activePreset === 'photosynthesis' && defaultPhotoRubric && !document.getElementById('questionImageFile')?.files?.[0] && !(document.getElementById('questionText')?.value || '').trim()) {
         currentRubric = defaultPhotoRubric;
         cachedRubricSignature = getReferenceSignature();
@@ -2291,6 +2642,7 @@
             ? 'using Official Answer Key'
             : 'with AI-inferred model answers';
           setSilentRubricStatus('ready', `Ready silently: ${qCount} question(s) (${modeTxt})`);
+          refreshSavedPapers();
         }
         return generated;
       })();
@@ -2449,7 +2801,11 @@
       formData.append('strictness_level', globalStrictnessLevel);
       formData.append('rubric_json', JSON.stringify(rubric));
 
-      if (job.mode === 'photosynthesis') {
+      if (job.saved_sheet_id) {
+        formData.append('saved_sheet_id', job.saved_sheet_id);
+        formData.append('use_photosynthesis_sample', false);
+        formData.append('use_sample_pages', false);
+      } else if (job.mode === 'photosynthesis') {
         formData.append('use_photosynthesis_sample', true);
         formData.append('use_sample_pages', false);
       } else if (job.mode === 'physics') {
@@ -2543,6 +2899,7 @@
       }
       if (buffer.trim()) handleEvent(JSON.parse(buffer));
       if (!finalPayload) throw new Error('Evaluation stream closed before completion.');
+      refreshSavedSheets();
       return finalPayload;
     }
 
@@ -2550,14 +2907,15 @@
       const filesInput = document.getElementById('studentPageFiles');
       const hasStudentFiles = filesInput && filesInput.files && filesInput.files.length > 0;
       const hasBulkQueue = bulkStudentQueue.length > 0;
-      if (hasStudentFiles || hasBulkQueue) activePreset = 'custom';
+      const hasSavedSheet = Boolean(activeSavedSheetId);
+      if (hasStudentFiles || hasBulkQueue || hasSavedSheet) activePreset = 'custom';
 
       if (!hasQuestionPaperInput()) {
-        alert("Please upload the Question Paper first (Step 01), or click 'Try Sample Paper' to test.");
+        alert("Please upload the Question Paper first (Step 01), or choose a Saved Question Paper.");
         return;
       }
-      if (activePreset === 'custom' && !hasStudentFiles && !hasBulkQueue) {
-        alert("Please upload the Student Answer Sheet (Step 02) or click 'Try Sample Paper'.");
+      if (activePreset === 'custom' && !hasStudentFiles && !hasBulkQueue && !hasSavedSheet) {
+        alert("Please upload the Student Answer Sheet (Step 02) or choose a Saved Student Copy.");
         return;
       }
 
@@ -2586,6 +2944,9 @@
         }
 
         const offline = Boolean(document.getElementById('offlineMode')?.checked);
+        const savedSheetObj = hasSavedSheet ? savedSheetsList.find(s => s.id === activeSavedSheetId) : null;
+        const savedSheetLabel = savedSheetObj ? (savedSheetObj.student_name ? `${savedSheetObj.student_name} (${savedSheetObj.roll_no || ''})` : savedSheetObj.filename) : 'Saved Student Copy';
+
         const jobs = (activePreset === 'custom' && hasBulkQueue)
           ? bulkStudentQueue.map(item => ({
               mode: 'custom',
@@ -2595,9 +2956,10 @@
             }))
           : [{
               mode: activePreset,
-              label: uploadedStudentFilename || activePreset,
-              filename: uploadedStudentFilename || '',
-              files: hasStudentFiles ? Array.from(filesInput.files) : []
+              label: hasSavedSheet ? savedSheetLabel : (uploadedStudentFilename || activePreset),
+              filename: uploadedStudentFilename || (hasSavedSheet ? (savedSheetObj?.filename || 'saved_sheet') : ''),
+              files: hasStudentFiles ? Array.from(filesInput.files) : [],
+              saved_sheet_id: activeSavedSheetId || ''
             }];
 
         bulkEvaluatedResults = [];
@@ -2909,6 +3271,11 @@
       return ['mcq', 'fill_blank', 'one_word'].includes(String(qType || '').toLowerCase());
     }
 
+    function isObjectiveParentQid(qid) {
+      const norm = normalizeQidClient(qid);
+      return /^Q1[AB]?$/.test(norm) || /^OBJ/i.test(norm);
+    }
+
     function renderAnswerContentHtml(rawText, qType, steps = [], showStepStatus = false) {
       const text = String(rawText || '').trim();
       const subMap = extractSubItemsMap(text);
@@ -3175,7 +3542,7 @@
       if (!text) return map;
 
       // 1. Roman: (i), (ii), i), i.
-      const romanRe = /(?:^|\s|\n)(?:\(\s*(i|ii|iii|iv|v|vi|vii|viii|ix|x)\s*\)|(?<!\w)(i|ii|iii|iv|v|vi|vii|viii|ix|x)\s*[\)\.])\s*/gi;
+      const romanRe = /(?:^|\s|\n)(?:\(\s*(i|ii|iii|iv|v|vi|vii|viii|ix|x)\s*\)|(?<!\w)(i|ii|iii|iv|v|vi|vii|viii|ix|x)\s*(?:[:\)\-]|\.(?!\.))*\s*)/gi;
       const romanMatches = [...text.matchAll(romanRe)];
       if (romanMatches.length >= 2) {
         romanMatches.forEach((m, idx) => {
@@ -3183,20 +3550,24 @@
           const num = ROMAN_TO_NUM[rKey] || (idx + 1);
           const start = m.index + m[0].length;
           const end = idx + 1 < romanMatches.length ? romanMatches[idx + 1].index : text.length;
-          map.set(num, stripDevanagariClean(text.slice(start, end)));
+          const rawSlice = text.slice(start, end).trim();
+          const cleanSlice = stripDevanagariClean(rawSlice);
+          map.set(num, cleanSlice || rawSlice);
         });
         return map;
       }
 
       // 2. Numeric: (1), 1), 1., A-1, Ans-1
-      const numRe = /(?:^|\s|\n)(?:\(\s*(\d{1,2})\s*\)|(?<!\w)(\d{1,2})\s*[\)\.]|(?:A|Ans)[\s\-_]*(\d{1,2})\b[\.\):\-]*)\s*/gi;
+      const numRe = /(?:^|\s|\n)(?:\(\s*(\d{1,2})\s*\)|(?<!\w)(\d{1,2})\s*[\)\.]|(?:A|Ans)[\s\-_]*(\d{1,2})\b(?:[:\)\-]|\.(?!\.))*\s*)/gi;
       const numMatches = [...text.matchAll(numRe)];
       if (numMatches.length >= 2) {
         numMatches.forEach((m, idx) => {
           const num = parseInt(m[1] || m[2] || m[3], 10);
           const start = m.index + m[0].length;
           const end = idx + 1 < numMatches.length ? numMatches[idx + 1].index : text.length;
-          if (num >= 1 && num <= 20) map.set(num, stripDevanagariClean(text.slice(start, end)));
+          const rawSlice = text.slice(start, end).trim();
+          const cleanSlice = stripDevanagariClean(rawSlice);
+          if (num >= 1 && num <= 20) map.set(num, cleanSlice || rawSlice);
         });
         return map;
       }
@@ -3596,13 +3967,15 @@
           const parentNice = formatDisplayQuestionId(res.question_id);
           const norm = normalizeQidClient(res.question_id);
 
+          const isObj = isObjectiveQuestionType(res.question_type) || isObjectiveParentQid(res.question_id);
           const subCount = Math.max(steps.length, qSubMap.size, ansSubMap.size, modSubMap.size, 1);
-          const defaultStepMax = Math.round((Number(res.max_marks || 0) / subCount) * 4) / 4 || 1.0;
+          const defaultStepMax = isObj ? 1.0 : (Math.round((Number(res.max_marks || 0) / subCount) * 4) / 4 || 1.0);
           const effectiveSteps = [];
           for (let sIdx = 0; sIdx < subCount; sIdx++) {
             const subNum = sIdx + 1;
             const existingStep = steps[sIdx];
             if (existingStep) {
+              if (isObj) existingStep.max_point_marks = 1.0;
               effectiveSteps.push(existingStep);
             } else {
               const subAns = (ansSubMap.get(subNum) || ansSubMap.get(sIdx) || '').trim();
@@ -3623,7 +3996,7 @@
 
           // Section Banner matching Image 2
           const subtotalAwarded = effectiveSteps.reduce((acc, st) => acc + (Number(st.awarded_point_marks) || 0), 0);
-          const totalMaxMarks = Number(res.max_marks) || effectiveSteps.reduce((acc, st) => acc + (Number(st.max_point_marks) || 1.0), 0);
+          const totalMaxMarks = isObj ? (effectiveSteps.length * 1.0) : (Number(res.max_marks) || effectiveSteps.reduce((acc, st) => acc + (Number(st.max_point_marks) || 1.0), 0));
 
           let typeLabel = 'Multiple Choice';
           if (res.question_type === 'fill_blank') typeLabel = 'Fill in the Blanks';
@@ -3657,7 +4030,7 @@
             const subQuestion = qSubMap.get(subNum) || qSubMap.get(sIdx) || (subModelAns ? `Expected: ${subModelAns}` : step.description) || `Sub-question (${romanTok})`;
             const subStudentAns = (ansSubMap.has(subNum) ? ansSubMap.get(subNum) : (ansSubMap.get(sIdx) || ansSubMap.get(romanTok) || (effectiveSteps.length === 1 ? res.student_answer : ''))).trim();
 
-            const stepMax = Number(step.max_point_marks) || (Number(res.max_marks) / steps.length) || 1.0;
+            const stepMax = isObj ? 1.0 : (Number(step.max_point_marks) || (Number(res.max_marks) / steps.length) || 1.0);
             const stepAwarded = Number(step.awarded_point_marks) || 0.0;
             const origStepAwarded = getOrigStepAwarded(qIdx, sIdx, stepAwarded);
             const subAttempted = Boolean(subStudentAns.length > 0 || stepAwarded > 0);

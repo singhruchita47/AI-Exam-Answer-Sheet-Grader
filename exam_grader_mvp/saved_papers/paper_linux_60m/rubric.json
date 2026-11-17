@@ -1,0 +1,263 @@
+{
+  "exam_title": "LINUX Examination Rubric",
+  "detected_subject": "LINUX",
+  "printed_max_marks": 60.0,
+  "reference_mode": "auto_inferred",
+  "questions": [
+    {
+      "question_id": "Q1A",
+      "question_text": "(i) What is UNIX? (ii) Which command shows current directory? (iii) Which of the following is a relative path? (iv) What is the function of PATH variable? (v) Which symbol represents parent directory?",
+      "question_type": "mcq",
+      "model_answer": "(i) Operating system\n(ii) pwd\n(iii) Documents\n(iv) Stores command search directories\n(v) ..",
+      "key_points": [
+        {
+          "point_id": "Q1A_P1",
+          "description": "(i) What is UNIX?: Operating system",
+          "weight": 1.0
+        },
+        {
+          "point_id": "Q1A_P2",
+          "description": "(ii) Which command shows current directory?: pwd",
+          "weight": 1.0
+        },
+        {
+          "point_id": "Q1A_P3",
+          "description": "(iii) Which of the following is a relative path?: Documents",
+          "weight": 1.0
+        },
+        {
+          "point_id": "Q1A_P4",
+          "description": "(iv) What is the function of PATH variable?: Stores command search directories",
+          "weight": 1.0
+        },
+        {
+          "point_id": "Q1A_P5",
+          "description": "(v) Which symbol represents parent directory?",
+          "weight": 1.0
+        }
+      ],
+      "requires_diagram": false,
+      "diagram_criteria": "",
+      "max_marks": 5.0
+    },
+    {
+      "question_id": "Q1B",
+      "question_text": "(i) Define Kernel. (ii) What is a shell? (iii) What is a directory? (iv) What is login prompt? (v) What is POSIX?",
+      "question_type": "mcq",
+      "model_answer": "(i) Kernel is the core of the OS. (ii) Shell is the command interpreter. (iii) Directory is a folder for files. (iv) Login prompt is the interface for user authentication. (v) POSIX is a standard for OS compatibility.",
+      "key_points": [
+        {
+          "point_id": "Q1B_P1",
+          "description": "(i) Define Kernel: Kernel is the core of the OS",
+          "weight": 1.0
+        },
+        {
+          "point_id": "Q1B_P2",
+          "description": "(ii) What is a shell?: Shell is the command interpreter",
+          "weight": 1.0
+        },
+        {
+          "point_id": "Q1B_P3",
+          "description": "(iii) What is a directory?: Directory is a folder for files",
+          "weight": 1.0
+        },
+        {
+          "point_id": "Q1B_P4",
+          "description": "(iv) What is login prompt?: Login prompt is the interface for user authentication",
+          "weight": 1.0
+        },
+        {
+          "point_id": "Q1B_P5",
+          "description": "(v) What is POSIX?: POSIX is a standard for OS compatibility",
+          "weight": 1.0
+        }
+      ],
+      "requires_diagram": false,
+      "diagram_criteria": "",
+      "max_marks": 5.0
+    },
+    {
+      "question_id": "P2_Q1",
+      "question_text": "Explain UNIX architecture (User, Shell, Kernel).",
+      "question_type": "long_answer",
+      "model_answer": "UNIX architecture consists of the hardware at the center, surrounded by the kernel, then the shell, and finally the user applications.",
+      "key_points": [
+        {
+          "point_id": "P2_Q1_P1",
+          "description": "Explanation of Kernel role",
+          "weight": 3.0
+        },
+        {
+          "point_id": "P2_Q1_P2",
+          "description": "Explanation of Shell and User interaction",
+          "weight": 3.0
+        }
+      ],
+      "requires_diagram": false,
+      "diagram_criteria": "",
+      "max_marks": 6.0
+    },
+    {
+      "question_id": "P2_Q2",
+      "question_text": "Write any four features of UNIX with examples.",
+      "question_type": "long_answer",
+      "model_answer": "Features include multi-user, multi-tasking, hierarchical file system, and portability.",
+      "key_points": [
+        {
+          "point_id": "P2_Q2_P1",
+          "description": "Listing four features",
+          "weight": 3.0
+        },
+        {
+          "point_id": "P2_Q2_P2",
+          "description": "Providing examples for features",
+          "weight": 3.0
+        }
+      ],
+      "requires_diagram": false,
+      "diagram_criteria": "",
+      "max_marks": 6.0
+    },
+    {
+      "question_id": "P2_Q3",
+      "question_text": "Differentiate between internal and external commands.",
+      "question_type": "long_answer",
+      "model_answer": "Internal commands are built into the shell, while external commands are separate executable files.",
+      "key_points": [
+        {
+          "point_id": "P2_Q3_P1",
+          "description": "Definition of internal commands",
+          "weight": 3.0
+        },
+        {
+          "point_id": "P2_Q3_P2",
+          "description": "Definition of external commands",
+          "weight": 3.0
+        }
+      ],
+      "requires_diagram": false,
+      "diagram_criteria": "",
+      "max_marks": 6.0
+    },
+    {
+      "question_id": "P2_Q4",
+      "question_text": "Explain absolute path and relative path with examples.",
+      "question_type": "long_answer",
+      "model_answer": "Absolute path starts from root (/), relative path starts from current directory.",
+      "key_points": [
+        {
+          "point_id": "P2_Q4_P1",
+          "description": "Explanation of absolute path",
+          "weight": 3.0
+        },
+        {
+          "point_id": "P2_Q4_P2",
+          "description": "Explanation of relative path",
+          "weight": 3.0
+        }
+      ],
+      "requires_diagram": false,
+      "diagram_criteria": "",
+      "max_marks": 6.0
+    },
+    {
+      "question_id": "P2_Q5",
+      "question_text": "Explain pwd, cd and ls commands with examples.",
+      "question_type": "long_answer",
+      "model_answer": "pwd prints working directory, cd changes directory, ls lists files.",
+      "key_points": [
+        {
+          "point_id": "P2_Q5_P1",
+          "description": "Explanation of pwd and cd",
+          "weight": 3.0
+        },
+        {
+          "point_id": "P2_Q5_P2",
+          "description": "Explanation of ls",
+          "weight": 3.0
+        }
+      ],
+      "requires_diagram": false,
+      "diagram_criteria": "",
+      "max_marks": 6.0
+    },
+    {
+      "question_id": "P2_Q6",
+      "question_text": "What is UNIX file system? Explain its structure.",
+      "question_type": "long_answer",
+      "model_answer": "The UNIX file system is a hierarchical tree structure starting from the root directory.",
+      "key_points": [
+        {
+          "point_id": "P2_Q6_P1",
+          "description": "Definition of file system",
+          "weight": 3.0
+        },
+        {
+          "point_id": "P2_Q6_P2",
+          "description": "Description of tree structure",
+          "weight": 3.0
+        }
+      ],
+      "requires_diagram": false,
+      "diagram_criteria": "",
+      "max_marks": 6.0
+    },
+    {
+      "question_id": "P3_Q1",
+      "question_text": "Explain the working of UNIX environment. Also explain environment variables with examples.",
+      "question_type": "long_answer",
+      "model_answer": "The UNIX environment manages user sessions and processes. Environment variables store configuration data like PATH.",
+      "key_points": [
+        {
+          "point_id": "P3_Q1_P1",
+          "description": "Working of UNIX environment",
+          "weight": 5.0
+        },
+        {
+          "point_id": "P3_Q1_P2",
+          "description": "Explanation of environment variables",
+          "weight": 5.0
+        }
+      ],
+      "requires_diagram": false,
+      "diagram_criteria": "",
+      "max_marks": 10.0
+    },
+    {
+      "question_id": "P3_Q2",
+      "question_text": "Explain the following commands with examples: 1) Echo 2) printf 3) who 4) date 5) cal. Explain directory management in UNIX. Write commands for creating, navigating and deleting directories.",
+      "question_type": "long_answer",
+      "model_answer": "Commands: echo prints text, printf formats output, who shows users, date shows time, cal shows calendar. Directory management uses mkdir, cd, and rmdir.",
+      "key_points": [
+        {
+          "point_id": "P3_Q2_P1",
+          "description": "(i) Echo",
+          "weight": 2.0
+        },
+        {
+          "point_id": "P3_Q2_P2",
+          "description": "(ii) printf",
+          "weight": 2.0
+        },
+        {
+          "point_id": "P3_Q2_P3",
+          "description": "(iii) who",
+          "weight": 2.0
+        },
+        {
+          "point_id": "P3_Q2_P4",
+          "description": "(iv) date",
+          "weight": 2.0
+        },
+        {
+          "point_id": "P3_Q2_P5",
+          "description": "(v) cal. Explain directory management in UNIX. Write commands for creating, navigating and deleting directories",
+          "weight": 2.0
+        }
+      ],
+      "requires_diagram": false,
+      "diagram_criteria": "",
+      "max_marks": 10.0
+    }
+  ]
+}

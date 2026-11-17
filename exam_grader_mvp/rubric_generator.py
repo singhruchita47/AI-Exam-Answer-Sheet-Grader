@@ -261,10 +261,40 @@ def normalize_and_expand_rubric_questions(rubric: ExamRubric) -> None:
         mod_sub_map = extract_subitems_dict(q.model_answer)
         sub_count = max(len(q_sub_map), len(mod_sub_map))
 
-        # If question has multiple sub-items (e.g. (i)..(vi)) but rubric generated fewer key points
-        if sub_count >= 2 and len(q.key_points) < sub_count:
+        is_obj = (
+            q.question_type in ("mcq", "fill_blank", "one_word")
+            or bool(re.search(r"Q1[AB]?\b|objective|choose|correct option|multiple choice", q.question_text + " " + q.question_id, re.I))
+        )
+
+        if is_obj:
+            if sub_count >= 2:
+                q.max_marks = float(sub_count)
+                new_kps: list[KeyPoint] = []
+                for sub_idx in range(1, sub_count + 1):
+                    r_tok = _INT_TO_ROMAN.get(sub_idx, str(sub_idx))
+                    sub_prompt = q_sub_map.get(sub_idx, "").strip()
+                    sub_ans = mod_sub_map.get(sub_idx, "").strip()
+                    desc = f"({r_tok}) {sub_prompt}: {sub_ans}".strip(": ") if sub_prompt else f"({r_tok}) {sub_ans}".strip()
+                    kw = [w.lower().strip(".,;:()") for w in sub_ans.split() if len(w) > 2]
+                    new_kps.append(
+                        KeyPoint(
+                            point_id=f"{q.question_id}_P{sub_idx}",
+                            description=desc,
+                            weight=1.0,
+                            keywords=kw,
+                        )
+                    )
+                q.key_points = new_kps
+                if q.question_type == "short_answer":
+                    q.question_type = "mcq"
+            elif q.max_marks > 1.0 and q.question_type in ("mcq", "fill_blank", "one_word"):
+                # Standalone objective question is strictly 1.0 mark
+                q.max_marks = 1.0
+                for kp in q.key_points:
+                    kp.weight = 1.0
+        elif sub_count >= 2 and len(q.key_points) < sub_count:
             weight_per_sub = round(q.max_marks / sub_count, 2)
-            new_kps: list[KeyPoint] = []
+            new_kps = []
             for sub_idx in range(1, sub_count + 1):
                 r_tok = _INT_TO_ROMAN.get(sub_idx, str(sub_idx))
                 sub_prompt = q_sub_map.get(sub_idx, "").strip()
@@ -280,8 +310,6 @@ def normalize_and_expand_rubric_questions(rubric: ExamRubric) -> None:
                     )
                 )
             q.key_points = new_kps
-            if q.question_type == "short_answer":
-                q.question_type = "mcq"
 
 
 class RubricGenerator:
@@ -437,7 +465,7 @@ class RubricGenerator:
                 "  * For ANY question with multiple sub-items (such as (i)..(vi), (1)..(6), (a)..(f)) — including Q1, Q2, Q3, Q4, Q5, Q1A, Q1B:",
                 "    1. In `question_text`: clearly write each sub-question labeled e.g. '(i) ... (ii) ... (iii) ...'.",
                 "    2. In `model_answer`: write each expected sub-answer line-by-line: '(i) ...\\n(ii) ...\\n(iii) ...'.",
-                "    3. In `key_points`: generate EXACTLY ONE `KeyPoint` per sub-item (e.g. 6 key_points for 6 MCQs). Set `point_id` to '{qid}_P1', '{qid}_P2'..., `description` to the specific expected answer e.g. '(i) (a) June 1992', `weight` to 1.0 (or max_marks / count), and `keywords` to the option letter and answer keywords.",
+                "    3. In `key_points`: generate EXACTLY ONE `KeyPoint` per sub-item (e.g. 5 key_points for 5 MCQs). Set `point_id` to '{qid}_P1', '{qid}_P2'..., `description` to the specific expected answer e.g. '(i) (b) Operating System', `weight` to 1.0 (EVERY objective question/sub-item is strictly 1 mark, NEVER 2 marks; for 5 MCQs max_marks is 5.0, for 6 MCQs max_marks is 6.0), and `keywords` to the option letter and answer keywords.",
                 "- DESCRIPTIVE / SHORT / LONG QUESTIONS: keep question_text clear, model_answer concise (1-2 sentences), and 2-3 weighted key_points.",
                 "- '[OR]' options: keep both in ONE question so either gets credit.",
                 "- question_type: mcq | fill_blank | one_word | short_answer | long_answer; requires_diagram=true ONLY if drawing/sketch requested.",
