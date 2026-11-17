@@ -26,7 +26,12 @@ from report_exporter import (
     list_saved_reports,
     save_report_bundle,
 )
-from rubric_generator import RubricGenerator, filter_hindi_keep_english
+from rubric_generator import (
+    RubricGenerator,
+    _detect_printed_max_marks,
+    _detect_printed_subject,
+    filter_hindi_keep_english,
+)
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("exam_grader_ui")
@@ -162,13 +167,13 @@ def _extract_reference_upload(
 
         if not extracted_chunks:
             if not offline and get_gemini_api_key():
-                pil_images = [doc[p_idx].render(scale=1.0).to_pil() for p_idx in range(max_p)]
+                pil_images = [doc[p_idx].render(scale=0.95).to_pil() for p_idx in range(min(max_p, 10))]
             else:
                 from rapidocr_onnxruntime import RapidOCR
 
                 rapid_ocr = RapidOCR()
-                for p_idx in range(min(max_p, 8)):
-                    pil_img = doc[p_idx].render(scale=1.0).to_pil()
+                for p_idx in range(min(max_p, 6)):
+                    pil_img = doc[p_idx].render(scale=0.95).to_pil()
                     res, _ = rapid_ocr(np.array(pil_img))
                     if res:
                         lines = [r[1].strip() for r in res if r[1].strip()]
@@ -183,6 +188,39 @@ def _extract_reference_upload(
             shutil.copyfileobj(upload.file, f)
 
     return image_path, pil_images, extracted_text
+
+
+@app.post("/api/quick_paper_meta")
+async def api_quick_paper_meta(
+    question_image: UploadFile = File(...),
+) -> dict[str, Any]:
+    """Zero-LLM instant (<50ms) subject & max-marks extraction from native Question Paper PDFs."""
+    filename = question_image.filename or "paper"
+    if not filename.lower().endswith(".pdf"):
+        return {
+            "detected_subject": _detect_printed_subject(filename),
+            "printed_max_marks": _detect_printed_max_marks(filename),
+            "fast_text": False,
+        }
+    try:
+        import pypdfium2 as pdfium
+
+        raw_bytes = await question_image.read()
+        doc = pdfium.PdfDocument(raw_bytes)
+        chunks = [
+            doc[i].get_textpage().get_text_range().strip()
+            for i in range(min(len(doc), 5))
+        ]
+        doc.close()
+        text = filter_hindi_keep_english("\n".join(c for c in chunks if c))
+        return {
+            "detected_subject": _detect_printed_subject(f"{filename}\n{text}"),
+            "printed_max_marks": _detect_printed_max_marks(text),
+            "fast_text": bool(text.strip()),
+        }
+    except Exception as exc:
+        logger.debug("Quick PDF meta skipped: %s", exc)
+        return {"detected_subject": "", "printed_max_marks": 0.0, "fast_text": False}
 
 
 @app.post("/api/generate_rubric")

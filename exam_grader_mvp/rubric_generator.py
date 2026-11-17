@@ -79,7 +79,7 @@ def filter_hindi_keep_english(text: str) -> str:
 
 
 def _detect_printed_subject(raw_text: str) -> str:
-    """Detect subject name explicitly written in question paper headers."""
+    """Detect subject name explicitly written or implied in question paper headers."""
     text = str(raw_text or "").strip()
     if not text:
         return ""
@@ -92,7 +92,31 @@ def _detect_printed_subject(raw_text: str) -> str:
         val = re.sub(r"\b(?:exam|examination|paper|mst|put|sem|semester|code|time|max)\b", "", m.group(1), flags=re.I).strip(" :-–.,")
         if len(val) >= 3:
             return val
-    return ""
+
+    lower = text.lower()
+    catalog = (
+        (r"\b(operating\s*systems?|deadlock|paging|cpu\s*scheduling|semaphore)\b", "Operating Systems"),
+        (r"\b(linux|unix|kernel|shell|posix|chmod|pwd|grep|bash|vi\s*editor)\b", "Linux / UNIX"),
+        (r"\b(dbms|database\s*management|sql|normalization|foreign\s*key|er\s*diagram)\b", "DBMS"),
+        (r"\b(data\s*structures?|linked\s*list|binary\s*tree|stack|queue|recursion)\b", "Data Structures"),
+        (r"\b(computer\s*networks?|tcp/ip|osi\s*model|subnetting|routing)\b", "Computer Networks"),
+        (r"\b(python|pandas|numpy|matplotlib|django)\b", "Python Programming"),
+        (r"\b(photosynthesis|chlorophyll|mitosis|genetics|botany|zoology|biology)\b", "Biology"),
+        (r"\b(physics|newton|ohm|refraction|prism|thermodynamics|kinematics|optics)\b", "Physics"),
+        (r"\b(chemistry|molecule|periodic\s*table|valency|molarity|organic)\b", "Chemistry"),
+        (r"\b(mathematics|maths|calculus|integration|differentiation|algebra|trigonometry|matrices)\b", "Mathematics"),
+        (r"\b(economics|macroeconomics|microeconomics|gdp|elasticity)\b", "Economics"),
+        (r"\b(english|grammar|comprehension|essay|literature)\b", "English"),
+        (r"\b(science)\b", "Science"),
+    )
+    best_subj = ""
+    best_hits = 0
+    for pat, label in catalog:
+        hits = len(re.findall(pat, lower))
+        if hits > best_hits:
+            best_hits = hits
+            best_subj = label
+    return best_subj
 
 
 def _detect_printed_max_marks(raw_text: str) -> float:
@@ -292,39 +316,20 @@ class RubricGenerator:
 
         prompt_parts.extend(
             [
-                "\nINSTRUCTIONS FOR RUBRIC GENERATION:",
-                "CRITICAL BILINGUAL RULE: The exam paper or answer key may contain both Hindi and English. COMPLETELY IGNORE all Hindi (Devanagari) text and cover-page instructions. Extract and formulate all questions and model answers EXCLUSIVELY in English.",
-                "1. QUESTION NUMBERING & MULTI-PART PAPERS:",
-                "   - If the paper has a single continuous numbering sequence (Q1, Q2, Q3 ... Q23), name question_id as 'Q1', 'Q2', 'Q3', etc.",
-                "   - If the paper is divided into Parts (e.g. Part I, Part II, Part III) where question numbering restarts at Q.1 inside each Part:",
-                "     * For Part I with Q.1(A) and Q.1(B), use question_id 'Q1A' and 'Q1B'.",
-                "     * For Part II questions (Q.1, Q.2, Q.3, Q.4, Q.5, Q.6...), use question_id 'P2_Q1', 'P2_Q2', 'P2_Q3', 'P2_Q4', 'P2_Q5', 'P2_Q6', etc.",
-                "     * For Part III questions (Q.1, Q.2, Q.3...), use question_id 'P3_Q1', 'P3_Q2', 'P3_Q3', etc.",
-                "     * Extract EVERY SINGLE numbered question printed in Part I, Part II, and Part III as its own separate RubricQuestion item (never skip or merge the last question of a section, such as Part III Q.3).",
-                "2. MULTI-ITEM OBJECTIVE / SMALL ANSWER BLOCKS:",
-                "   - If a main question (such as Q1..Q5 in board papers, or Q1A / Q1B in university papers) contains multiple sub-items ((i)..(v) or (i)..(vi) worth 1 mark each), keep it as ONE RubricQuestion (e.g. Q1A with max_marks=5, Q1B with max_marks=5) and create 1 key_point per sub-item in exact order with its expected answer.",
-                "3. INTERNAL '[OR]' CHOICES:",
-                "   - If a question has an internal '[OR]' choice, include both the main question and the '[OR]' option in question_text and model_answer so a student answering EITHER option gets full credit.",
-                "4. Classify question_type for EACH question:",
-                "   - 'mcq' : For Multiple Choice Questions.",
-                "   - 'fill_blank' : For Fill in the Blanks questions.",
-                "   - 'one_word' : For One Word / One Sentence / True-False / Match-column objective questions.",
-                "   - 'short_answer' : For Short conceptual questions or blocks of short definitions (2-5 marks).",
-                "   - 'long_answer' : For Long descriptive/analytical questions (6+ marks). Provide 3-5 concise key points.",
-                "5. Keep question_text, model_answer, and key_point descriptions concise, accurate, and clear.",
-                "6. Set requires_diagram = true ONLY if the question explicitly asks the student to draw/sketch a diagram or map.",
-                "7. EXACT PRINTED MARKS & SUBJECT DETECTION (CRITICAL):\n"
-                "   - Set `detected_subject` to the exact Subject/Course name printed on the Question Paper header (or concise subject topic if unprinted).\n"
-                "   - Set `printed_max_marks` to the exact Maximum Marks printed on the Question Paper header (e.g., 'Max. Marks: 34', 'Maximum Marks: 50', 'M.M.: 30'). If no top header total is printed, sum the attemptable exam marks across sections (NEVER double-count '[OR]' alternatives or extra choice questions like 'Attempt any 4 of 6').\n"
-                "   - Set each question's `max_marks` strictly from its printed mark weight on the paper.\n"
-                "8. Set `exam_title` to '<detected_subject> Examination Rubric'.",
-                "\nReturn strict JSON matching the ExamRubric schema.",
+                "\nCOMPACT EXTRACTION RULES (FAST JSON):",
+                "- Ignore Hindi/Devanagari & cover boilerplate; extract exclusively in English.",
+                "- IDs: 'Q1','Q2'.. or multi-part 'Q1A','Q1B','P2_Q1'..'P2_Qn','P3_Q1'..'P3_Qn'. Keep EVERY printed question.",
+                "- Multi-item Q1A/Q1B ((i)..(v)): 1 RubricQuestion with 1 ultra-short key_point (<= 6 words) per sub-item.",
+                "- '[OR]' options: keep both in ONE question so either gets credit.",
+                "- question_type: mcq | fill_blank | one_word | short_answer | long_answer; requires_diagram=true ONLY if drawing/sketch requested.",
+                "- SPEED RULE: keep question_text concise (<= 20 words), model_answer ultra-short (1 line <= 18 words), and MAX 2 concise key_points (<= 7 words each) for subjective questions.",
+                "- Set `detected_subject` from header/topic, `printed_max_marks` from printed header total (never double-count OR/optional questions), each question's `max_marks` as printed, and `exam_title` = '<detected_subject> Examination Rubric'.",
             ]
         )
 
         import io
 
-        def _to_jpeg_part(pil_img: Image.Image, max_w: int = 1000, quality: int = 74) -> Any:
+        def _to_jpeg_part(pil_img: Image.Image, max_w: int = 880, quality: int = 68) -> Any:
             rgb = pil_img.convert("RGB")
             if rgb.width > max_w:
                 ratio = max_w / float(rgb.width)

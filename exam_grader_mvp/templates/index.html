@@ -1791,6 +1791,27 @@
       syncDetectedPaperMetaUI();
     }
 
+    async function quickDetectPaperMetaFromFile(file) {
+      if (!file) return;
+      try {
+        const fd = new FormData();
+        fd.append('question_image', file);
+        const resp = await fetch('/api/quick_paper_meta', { method: 'POST', body: fd });
+        if (!resp.ok) return;
+        const meta = await resp.json();
+        const subjEl = document.getElementById('teacherSubject');
+        const marksEl = document.getElementById('teacherMarks');
+        if (meta.detected_subject && subjEl && !subjEl.dataset.userEdited) {
+          subjEl.value = meta.detected_subject;
+        }
+        if (Number(meta.printed_max_marks) > 0 && marksEl && !marksEl.dataset.userEdited) {
+          const mv = Number(meta.printed_max_marks);
+          marksEl.value = mv % 1 === 0 ? mv.toFixed(0) : mv.toFixed(1);
+        }
+        syncDetectedPaperMetaUI();
+      } catch (_) {}
+    }
+
     function onQuestionTextInputChanged() {
       const qTxt = document.getElementById('questionText')?.value || '';
       applyAutoDetectedPaperMeta(qTxt, null);
@@ -1823,7 +1844,8 @@
           </div>
         `;
         container.classList.remove('hidden');
-        scheduleSilentRubricPrep(true);
+        if (isPdf) quickDetectPaperMetaFromFile(file);
+        triggerSilentRubricPrep(true);
       } else {
         container.classList.add('hidden');
         currentRubric = null;
@@ -2228,7 +2250,7 @@
 
       const reqId = ++rubricRequestSeq;
       activeRubricPromiseSig = sig;
-      setSilentRubricStatus('loading', 'Extracting questions & model answers silently...');
+      setSilentRubricStatus('loading', 'Syncing questions silently — you can upload Student Copy now!');
 
       activeRubricPromise = (async () => {
         const subjEl = document.getElementById('teacherSubject');
