@@ -3173,11 +3173,12 @@
       const map = new Map();
       if (!text) return map;
 
-      const romanRe = /(?:^|\s|\n)\(\s*(i|ii|iii|iv|v|vi|vii|viii|ix|x)\s*\)\s*/gi;
+      // 1. Roman: (i), (ii), i), i.
+      const romanRe = /(?:^|\s|\n)(?:\(\s*(i|ii|iii|iv|v|vi|vii|viii|ix|x)\s*\)|(?<!\w)(i|ii|iii|iv|v|vi|vii|viii|ix|x)\s*[\)\.])\s*/gi;
       const romanMatches = [...text.matchAll(romanRe)];
       if (romanMatches.length >= 2) {
         romanMatches.forEach((m, idx) => {
-          const rKey = m[1].toLowerCase();
+          const rKey = (m[1] || m[2]).toLowerCase();
           const num = ROMAN_TO_NUM[rKey] || (idx + 1);
           const start = m.index + m[0].length;
           const end = idx + 1 < romanMatches.length ? romanMatches[idx + 1].index : text.length;
@@ -3186,11 +3187,12 @@
         return map;
       }
 
-      const numRe = /(?:^|\s|\n)(?:\(\s*(\d{1,2})\s*\)|(?:A[\s\-_]*)(\d{1,2})\b[\.\):\-]*)\s*/gi;
+      // 2. Numeric: (1), 1), 1., A-1, Ans-1
+      const numRe = /(?:^|\s|\n)(?:\(\s*(\d{1,2})\s*\)|(?<!\w)(\d{1,2})\s*[\)\.]|(?:A|Ans)[\s\-_]*(\d{1,2})\b[\.\):\-]*)\s*/gi;
       const numMatches = [...text.matchAll(numRe)];
       if (numMatches.length >= 2) {
         numMatches.forEach((m, idx) => {
-          const num = parseInt(m[1] || m[2], 10);
+          const num = parseInt(m[1] || m[2] || m[3], 10);
           const start = m.index + m[0].length;
           const end = idx + 1 < numMatches.length ? numMatches[idx + 1].index : text.length;
           if (num >= 1 && num <= 20) map.set(num, stripDevanagariClean(text.slice(start, end)));
@@ -3198,11 +3200,13 @@
         return map;
       }
 
-      const alphaRe = /(?:^|\s|\n)\(\s*([a-f])\s*\)\s*/gi;
+      // 3. Alpha: (a), (b), a), b)
+      const alphaRe = /(?:^|\s|\n)(?:\(\s*([a-f])\s*\)|(?<!\w)([a-f])\s*[\)\.])\s*/gi;
       const alphaMatches = [...text.matchAll(alphaRe)];
       if (alphaMatches.length >= 2) {
         alphaMatches.forEach((m, idx) => {
-          const num = m[1].toLowerCase().charCodeAt(0) - 96;
+          const tok = (m[1] || m[2]).toLowerCase();
+          const num = tok.charCodeAt(0) - 96;
           const start = m.index + m[0].length;
           const end = idx + 1 < alphaMatches.length ? alphaMatches[idx + 1].index : text.length;
           map.set(num, stripDevanagariClean(text.slice(start, end)));
@@ -3214,19 +3218,20 @@
     }
 
     function shouldExpandSubCards(res) {
-      const steps = res.step_wise_breakdown || [];
-      if (steps.length < 2) return false;
-      const norm = normalizeQidClient(res.question_id);
-      const avgPerStep = (Number(res.max_marks) || 0) / steps.length;
-      const isObjOrSmallBlock =
-        isObjectiveQuestionType(res.question_type) ||
-        /^Q1[AB]$/.test(norm) ||
-        (res.question_type === 'short_answer' && steps.length >= 3 && avgPerStep <= 1.5);
-      if (!isObjOrSmallBlock) return false;
-
+      if (!res) return false;
       const qSubMap = extractSubItemsMap(res.question_text);
       const ansSubMap = extractSubItemsMap(res.student_answer);
-      return qSubMap.size >= 2 || ansSubMap.size >= 2 || steps.length >= 3;
+      const modSubMap = extractSubItemsMap(res.model_answer);
+      const hasExplicitSubItems = (qSubMap.size >= 2 || ansSubMap.size >= 2 || modSubMap.size >= 2);
+      if (hasExplicitSubItems) return true;
+
+      const norm = normalizeQidClient(res.question_id);
+      if (/^Q1[AB]$/.test(norm)) return true;
+
+      const steps = res.step_wise_breakdown || [];
+      if (isObjectiveQuestionType(res.question_type) && steps.length >= 2) return true;
+
+      return false;
     }
 
     function getOrigStepAwarded(qIdx, stepIdx, fallbackVal) {
@@ -3576,8 +3581,62 @@
           const ansSubMap = extractSubItemsMap(res.student_answer);
           const modSubMap = extractSubItemsMap(res.model_answer);
           const parentNice = formatDisplayQuestionId(res.question_id);
+          const norm = normalizeQidClient(res.question_id);
 
-          steps.forEach((step, sIdx) => {
+          const subCount = Math.max(steps.length, qSubMap.size, ansSubMap.size, modSubMap.size, 1);
+          const defaultStepMax = Math.round((Number(res.max_marks || 0) / subCount) * 4) / 4 || 1.0;
+          const effectiveSteps = [];
+          for (let sIdx = 0; sIdx < subCount; sIdx++) {
+            const subNum = sIdx + 1;
+            const existingStep = steps[sIdx];
+            if (existingStep) {
+              effectiveSteps.push(existingStep);
+            } else {
+              const subAns = (ansSubMap.get(subNum) || '').trim();
+              const subMod = (modSubMap.get(subNum) || '').trim();
+              const subQ = (qSubMap.get(subNum) || '').trim();
+              const isHit = Boolean(subAns && subMod && (subAns.toLowerCase().includes(subMod.toLowerCase()) || subMod.toLowerCase().includes(subAns.toLowerCase())));
+              effectiveSteps.push({
+                point_id: `${res.question_id}_P${subNum}`,
+                description: subQ ? `${subQ}: ${subMod}` : (subMod || `Sub-item (${ROMAN_LIST[sIdx] || subNum})`),
+                max_point_marks: defaultStepMax,
+                awarded_point_marks: isHit ? defaultStepMax : 0.0,
+                status: isHit ? 'Hit' : 'Missed',
+                notes: isHit ? 'Correctly identified.' : (subAns ? `Expected: ${subMod}` : 'Not attempted.'),
+              });
+            }
+          }
+          res.step_wise_breakdown = effectiveSteps;
+
+          // Section Banner matching Image 2
+          const subtotalAwarded = effectiveSteps.reduce((acc, st) => acc + (Number(st.awarded_point_marks) || 0), 0);
+          const totalMaxMarks = Number(res.max_marks) || effectiveSteps.reduce((acc, st) => acc + (Number(st.max_point_marks) || 1.0), 0);
+
+          let typeLabel = 'Multiple Choice';
+          if (res.question_type === 'fill_blank') typeLabel = 'Fill in the Blanks';
+          else if (res.question_type === 'one_word') typeLabel = 'One Word / Objective';
+          else if (res.question_type === 'short_answer') typeLabel = 'Objective Questions';
+
+          let partPrefix = '';
+          if (norm.startsWith('P2_') || activePartFilter === 'part2') partPrefix = 'Part II • ';
+          else if (norm.startsWith('P3_') || activePartFilter === 'part3') partPrefix = 'Part III • ';
+          else if (norm.startsWith('Q1') || activePartFilter === 'part1') partPrefix = 'Part I • ';
+
+          const bannerTitle = `${partPrefix}${parentNice} ${typeLabel}`.trim();
+
+          const bannerEl = document.createElement('div');
+          bannerEl.className = "flex items-center justify-between px-4 py-2.5 rounded-xl bg-teal-950 text-white shadow-xs border border-teal-800/60";
+          bannerEl.innerHTML = `
+            <div class="flex items-center gap-2">
+              <span class="text-xs sm:text-sm font-black tracking-wide">${escapeHtmlSafe(bannerTitle)}</span>
+            </div>
+            <span id="bannerSubtotal_${qIdx}" class="text-xs font-bold px-3 py-1 rounded-full bg-teal-900/90 text-teal-100 border border-teal-700/60 shadow-2xs">
+              Subtotal: ${Number(subtotalAwarded).toFixed(subtotalAwarded % 1 === 0 ? 0 : 1)} / ${Number(totalMaxMarks).toFixed(totalMaxMarks % 1 === 0 ? 0 : 1)} Marks
+            </span>
+          `;
+          groupWrap.appendChild(bannerEl);
+
+          effectiveSteps.forEach((step, sIdx) => {
             const subNum = sIdx + 1;
             const romanTok = ROMAN_LIST[sIdx] || String(subNum);
             const subTitle = `${parentNice}(${romanTok})`;
@@ -3985,6 +4044,11 @@
 
       const sumSteps = (qRes.step_wise_breakdown || []).reduce((s, st) => s + (Number(st.awarded_point_marks) || 0), 0);
       qRes.marks_awarded = Math.min(Number(qRes.max_marks) || sumSteps, Math.round(sumSteps * 4) / 4);
+
+      const subtotalEl = document.getElementById(`bannerSubtotal_${qIdx}`);
+      if (subtotalEl) {
+        subtotalEl.textContent = `Subtotal: ${Number(qRes.marks_awarded).toFixed(qRes.marks_awarded % 1 === 0 ? 0 : 1)} / ${Number(qRes.max_marks).toFixed(qRes.max_marks % 1 === 0 ? 0 : 1)} Marks`;
+      }
 
       updateVerdictPillDom(`subVerdictPill_${qIdx}_${sIdx}`, Boolean(qRes.is_attempted), num, Number(step.max_point_marks) || 1);
       markReviewDirty();

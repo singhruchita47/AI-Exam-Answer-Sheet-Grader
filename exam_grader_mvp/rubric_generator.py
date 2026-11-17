@@ -179,6 +179,111 @@ def _detect_printed_max_marks(raw_text: str) -> float:
     return 0.0
 
 
+_ROMAN_TO_INT: dict[str, int] = {
+    "i": 1, "ii": 2, "iii": 3, "iv": 4, "v": 5, "vi": 6,
+    "vii": 7, "viii": 8, "ix": 9, "x": 10, "xi": 11, "xii": 12,
+}
+_INT_TO_ROMAN: dict[int, str] = {v: k for k, v in _ROMAN_TO_INT.items()}
+
+
+def extract_subitems_dict(text: str) -> dict[int, str]:
+    """Extract sub-items (1..N) from text containing markers like (i)..(vi), (1)..(10), 1).."""
+    if not text or not text.strip():
+        return {}
+    roman_re = re.compile(
+        r"(?:^|\s|\n)(?:\(\s*([ivx]{1,4})\s*\)|(?<!\w)([ivx]{1,4})\s*[\)\.])\s*",
+        re.IGNORECASE,
+    )
+    r_matches = list(roman_re.finditer(text))
+    if len(r_matches) >= 2:
+        res: dict[int, str] = {}
+        for idx, m in enumerate(r_matches):
+            tok = m.group(1).lower()
+            num = _ROMAN_TO_INT.get(tok, idx + 1)
+            start = m.end()
+            end = r_matches[idx + 1].start() if idx + 1 < len(r_matches) else len(text)
+            seg = text[start:end].strip(" ,;.-:\n")
+            if seg:
+                res[num] = seg
+        if len(res) >= 2:
+            return res
+
+    num_re = re.compile(
+        r"(?:^|\s|\n)(?:\(\s*(\d{1,2})\s*\)|(?<!\w)(\d{1,2})\s*[\)\.]|(?:A|Ans)[\s\-_]*(\d{1,2})\b[\.\):\-]*)\s*",
+        re.IGNORECASE,
+    )
+    n_matches = list(num_re.finditer(text))
+    if len(n_matches) >= 2:
+        res_n: dict[int, str] = {}
+        for idx, m in enumerate(n_matches):
+            tok = m.group(1) or m.group(2) or m.group(3)
+            num = int(tok) if tok and tok.isdigit() else (idx + 1)
+            start = m.end()
+            end = n_matches[idx + 1].start() if idx + 1 < len(n_matches) else len(text)
+            seg = text[start:end].strip(" ,;.-:\n")
+            if seg and 1 <= num <= 20:
+                res_n[num] = seg
+        if len(res_n) >= 2:
+            return res_n
+
+    alpha_re = re.compile(
+        r"(?:^|\s|\n)\(\s*([a-f])\s*\)\s*",
+        re.IGNORECASE,
+    )
+    a_matches = list(alpha_re.finditer(text))
+    if len(a_matches) >= 2:
+        res_a: dict[int, str] = {}
+        for idx, m in enumerate(a_matches):
+            tok = m.group(1).lower()
+            num = ord(tok) - ord("a") + 1
+            start = m.end()
+            end = a_matches[idx + 1].start() if idx + 1 < len(a_matches) else len(text)
+            seg = text[start:end].strip(" ,;.-:\n")
+            if seg:
+                res_a[num] = seg
+        if len(res_a) >= 2:
+            return res_a
+
+    return {}
+
+
+def normalize_and_expand_rubric_questions(rubric: ExamRubric) -> None:
+    """Ensure multi-item objective questions have 1 key_point per sub-item."""
+    for q in rubric.questions:
+        qid_clean = q.question_id.strip()
+        qid_clean = re.sub(r"^(?:Part|Section)[\s_\-]*I(?:I|1)?[\s_\-]*Q\.?\s*1\s*\(?\s*([AB])\s*\)?$", r"Q1\1", qid_clean, flags=re.IGNORECASE)
+        qid_clean = re.sub(r"^Q\.?\s*1\s*\(?\s*([AB])\s*\)?$", r"Q1\1", qid_clean, flags=re.IGNORECASE)
+        qid_clean = re.sub(r"^(?:Part|Section|P)[\s_\-]*(?:II|2)[\s_\-]*Q(?:uestion)?[\s_\-\.]*(\d+)$", r"P2_Q\1", qid_clean, flags=re.IGNORECASE)
+        qid_clean = re.sub(r"^(?:Part|Section|P)[\s_\-]*(?:III|3)[\s_\-]*Q(?:uestion)?[\s_\-\.]*(\d+)$", r"P3_Q\1", qid_clean, flags=re.IGNORECASE)
+        q.question_id = qid_clean.upper()
+
+        q_sub_map = extract_subitems_dict(q.question_text)
+        mod_sub_map = extract_subitems_dict(q.model_answer)
+        sub_count = max(len(q_sub_map), len(mod_sub_map))
+
+        # If question has multiple sub-items (e.g. (i)..(vi)) but rubric generated fewer key points
+        if sub_count >= 2 and len(q.key_points) < sub_count:
+            weight_per_sub = round(q.max_marks / sub_count, 2)
+            new_kps: list[KeyPoint] = []
+            for sub_idx in range(1, sub_count + 1):
+                r_tok = _INT_TO_ROMAN.get(sub_idx, str(sub_idx))
+                sub_prompt = q_sub_map.get(sub_idx, "").strip()
+                sub_ans = mod_sub_map.get(sub_idx, "").strip()
+                desc = f"({r_tok}) {sub_prompt}: {sub_ans}".strip(": ") if sub_prompt else f"({r_tok}) {sub_ans}".strip()
+                kw = [w.lower().strip(".,;:()") for w in sub_ans.split() if len(w) > 2]
+                new_kps.append(
+                    KeyPoint(
+                        point_id=f"{q.question_id}_P{sub_idx}",
+                        description=desc,
+                        weight=weight_per_sub,
+                        keywords=kw,
+                    )
+                )
+            q.key_points = new_kps
+            if q.question_type == "short_answer":
+                q.question_type = "mcq"
+
+
 class RubricGenerator:
     """Generates structured exam grading rubrics from question images or text."""
 
@@ -229,6 +334,7 @@ class RubricGenerator:
                     answer_key_images=answer_key_images,
                     answer_key_text=answer_key_text,
                 )
+                normalize_and_expand_rubric_questions(rubric)
                 rubric.reference_mode = ref_mode
                 return rubric
             except Exception as exc:
@@ -246,6 +352,7 @@ class RubricGenerator:
             answer_key_image_path=answer_key_image_path,
             answer_key_text=answer_key_text,
         )
+        normalize_and_expand_rubric_questions(rubric)
         rubric.reference_mode = ref_mode
         return rubric
 
@@ -316,20 +423,24 @@ class RubricGenerator:
 
         prompt_parts.extend(
             [
-                "\nCOMPACT EXTRACTION RULES (FAST JSON):",
+                "\nCOMPACT EXTRACTION RULES (HIGH-PRECISION JSON):",
                 "- Ignore Hindi/Devanagari & cover boilerplate; extract exclusively in English.",
                 "- IDs: 'Q1','Q2'.. or multi-part 'Q1A','Q1B','P2_Q1'..'P2_Qn','P3_Q1'..'P3_Qn'. Keep EVERY printed question.",
-                "- Multi-item Q1A/Q1B ((i)..(v)): 1 RubricQuestion with 1 ultra-short key_point (<= 6 words) per sub-item.",
+                "- OBJECTIVE / MULTI-ITEM QUESTIONS (MCQ, Fill in blanks, True/False, Match, One-word):",
+                "  * For ANY question with multiple sub-items (such as (i)..(vi), (1)..(6), (a)..(f)) — including Q1, Q2, Q3, Q4, Q5, Q1A, Q1B:",
+                "    1. In `question_text`: clearly write each sub-question labeled e.g. '(i) ... (ii) ... (iii) ...'.",
+                "    2. In `model_answer`: write each expected sub-answer line-by-line: '(i) ...\\n(ii) ...\\n(iii) ...'.",
+                "    3. In `key_points`: generate EXACTLY ONE `KeyPoint` per sub-item (e.g. 6 key_points for 6 MCQs). Set `point_id` to '{qid}_P1', '{qid}_P2'..., `description` to the specific expected answer e.g. '(i) (a) June 1992', `weight` to 1.0 (or max_marks / count), and `keywords` to the option letter and answer keywords.",
+                "- DESCRIPTIVE / SHORT / LONG QUESTIONS: keep question_text clear, model_answer concise (1-2 sentences), and 2-3 weighted key_points.",
                 "- '[OR]' options: keep both in ONE question so either gets credit.",
                 "- question_type: mcq | fill_blank | one_word | short_answer | long_answer; requires_diagram=true ONLY if drawing/sketch requested.",
-                "- SPEED RULE: keep question_text concise (<= 20 words), model_answer ultra-short (1 line <= 18 words), and MAX 2 concise key_points (<= 7 words each) for subjective questions.",
                 "- Set `detected_subject` from header/topic, `printed_max_marks` from printed header total (never double-count OR/optional questions), each question's `max_marks` as printed, and `exam_title` = '<detected_subject> Examination Rubric'.",
             ]
         )
 
         import io
 
-        def _to_jpeg_part(pil_img: Image.Image, max_w: int = 880, quality: int = 68) -> Any:
+        def _to_jpeg_part(pil_img: Image.Image, max_w: int = 1650, quality: int = 90) -> Any:
             rgb = pil_img.convert("RGB")
             if rgb.width > max_w:
                 ratio = max_w / float(rgb.width)
@@ -372,14 +483,8 @@ class RubricGenerator:
         else:
             rubric = ExamRubric.model_validate_json(response.text)
 
-        # Normalize question IDs (e.g. PartII_Q1 -> P2_Q1, PartIII_Q2 -> P3_Q2, PartI_Q1A -> Q1A)
-        for q in rubric.questions:
-            qid_clean = q.question_id.strip()
-            qid_clean = re.sub(r"^(?:Part|Section)[\s_\-]*I(?:I|1)?[\s_\-]*Q\.?\s*1\s*\(?\s*([AB])\s*\)?$", r"Q1\1", qid_clean, flags=re.IGNORECASE)
-            qid_clean = re.sub(r"^Q\.?\s*1\s*\(?\s*([AB])\s*\)?$", r"Q1\1", qid_clean, flags=re.IGNORECASE)
-            qid_clean = re.sub(r"^(?:Part|Section|P)[\s_\-]*(?:II|2)[\s_\-]*Q(?:uestion)?[\s_\-\.]*(\d+)$", r"P2_Q\1", qid_clean, flags=re.IGNORECASE)
-            qid_clean = re.sub(r"^(?:Part|Section|P)[\s_\-]*(?:III|3)[\s_\-]*Q(?:uestion)?[\s_\-\.]*(\d+)$", r"P3_Q\1", qid_clean, flags=re.IGNORECASE)
-            q.question_id = qid_clean.upper()
+        # Normalize question IDs and expand multi-item objective sub-items into individual key points
+        normalize_and_expand_rubric_questions(rubric)
 
         # Backfill printed_max_marks / detected_subject deterministically if omitted or partial
         text_det_marks = _detect_printed_max_marks(cleaned_q_text)

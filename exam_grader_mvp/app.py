@@ -161,19 +161,19 @@ def _extract_reference_upload(
                 extracted_chunks.append(p_text)
 
         if len(doc) > 0 and (not extracted_chunks or sum(len(c) for c in extracted_chunks) < 120):
-            first_page = doc[0].render(scale=1.1).to_pil()
+            first_page = doc[0].render(scale=2.0).to_pil()
             image_path = target_dir / f"{prefix}_page_1.jpg"
-            first_page.save(image_path, "JPEG", quality=82)
+            first_page.save(image_path, "JPEG", quality=92)
 
         if not extracted_chunks:
             if not offline and get_gemini_api_key():
-                pil_images = [doc[p_idx].render(scale=0.95).to_pil() for p_idx in range(min(max_p, 10))]
+                pil_images = [doc[p_idx].render(scale=1.85).to_pil() for p_idx in range(min(max_p, 10))]
             else:
                 from rapidocr_onnxruntime import RapidOCR
 
                 rapid_ocr = RapidOCR()
                 for p_idx in range(min(max_p, 6)):
-                    pil_img = doc[p_idx].render(scale=0.95).to_pil()
+                    pil_img = doc[p_idx].render(scale=1.85).to_pil()
                     res, _ = rapid_ocr(np.array(pil_img))
                     if res:
                         lines = [r[1].strip() for r in res if r[1].strip()]
@@ -341,9 +341,9 @@ def _prepare_student_pages(
                 try:
                     doc = pdfium.PdfDocument(pdf_dest)
                     for page_idx in range(len(doc)):
-                        page_img = doc[page_idx].render(scale=1.05).to_pil()
+                        page_img = doc[page_idx].render(scale=1.85).to_pil()
                         img_path = session_upload_dir / f"page_{page_counter}.jpg"
-                        page_img.save(img_path, "JPEG", quality=80)
+                        page_img.save(img_path, "JPEG", quality=90)
                         page_paths.append(img_path)
                         page_counter += 1
                     doc.close()

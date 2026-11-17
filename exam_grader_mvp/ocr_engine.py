@@ -460,7 +460,7 @@ def _segment_regions(
             if page_number == 1 and top_rules_rows <= 12 and mid_div:
                 top_header_y = mid_div[0]
     else:
-        top_header_y = max(25, int(page_h * 0.155))
+        top_header_y = max(15, int(page_h * 0.045))
 
     pad_y = max(15, int(page_h * 0.025))
     pad_x = max(15, int(page_w * 0.025))
@@ -998,9 +998,9 @@ class OCREngine:
         if bgr is None:
             return ""
         h, w = bgr.shape[:2]
-        if w > 1100:
-            scale = 1100.0 / float(w)
-            bgr = cv2.resize(bgr, (1100, int(round(h * scale))), interpolation=cv2.INTER_AREA)
+        if w > 1650:
+            scale = 1650.0 / float(w)
+            bgr = cv2.resize(bgr, (1650, int(round(h * scale))), interpolation=cv2.INTER_AREA)
         res, _ = fast_ocr(bgr)
         if not res:
             return ""
@@ -1091,8 +1091,10 @@ class OCREngine:
                 "   - roll_no: visibly written roll/enrollment number (else '')\n"
                 "   - subject: visibly written subject name on cover/top header (else '')\n"
                 "2. QUESTION & PART NUMBERING:\n"
-                "   - Standard sequential exams (Answer no. 01, Q2, Ans 3, etc.): start each main question on its own line with 'Q1:', 'Q2:', 'Q3:', etc.\n"
-                "   - OBJECTIVE / MULTI-ITEM SUB-ANSWERS (MCQ, Fill in blanks, True/False, One-word items): put EACH sub-item on its OWN separate line in strict top-to-bottom order using '(i) ...', '(ii) ...', '(iii) ...', etc. (never merge multiple objective answers onto a single line).\n"
+                "   - Standard sequential exams (Answer no. 01, Answer no. - 02, Q2, Ans 3, etc.): start each main question on its own line with 'Q1:', 'Q2:', 'Q3:', etc.\n"
+                "   - Board Exam / Objective Question Booklet Sub-items (MCQ, Fill in blanks, True/False, One-word items):\n"
+                "     * Transcribe EVERY sub-item line in order from top to bottom (do NOT miss line 1 directly below the question heading, e.g. '(i) (a) June, 1992').\n"
+                "     * Put EACH sub-item on its OWN separate line using '(i) ...', '(ii) ...', '(iii) ...', etc. (never merge multiple objective answers onto a single line).\n"
                 "   - SHORT / LONG DESCRIPTIVE ANSWERS: keep each sentence/paragraph flowing naturally in clean continuous English text without breaking every visual line unnecessarily.\n"
                 "   - Multi-part exams with 'Part-I', 'Part-II', 'Part-III' headings where question numbers restart in each part:\n"
                 "     * Under Part-I: start Q.1(A) on its own line with 'Q1A:' and write its sub-answers line-by-line top-to-bottom as '(i) ...', '(ii) ...', '(iii) ...', '(iv) ...', '(v) ...' (even if the student wrote A-1..A-5). Start Q.1(B) / (B) on its own line with 'Q1B:' and write its sub-answers line-by-line as '(i) ...', '(ii) ...', '(iii) ...', '(iv) ...', '(v) ...' (if (iii)..(v) continue at the top of the next page before Part-II, write them as '(iii) ...', '(iv) ...', '(v) ...' without a new main question tag so they continue Q1B).\n"
@@ -1106,11 +1108,11 @@ class OCREngine:
 
             for p in batch:
                 pil_img = Image.open(p.source_path).convert("RGB")
-                if pil_img.width > 1024:
-                    ratio = 1024.0 / float(pil_img.width)
-                    pil_img = pil_img.resize((1024, int(round(pil_img.height * ratio))))
+                if pil_img.width > 1650:
+                    ratio = 1650.0 / float(pil_img.width)
+                    pil_img = pil_img.resize((1650, int(round(pil_img.height * ratio))))
                 buf = io.BytesIO()
-                pil_img.save(buf, format="JPEG", quality=74, optimize=True)
+                pil_img.save(buf, format="JPEG", quality=90, optimize=True)
                 contents.append(f"--- PAGE {p.page_number} ---")
                 contents.append(types.Part.from_bytes(data=buf.getvalue(), mime_type="image/jpeg"))
 

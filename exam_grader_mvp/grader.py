@@ -624,6 +624,13 @@ class SemanticScorer:
         pos_sub = sub_items.get(kp_idx + 1, "").strip()
         pos_lower = pos_sub.lower().strip(" .,;:()")
 
+        # 0. Check explicit option letter mismatch (e.g. student wrote "(b)" when "(c)" was expected)
+        opt_exp = re.search(r"(?:^|\s)\(?([a-d])\)?(?:\s|$|[\.\)])", raw_desc, re.IGNORECASE)
+        opt_stu = re.search(r"(?:^|\s)\(?([a-d])\)?(?:\s|$|[\.\)])", pos_sub, re.IGNORECASE)
+        if opt_exp and opt_stu and len(pos_sub.split()) <= 4:
+            if opt_exp.group(1).lower() != opt_stu.group(1).lower():
+                return 0.0
+
         # 0. Symbolic answer check (e.g. ".." for parent directory, "/" for root, "~" for home)
         for sym in ("..", "~", "/"):
             if sym in clean_desc and (sym in pos_sub or sym in student_answer):
@@ -1124,7 +1131,17 @@ class ExamGrader:
                 blended_sim *= 0.45 if lvl >= 8 else 0.6
 
             eff_hit_thresh = (0.72 if lvl <= 7 else 0.80) if is_objective_group else hit_threshold
-            if blended_sim >= eff_hit_thresh:
+            if is_objective_group:
+                if blended_sim >= eff_hit_thresh:
+                    status: Literal["Hit", "Partial", "Missed"] = "Hit"
+                    awarded = kp_max
+                    note = f"Correctly identified ({kp.description})."
+                else:
+                    status = "Missed"
+                    awarded = 0.0
+                    note = f"Wrong — expected {kp.description}."
+                    missing.append(kp.description)
+            elif blended_sim >= eff_hit_thresh:
                 status: Literal["Hit", "Partial", "Missed"] = "Hit"
                 awarded = kp_max
                 note = f"Correctly matched in answer (confidence {sim:.2f}, strictness {lvl}/10)."
