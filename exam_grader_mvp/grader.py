@@ -925,28 +925,166 @@ def _round_quarter(value: float) -> float:
     return round(value * 4.0) / 4.0
 
 
+def clean_text_for_quote(text: str) -> str:
+    """Normalizes text for quote verification: lowercase, alphanumeric and collapsed whitespace."""
+    if not text:
+        return ""
+    t = re.sub(r"[^\w\s]", " ", text)
+    return re.sub(r"\s+", " ", t).strip().lower()
+
+
+def verify_evidence_quote(quote: str, full_text: str) -> bool:
+    """
+    Verifies that the quoted evidence string actually exists in the student's text.
+    Uses substring containment, multi-clause validation, and RapidFuzz partial ratio >= 82.
+    """
+    if not quote or not full_text:
+        return False
+
+    norm_quote = clean_text_for_quote(quote)
+    norm_text = clean_text_for_quote(full_text)
+
+    if not norm_quote or not norm_text:
+        return False
+
+    if norm_quote in norm_text:
+        return True
+
+    # Check multi-clause parts
+    raw_clauses = [c.strip() for c in re.split(r"[;\n]+", quote) if c.strip()]
+    if len(raw_clauses) > 1:
+        if all(clean_text_for_quote(c) in norm_text for c in raw_clauses if clean_text_for_quote(c)):
+            return True
+
+    try:
+        from rapidfuzz import fuzz
+        if fuzz.partial_ratio(norm_quote, norm_text) >= 82:
+            return True
+    except Exception:
+        pass
+
+    return SequenceMatcher(None, norm_quote, norm_text).ratio() >= 0.80
+
+
+def parse_option_parts(text: str) -> tuple[str | None, str, list[str]]:
+    """
+    Parses option string (key or student answer) into (letter, clean_body, variants):
+      e.g. 'B) Operating system / ऑपरेटिंग सिस्टम' -> ('b', 'operating system...', ['operating system', 'ऑपरेटिंग सिस्टम'])
+    """
+    if not text:
+        return (None, "", [])
+
+    raw = text.strip()
+
+    # Match standalone letter or roman numeral: 'A', '(A)', '(i)', 'ii', '1'
+    m_full = re.match(r"^\s*\(?([a-zA-Z0-9]|[ivxIVX]{1,4})\)?\s*$", raw)
+    if m_full:
+        return (m_full.group(1).lower(), "", [])
+
+    # Match leading option label like '(A)', 'A)', 'A.', 'A -', 'A:', '(i)', 'i)'
+    m_pref = re.match(
+        r"^\s*(?:\(([a-zA-Z0-9]|[ivxIVX]{1,4})\)|\b([a-zA-Z0-9]|[ivxIVX]{1,4})[.)\]:-])\s*(.*)$",
+        raw,
+        re.DOTALL,
+    )
+    letter = None
+    body = raw
+    if m_pref:
+        letter = (m_pref.group(1) or m_pref.group(2)).lower()
+        body = m_pref.group(3).strip()
+
+    clean_body = re.sub(r"(?<=\w)\.+$", "", body.strip()).strip().lower()
+
+    # Split variants by '/' or '|' for bilingual or alternative answers
+    variants: list[str] = []
+    if clean_body:
+        variants.append(clean_body)
+        for part in re.split(r"[/|]+", clean_body):
+            p = re.sub(r"(?<=\w)\.+$", "", part.strip()).strip().lower()
+            if p and p not in variants:
+                variants.append(p)
+
+    return (letter, clean_body, variants)
+
+
+def check_math_equivalence(student_expr_str: str, key_expr_str: str) -> bool:
+    """Checks mathematical equivalence using SymPy (algebraic and numerical)."""
+    clean_s = re.sub(r"[^\w\s\+\-\*\/\^\(\)\.\=]", "", student_expr_str).strip()
+    clean_k = re.sub(r"[^\w\s\+\-\*\/\^\(\)\.\=]", "", key_expr_str).strip()
+
+    if "=" in clean_s:
+        clean_s = clean_s.split("=")[-1].strip()
+    if "=" in clean_k:
+        clean_k = clean_k.split("=")[-1].strip()
+
+    clean_s = clean_s.replace("^", "**")
+    clean_k = clean_k.replace("^", "**")
+
+    if not clean_s or not clean_k:
+        return False
+
+    try:
+        import sympy as sp
+        s_sym = sp.sympify(clean_s)
+        k_sym = sp.sympify(clean_k)
+        if sp.simplify(s_sym - k_sym) == 0:
+            return True
+        if abs(float(s_sym.evalf()) - float(k_sym.evalf())) < 1e-4:
+            return True
+    except Exception:
+        pass
+    return False
+
+
+def evaluate_spelling_tolerance(
+    student_word: str,
+    target_word: str,
+    strictness_level: int = 5,
+) -> bool:
+    """Evaluates word match under strict vs lenient tolerance using RapidFuzz."""
+    s_norm = re.sub(r"[^\w]", "", student_word.lower())
+    t_norm = re.sub(r"[^\w]", "", target_word.lower())
+
+    if s_norm == t_norm:
+        return True
+    if strictness_level >= 8:
+        return False  # Strict mode requires exact character match
+
+    try:
+        from rapidfuzz import fuzz
+        ratio = fuzz.ratio(s_norm, t_norm)
+        # Lenient/Balanced allows ratio >= 80 (e.g. 'kernal' vs 'kernel', 'operatng' vs 'operating')
+        threshold = 78 if strictness_level <= 3 else 80
+        return ratio >= threshold
+    except Exception:
+        return SequenceMatcher(None, s_norm, t_norm).ratio() >= 0.80
+
+
 def _get_strictness_instructions(strictness_level: int) -> str:
-    """Build dynamic grading prompt instructions for Strictness Level 1..10."""
+    """Build dynamic grading prompt instructions calibrated across Lenient, Moderate, and Strict tiers."""
     lvl = max(1, min(10, int(strictness_level)))
     if lvl <= 3:
         return (
-            f"GLOBAL STRICTNESS LEVEL: {lvl}/10 (LENIENT MODE).\n"
-            "- Focus on basic concept understanding.\n"
-            "- Ignore minor spelling, grammar, or OCR errors and missing sub-steps.\n"
-            "- Award generous partial marks whenever the student conveys the core idea."
+            f"### GRADING STRICTNESS: LENIENT (LEVEL {lvl}/10 - GENEROUS & ENCOURAGING)\n"
+            "- Award partial credit generously for any demonstration of the core concept or relevant attempt.\n"
+            "- Give the student the benefit of the doubt for phrasing variations, synonyms, or alternative valid approaches.\n"
+            "- Do NOT heavily penalize minor calculation slips, minor spelling/OCR slips, or informal wording if understanding is clear.\n"
+            "- Full marks may be given even if secondary minor details are omitted, as long as primary concepts are met."
         )
     if lvl <= 7:
         return (
-            f"GLOBAL STRICTNESS LEVEL: {lvl}/10 (BALANCED / STANDARD BOARD EVALUATION).\n"
-            "- Apply standard board/university evaluation.\n"
-            "- Check key terms, steps, and diagram labels fairly.\n"
-            "- Award proportional partial marks for partially complete answers."
+            f"### GRADING STRICTNESS: MODERATE (LEVEL {lvl}/10 - BALANCED BOARD EVALUATION)\n"
+            "- Apply standard university / board examination marking.\n"
+            "- Award fair, proportional partial credit strictly matching the rubric and required steps.\n"
+            "- Reward correct reasoning, but deduct points proportionally for missing key points or arithmetic mistakes.\n"
+            "- Ensure marks accurately reflect both strengths and deficiencies in the student's answer."
         )
     return (
-        f"GLOBAL STRICTNESS LEVEL: {lvl}/10 (STRICT / RIGOROUS MODE).\n"
-        "- Enforce strict keyword matching and exact formula/step verification.\n"
-        "- Apply strict penalties for missing labels, vague explanations, or incomplete sub-steps.\n"
-        "- Only award full marks when every technical term and step is accurately stated."
+        f"### GRADING STRICTNESS: STRICT (LEVEL {lvl}/10 - HIGH ACADEMIC RIGOR)\n"
+        "- Demand complete accuracy, correct scientific/mathematical terminology, and step-by-step reasoning.\n"
+        "- Strictly deduct marks for omitted key points, improper units, vague statements, or unjustified steps.\n"
+        "- Award full marks ONLY if the answer is completely accurate, thorough, and fully satisfies every point of the model answer.\n"
+        "- Explicitly penalize factual errors or misconceptions (e.g., claiming an external command is internal)."
     )
 
 
@@ -955,13 +1093,16 @@ def _grade_objective_answer(
     student_answer: str,
     strictness_level: int = 5,
 ) -> LLMGradeOutput:
-    """Fast, accurate direct evaluation for objective questions (MCQ, Fill in blanks, One word)."""
-    st_clean = student_answer.strip().lower()
-    mod_clean = question.model_answer.strip().lower()
+    """Fast, ultra-accurate evaluation for objective questions (MCQ, Fill in blanks, One word) with bilingual & math support."""
+    raw_student = student_answer.strip()
+    raw_model = question.model_answer.strip()
     q_type = question.question_type
     max_marks = question.max_marks
 
-    if not st_clean:
+    norm_lower = raw_student.lower()
+    if not raw_student or norm_lower in (
+        "not attempted", "unattempted", "nil", "n/a", "none", "not answered", "skipped", "blank", "—"
+    ):
         return LLMGradeOutput(
             step_wise_breakdown=[
                 StepBreakdownItem(
@@ -979,56 +1120,56 @@ def _grade_objective_answer(
             student_feedback=f"No answer provided. Expected: {question.model_answer}",
         )
 
+    s_letter, s_body, s_variants = parse_option_parts(raw_student)
+    k_letter, k_body, k_variants = parse_option_parts(raw_model)
+
     matched = False
     match_note = ""
-    typo_threshold = 0.68 if strictness_level <= 3 else (0.86 if strictness_level >= 8 else 0.78)
 
-    if q_type == "mcq":
-        # Extract option letter e.g. (b) or b from model answer
-        opt_match = re.search(r"\(?([a-d])\)?", mod_clean)
-        expected_opt = opt_match.group(1) if opt_match else None
-        expected_text = re.sub(r"^\(?[a-d]\)?[\.\s:\-]*", "", mod_clean).strip()
+    # 1. Option letter match (e.g. '(b)' vs '(b)', or 'a' vs 'A')
+    if s_letter and k_letter and s_letter == k_letter:
+        matched = True
+        match_note = f"Correct option selected ({raw_student})."
 
-        # Check student option letter e.g. (b), b, b), [b]
-        st_opt_match = re.search(r"\(?([a-d])\)?", st_clean)
-        st_opt = st_opt_match.group(1) if st_opt_match else None
-
-        opt_matched = bool(expected_opt and st_opt and expected_opt == st_opt)
-        text_matched = False
-        if expected_text and len(expected_text) > 2:
-            if expected_text in st_clean:
-                text_matched = True
-            else:
-                sim = SequenceMatcher(None, expected_text, st_clean).ratio()
-                if sim >= typo_threshold:
-                    text_matched = True
-
-        if opt_matched or text_matched:
+    # 2. Text body / variant match
+    if not matched and s_body:
+        if s_body == k_body or s_body in k_variants:
             matched = True
-            match_note = f"Correct option selected ({student_answer.strip()})."
-        else:
-            match_note = f"Wrong — wrote '{student_answer.strip()}', whereas correct option is {question.model_answer.strip()}."
-
-    else:
-        # fill_blank or one_word
-        target_words = re.findall(r"\w+", mod_clean)
-        st_words = re.findall(r"\w+", st_clean)
-
-        if mod_clean in st_clean:
+            match_note = f"Correct option text identified ({raw_student})."
+        elif k_body and (s_body in k_body or any(s in v for v in k_variants for s in s_variants)):
             matched = True
-        elif any(w in st_words for w in target_words if len(w) > 3):
+            match_note = f"Correct option identified ({raw_student})."
+
+    # 3. Cross-variant match (bilingual support)
+    if not matched:
+        for sv in s_variants:
+            if sv in k_variants or sv == k_body:
+                matched = True
+                match_note = f"Correct bilingual/variant match ({raw_student})."
+                break
+
+    # 4. Math equivalence via SymPy
+    if not matched and (re.search(r"\d", raw_student) or re.search(r"[\+\-\*\/\^]", raw_student)):
+        if check_math_equivalence(raw_student, raw_model):
             matched = True
-        else:
-            for tw in target_words:
-                if len(tw) > 3:
-                    for sw in st_words:
-                        if SequenceMatcher(None, tw, sw).ratio() >= typo_threshold:
-                            matched = True
-                            break
-        if matched:
-            match_note = f"Correct target word/term identified ({student_answer.strip()})."
-        else:
-            match_note = f"Wrong — '{student_answer.strip()}' does not match expected '{question.model_answer.strip()}'."
+            match_note = f"SymPy verified mathematical equivalence ({raw_student} == {raw_model})."
+
+    # 5. Spelling tolerance via RapidFuzz
+    if not matched and k_body and s_body:
+        if evaluate_spelling_tolerance(s_body, k_body, strictness_level=strictness_level):
+            matched = True
+            match_note = f"Correct option identified within OCR spelling tolerance ({raw_student})."
+
+    # 6. Fallback normalized character match
+    if not matched:
+        st_clean = clean_text_for_quote(raw_student)
+        ky_clean = clean_text_for_quote(raw_model)
+        if st_clean and ky_clean and (st_clean == ky_clean or st_clean in ky_clean):
+            matched = True
+            match_note = f"Correct answer matched ({raw_student})."
+
+    if not matched:
+        match_note = f"Wrong — wrote '{raw_student}', whereas correct option is '{raw_model}'."
 
     awarded = max_marks if matched else 0.0
     status: Literal["Hit", "Partial", "Missed"] = "Hit" if matched else "Missed"
@@ -1304,17 +1445,22 @@ class ExamGrader:
         strictness_block = _get_strictness_instructions(lvl)
 
         prompt = (
-            "You are an expert board exam evaluator grading a student's OCR-transcribed handwritten answer.\n"
+            "You are an expert academic examiner and evaluator grading a student's answer against an assessment rubric.\n"
             f"{strictness_block}\n\n"
             "CRITICAL GRADING RULES:\n"
-            "1. OBJECTIVE QUESTIONS & MULTI-PART OBJECTIVE GROUPS (MCQ, Fill in blanks, One word/sentence, True/False, Match pairs):\n"
+            "1. FACTUAL ACCURACY & RIGOR:\n"
+            "   - Check factual accuracy strictly: explicitly penalize wrong technical claims (e.g. claiming an external command like 'ls' is internal, or incorrect formulas/definitions).\n"
+            "   - Everyday analogies earn partial credit, but full credit requires technical correctness.\n"
+            "2. OBJECTIVE QUESTIONS & MULTI-PART OBJECTIVE GROUPS (MCQ, Fill in blanks, One word/sentence, True/False, Match pairs):\n"
             "   - Grade each sub-item ((i), (ii), (1), (2), etc.) directly based on factual correctness of the student's term, number, or option.\n"
-            "   - If a key point asks an open-ended question (e.g., 'Name of any valid national park in MP') and the student gives a factually valid answer (e.g., 'Kanha National Park Kisli'), award FULL MARKS ('Hit')!\n"
-            "   - Ignore minor OCR spelling variations (e.g. 'Federa' for 'Federal').\n"
-            "2. INTERNAL '[OR]' CHOICES:\n"
+            "   - If a key point asks an open-ended question (e.g., 'Name of any valid national park') or 'any N features' and the student gives factually valid answers, award FULL MARKS ('Hit')!\n"
+            "   - Tolerate minor OCR transcription slips (e.g. 'Federa' for 'Federal', 'kernal' for 'kernel').\n"
+            "3. INTERNAL '[OR]' CHOICES:\n"
             "   - If the question has an '[OR]' option, the student only needs to answer ONE of the options. Award full credit if their chosen option is answered accurately.\n"
-            "3. SUBJECTIVE QUESTIONS (Short Answer, Long Answer):\n"
-            f"   - Grade according to the Global Strictness Level ({lvl}/10) above.\n\n"
+            "4. EVIDENCE GROUNDING (NO HALLUCINATIONS):\n"
+            "   - Only award credit for content actually present in the student's transcribed text. Never assume or invent points not written by the student.\n"
+            "5. SUBJECTIVE QUESTIONS (Short Answer, Long Answer):\n"
+            f"   - Grade according to the Strictness Guidelines ({lvl}/10) above.\n\n"
             f"Question Type: {question.question_type.upper()}\n"
             f"Question ({question.question_id}, Max Marks = {question.max_marks}):\n{question.question_text}\n\n"
             f"Official Model Answer / Answer Key:\n{question.model_answer}\n\n"
@@ -1395,13 +1541,15 @@ class ExamGrader:
         strictness_block = _get_strictness_instructions(lvl)
 
         blocks: list[str] = [
-            "You are an expert board exam evaluator grading a batch of student answers.\n"
+            "You are an expert academic examiner and evaluator grading a batch of student answers against rubric key points.\n"
             f"{strictness_block}\n\n"
             "CRITICAL RULES:\n"
-            "1. For OBJECTIVE questions / 6-item objective blocks ((i)..(vi), (1)..(6)): check each sub-item directly against the student's sub-answer. Award full marks ('Hit') for each factually correct sub-item (including valid examples like 'Kanha National Park Kisli' for 'Name of any valid national park in MP', and minor OCR typos like 'Federa' for 'Federal').\n"
-            "2. For '[OR]' internal choices: award full credit if the student accurately answered EITHER option.\n"
-            f"3. For SUBJECTIVE questions (Short/Long Answer): evaluate according to Global Strictness Level ({lvl}/10).\n"
-            "4. Keep `notes` very short (<= 10 words) and `student_feedback` concise (1 sentence <= 18 words). If any answer/sub-item is WRONG (0 marks despite attempt), start notes / student_feedback with 'Wrong — <brief reason vs expected answer>'.\n"
+            "1. FACTUAL ACCURACY & RIGOR: Enforce technical correctness. Penalize wrong claims (e.g. claiming 'ls' is an internal command). Everyday analogies earn partial credit; technical depth earns full credit.\n"
+            "2. OBJECTIVE QUESTIONS / 6-item blocks: Check each sub-item directly. Award full marks ('Hit') for factually correct answers (including open-ended examples and minor OCR slips like 'kernal' for 'kernel').\n"
+            "3. INTERNAL '[OR]' CHOICES: Award full credit if the student accurately answered EITHER option.\n"
+            "4. EVIDENCE GROUNDING: Only award credit for concepts demonstrably written in the student's text. Never hallucinate or assume unwritten points.\n"
+            f"5. SUBJECTIVE QUESTIONS (Short/Long Answer): Evaluate according to the Strictness Guidelines ({lvl}/10).\n"
+            "6. Keep `notes` very short (<= 10 words) and `student_feedback` concise (1 sentence <= 18 words). If any answer/sub-item is WRONG (0 marks despite attempt), start notes / student_feedback with 'Wrong — <brief reason vs expected answer>'.\n"
             "Return strict JSON with a result for every question_id below:\n"
         ]
 
