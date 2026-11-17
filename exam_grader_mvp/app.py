@@ -166,18 +166,24 @@ def _extract_reference_upload(
             first_page.save(image_path, "JPEG", quality=92)
 
         if not extracted_chunks:
-            if not offline and get_gemini_api_key():
-                pil_images = [doc[p_idx].render(scale=1.85).to_pil() for p_idx in range(min(max_p, 10))]
-            else:
-                from rapidocr_onnxruntime import RapidOCR
-
+            # Scanned Question Paper PDF: extract text with RapidOCR so Gemini gets clean text of ALL questions
+            from rapidocr_onnxruntime import RapidOCR
+            try:
                 rapid_ocr = RapidOCR()
-                for p_idx in range(min(max_p, 6)):
-                    pil_img = doc[p_idx].render(scale=1.85).to_pil()
+                for p_idx in range(min(len(doc), 25)):
+                    pil_img = doc[p_idx].render(scale=1.2).to_pil()
                     res, _ = rapid_ocr(np.array(pil_img))
                     if res:
                         lines = [r[1].strip() for r in res if r[1].strip()]
-                        extracted_chunks.append("\n".join(lines))
+                        clean_lines = [filter_hindi_keep_english(l) for l in lines]
+                        clean_text = "\n".join(l for l in clean_lines if l.strip())
+                        if clean_text:
+                            extracted_chunks.append(clean_text)
+            except Exception as ocr_err:
+                logger.warning("RapidOCR question paper extraction failed: %s", ocr_err)
+
+            if not extracted_chunks and not offline and get_gemini_api_key():
+                pil_images = [doc[p_idx].render(scale=1.5).to_pil() for p_idx in range(min(len(doc), 15))]
 
         doc.close()
         if extracted_chunks:
@@ -380,6 +386,10 @@ def _build_final_payload(
 
     if rubric is not None:
         reference_mode = getattr(rubric, "reference_mode", "auto_inferred")
+        printed_mm = float(getattr(rubric, "printed_max_marks", 0.0) or 0.0)
+        if printed_mm > 0:
+            report_dump["printed_max_marks"] = printed_mm
+            report_dump["total_max_marks"] = printed_mm
         for idx, rq in enumerate(rubric.questions):
             rq_dict = rq.model_dump()
             norm_id = _normalize_qid(rq.question_id)

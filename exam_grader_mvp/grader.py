@@ -126,6 +126,7 @@ class ExamGradingReport(BaseModel):
     strictness_level: int = Field(default=5, ge=1, le=10)
     total_marks_awarded: float
     total_max_marks: float
+    printed_max_marks: float = 0.0
     mapped_answers: dict[str, str]
     question_results: list[QuestionGradeResult]
 
@@ -319,20 +320,37 @@ def _join_answer_parts(parts: list[str]) -> str:
     if sub_line_count >= 2:
         return "\n".join(non_empty)
 
-    # Inline objective sequence split: require strict paren markers (i)/(ii)/(1)/(2)/(a)/(b)
-    # or sequential numbered markers starting with (1)/1) and (2)/2) so prose years/numbers aren't split.
-    inline_paren_re = re.compile(
-        r"(?:^|\s)(\(\s*(?:[ivx]{1,4}|\d{1,2}|[a-f])\s*\))\s+",
+    joined_space = " ".join(non_empty)
+    # Prefer roman or numeric sub-item markers so MCQ option letters (a)..(d) remain attached to their item
+    roman_num_re = re.compile(
+        r"(?:^|\s)(\(\s*(?:[ivx]{1,4}|\d{1,2})\s*\))\s*",
         re.IGNORECASE,
     )
-    joined_space = " ".join(non_empty)
+    rn_matches = list(roman_num_re.finditer(joined_space))
+    if len(rn_matches) >= 2:
+        first_tok = rn_matches[0].group(1).strip("() ").lower()
+        second_tok = rn_matches[1].group(1).strip("() ").lower()
+        looks_sequential = (
+            (first_tok in ("i", "1"))
+            or (first_tok in ("ii", "2") and second_tok in ("iii", "3"))
+        )
+        if looks_sequential:
+            formatted = roman_num_re.sub(lambda m: f"\n{m.group(1).strip()} ", joined_space)
+            clean_lines = [ln.strip() for ln in formatted.splitlines() if ln.strip()]
+            return "\n".join(clean_lines)
+
+    # Fallback to alpha markers only if no roman/numeric markers exist
+    inline_paren_re = re.compile(
+        r"(?:^|\s)(\(\s*[a-f]\s*\))\s+",
+        re.IGNORECASE,
+    )
     paren_matches = list(inline_paren_re.finditer(joined_space))
     if len(paren_matches) >= 2:
         first_tok = paren_matches[0].group(1).strip("() ").lower()
         second_tok = paren_matches[1].group(1).strip("() ").lower()
         looks_sequential = (
-            (first_tok in ("i", "1", "a"))
-            or (first_tok in ("ii", "2", "b") and second_tok in ("iii", "3", "c"))
+            (first_tok == "a")
+            or (first_tok == "b" and second_tok == "c")
         )
         if looks_sequential:
             formatted = inline_paren_re.sub(lambda m: f"\n{m.group(1).strip()} ", joined_space)
@@ -1557,41 +1575,43 @@ class ExamGrader:
 
         existing_qids = {q.question_id for q in effective_questions}
 
-        # Only auto-create extra questions if the teacher provided a tiny 1-2 question rubric for a multi-question sheet
+        # Auto-include any questions answered by the student that weren't in the initial rubric
+        # so NO student answers are ever dropped or missing from review!
         def _qid_sort_key(q_str: str) -> int:
             m = re.search(r"\d+", q_str)
             return int(m.group(0)) if m else 999
 
-        if len(rubric.questions) <= 2:
-            for extra_qid in sorted(mapped_answers.keys(), key=_qid_sort_key):
-                if extra_qid in existing_qids:
-                    continue
-                extra_ans = mapped_answers.get(extra_qid, "").strip()
-                if not extra_ans:
-                    continue
-                words = extra_ans.split()
-                q_type: Literal["mcq", "fill_blank", "one_word", "short_answer", "long_answer"] = (
-                    "one_word" if len(words) <= 12 else ("long_answer" if len(words) >= 65 else "short_answer")
+        for extra_qid in sorted(mapped_answers.keys(), key=_qid_sort_key):
+            norm_extra = _normalize_qid(extra_qid)
+            norm_existing = {_normalize_qid(q) for q in existing_qids}
+            if extra_qid in existing_qids or norm_extra in norm_existing:
+                continue
+            extra_ans = mapped_answers.get(extra_qid, "").strip()
+            if not extra_ans:
+                continue
+            words = extra_ans.split()
+            q_type: Literal["mcq", "fill_blank", "one_word", "short_answer", "long_answer"] = (
+                "one_word" if len(words) <= 12 else ("long_answer" if len(words) >= 65 else "short_answer")
+            )
+            default_max = 1.0 if q_type == "one_word" else (4.0 if q_type == "long_answer" else 2.0)
+            effective_questions.append(
+                RubricQuestion(
+                    question_id=extra_qid,
+                    question_type=q_type,
+                    question_text=f"Answer evaluation for {extra_qid} (Detected on Page {', '.join(str(p) for p in question_pages.get(extra_qid, [1]))})",
+                    max_marks=default_max,
+                    model_answer=extra_ans,
+                    key_points=[
+                        KeyPoint(
+                            point_id=f"{extra_qid}_P1",
+                            description=f"Core concepts, accuracy, and completeness for {extra_qid}",
+                            weight=1.0,
+                            keywords=[w.lower().strip(".,;:()") for w in words[:8] if len(w) > 3],
+                        )
+                    ],
                 )
-                default_max = 1.0 if q_type == "one_word" else (4.0 if q_type == "long_answer" else 2.0)
-                effective_questions.append(
-                    RubricQuestion(
-                        question_id=extra_qid,
-                        question_type=q_type,
-                        question_text=f"Answer evaluation for {extra_qid} (Detected on Page {', '.join(str(p) for p in question_pages.get(extra_qid, [1]))})",
-                        max_marks=default_max,
-                        model_answer=extra_ans,
-                        key_points=[
-                            KeyPoint(
-                                point_id=f"{extra_qid}_P1",
-                                description=f"Core concepts, accuracy, and completeness for {extra_qid}",
-                                weight=1.0,
-                                keywords=[w.lower().strip(".,;:()") for w in words[:8] if len(w) > 3],
-                            )
-                        ],
-                    )
-                )
-                existing_qids.add(extra_qid)
+            )
+            existing_qids.add(extra_qid)
 
         prepared_items: list[list[Any]] = []
         diag_futures: dict[str, tuple[Any, bool, Path, RubricQuestion]] = {}
@@ -1777,7 +1797,8 @@ class ExamGrader:
             )
 
         total_awarded = round(sum(r.marks_awarded for r in results), 2)
-        total_max = round(sum(r.max_marks for r in results), 2)
+        printed_mm = float(getattr(rubric, "printed_max_marks", 0.0) or 0.0)
+        total_max = round(printed_mm if printed_mm > 0 else sum(r.max_marks for r in results), 2)
 
         return ExamGradingReport(
             exam_title=rubric.exam_title,
@@ -1785,6 +1806,7 @@ class ExamGrader:
             strictness_level=lvl,
             total_marks_awarded=total_awarded,
             total_max_marks=total_max,
+            printed_max_marks=printed_mm,
             mapped_answers=mapped_answers,
             question_results=results,
         )

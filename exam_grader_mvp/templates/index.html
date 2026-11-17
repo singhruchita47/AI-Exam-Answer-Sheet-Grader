@@ -3092,8 +3092,9 @@
       bar.classList.remove('hidden');
 
       const allItems = getOrderedReviewItems();
+      const printedMax = Number(currentGradingReport.printed_max_marks || (currentRubric && currentRubric.printed_max_marks) || 0);
       const totAw = currentGradingReport.total_marks_awarded ?? allItems.reduce((s, it) => s + (it.isOptionalOmitted ? 0 : (Number(it.res.marks_awarded) || 0)), 0);
-      const totMx = currentGradingReport.total_max_marks ?? allItems.reduce((s, it) => s + (it.isOptionalOmitted ? 0 : (Number(it.res.max_marks) || 0)), 0);
+      const totMx = (printedMax > 0) ? printedMax : (currentGradingReport.total_max_marks ?? allItems.reduce((s, it) => s + (it.isOptionalOmitted ? 0 : (Number(it.res.max_marks) || 0)), 0));
 
       const allActive = activeTopPart === 'all' && !filterByCurrentPage;
       let html = `
@@ -3210,6 +3211,15 @@
           const start = m.index + m[0].length;
           const end = idx + 1 < alphaMatches.length ? alphaMatches[idx + 1].index : text.length;
           map.set(num, stripDevanagariClean(text.slice(start, end)));
+        });
+        return map;
+      }
+
+      // 4. Multiline plaintext separated lines
+      const splitLines = text.split('\n').map(l => stripDevanagariClean(l)).filter(Boolean);
+      if (splitLines.length >= 2 && splitLines.length <= 15) {
+        splitLines.forEach((ln, idx) => {
+          map.set(idx + 1, ln);
         });
         return map;
       }
@@ -3566,7 +3576,10 @@
           breakdownList.appendChild(banner);
         }
 
-        const isAttempted = Boolean(res.is_attempted);
+        const isAttempted = (typeof res.is_attempted === 'boolean')
+          ? res.is_attempted
+          : Boolean((res.student_answer || '').trim() || res.diagram_path || (Number(res.marks_awarded) || 0) > 0);
+        res.is_attempted = isAttempted;
         const pageNums = (isAttempted && res.page_numbers && res.page_numbers.length > 0) ? res.page_numbers : [];
         const isHighlightedOnCurrentPage = isAttempted && pageNums.includes(activePageNum);
 
@@ -3592,9 +3605,9 @@
             if (existingStep) {
               effectiveSteps.push(existingStep);
             } else {
-              const subAns = (ansSubMap.get(subNum) || '').trim();
-              const subMod = (modSubMap.get(subNum) || '').trim();
-              const subQ = (qSubMap.get(subNum) || '').trim();
+              const subAns = (ansSubMap.get(subNum) || ansSubMap.get(sIdx) || '').trim();
+              const subMod = (modSubMap.get(subNum) || modSubMap.get(sIdx) || '').trim();
+              const subQ = (qSubMap.get(subNum) || qSubMap.get(sIdx) || '').trim();
               const isHit = Boolean(subAns && subMod && (subAns.toLowerCase().includes(subMod.toLowerCase()) || subMod.toLowerCase().includes(subAns.toLowerCase())));
               effectiveSteps.push({
                 point_id: `${res.question_id}_P${subNum}`,
@@ -3640,14 +3653,14 @@
             const subNum = sIdx + 1;
             const romanTok = ROMAN_LIST[sIdx] || String(subNum);
             const subTitle = `${parentNice}(${romanTok})`;
-            const subQuestion = qSubMap.get(subNum) || step.description || `Sub-question (${romanTok})`;
-            const subStudentAns = ansSubMap.has(subNum) ? ansSubMap.get(subNum) : '';
-            const subModelAns = modSubMap.get(subNum) || step.description || '';
-            const subAttempted = Boolean(isAttempted && subStudentAns.trim().length > 0);
+            const subModelAns = (modSubMap.get(subNum) || modSubMap.get(sIdx) || step.description || '').trim();
+            const subQuestion = qSubMap.get(subNum) || qSubMap.get(sIdx) || (subModelAns ? `Expected: ${subModelAns}` : step.description) || `Sub-question (${romanTok})`;
+            const subStudentAns = (ansSubMap.has(subNum) ? ansSubMap.get(subNum) : (ansSubMap.get(sIdx) || ansSubMap.get(romanTok) || (effectiveSteps.length === 1 ? res.student_answer : ''))).trim();
 
             const stepMax = Number(step.max_point_marks) || (Number(res.max_marks) / steps.length) || 1.0;
             const stepAwarded = Number(step.awarded_point_marks) || 0.0;
             const origStepAwarded = getOrigStepAwarded(qIdx, sIdx, stepAwarded);
+            const subAttempted = Boolean(subStudentAns.length > 0 || stepAwarded > 0);
 
             const matchedArr = (step.status === 'Hit' || step.status === 'Partial') ? [step.description || subModelAns] : [];
             const missedArr = step.status === 'Missed'
@@ -4147,19 +4160,39 @@
       }
     }
 
+    function promptEditGrandTotalMax() {
+      if (!currentGradingReport) return;
+      const cur = currentGradingReport.total_max_marks || currentGradingReport.printed_max_marks || 60;
+      const newVal = prompt("Enter the Maximum Marks for this Exam:", cur);
+      if (newVal === null) return;
+      const num = parseFloat(newVal);
+      if (!isNaN(num) && num > 0) {
+        currentGradingReport.printed_max_marks = num;
+        currentGradingReport.total_max_marks = num;
+        recalculateGrandTotal(true);
+        renderPartFilterBar();
+        markReviewDirty();
+      }
+    }
+
     function recalculateGrandTotal(isEdited = false) {
       if (!currentGradingReport) return;
+      const printedMax = Number(currentGradingReport.printed_max_marks || (currentRubric && currentRubric.printed_max_marks) || 0);
       let totalAwarded = 0;
-      let totalMax = 0;
+      let sumQuestionMax = 0;
       for (const q of currentGradingReport.question_results) {
         totalAwarded += Number(q.marks_awarded) || 0;
-        totalMax += Number(q.max_marks) || 0;
+        sumQuestionMax += Number(q.max_marks) || 0;
       }
+      let totalMax = printedMax > 0 ? printedMax : (Number(currentGradingReport.total_max_marks) > 0 ? Number(currentGradingReport.total_max_marks) : sumQuestionMax);
       currentGradingReport.total_marks_awarded = +totalAwarded.toFixed(2);
       currentGradingReport.total_max_marks = +totalMax.toFixed(2);
       const pct = totalMax > 0 ? (totalAwarded / totalMax) * 100 : 0;
 
-      document.getElementById('resTotalMarks').textContent = `${totalAwarded.toFixed(2)} / ${totalMax.toFixed(2)}`;
+      const marksEl = document.getElementById('resTotalMarks');
+      if (marksEl) {
+        marksEl.innerHTML = `<span>${totalAwarded.toFixed(2)} / </span><button type="button" onclick="promptEditGrandTotalMax()" title="Click to adjust Maximum Marks" class="font-black hover:text-teal-700 underline decoration-dotted cursor-pointer inline-flex items-center gap-1"><span>${totalMax.toFixed(2)}</span><span class="text-[10px] text-teal-600 no-underline font-normal">✏️</span></button>`;
+      }
       document.getElementById('resPercent').textContent = `${pct.toFixed(1)}%`;
 
       const bottomSum = document.getElementById('bottomTotalMarksSummary');
