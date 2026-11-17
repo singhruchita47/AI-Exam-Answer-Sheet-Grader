@@ -106,6 +106,7 @@ class QuestionGradeResult(BaseModel):
     question_id: str
     question_type: str = "short_answer"
     student_answer: str
+    is_attempted: bool = True
     page_numbers: list[int] = Field(default_factory=list)
     page_texts: dict[str, str] = Field(default_factory=dict)
     semantic_similarity: float = Field(ge=0.0, le=1.0)
@@ -1477,6 +1478,7 @@ class ExamGrader:
             question_id=question.question_id,
             question_type=question.question_type,
             student_answer=student_answer,
+            is_attempted=bool(student_answer.strip() or grade_output.marks_awarded > 0),
             page_numbers=page_numbers or [1],
             semantic_similarity=overall_sim,
             diagram_path=None,
@@ -1783,6 +1785,7 @@ class ExamGrader:
                     question_id=qid,
                     question_type=question.question_type,
                     student_answer=student_answer,
+                    is_attempted=bool(student_answer.strip() or diagram_path or grade_output.marks_awarded > 0),
                     page_numbers=q_pages if q_pages else [1],
                     page_texts=question_page_texts.get(qid, {}),
                     semantic_similarity=overall_sim,

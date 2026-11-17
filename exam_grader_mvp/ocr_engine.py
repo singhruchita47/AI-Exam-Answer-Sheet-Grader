@@ -938,15 +938,21 @@ class OCREngine:
                     crop_path=crop_path,
                 )
             )
-            cv2.rectangle(annotated, (box.x, box.y), (box.x2, box.y2), (0, 200, 0), 2)
+            # Dark, saturated forest green box for high contrast against paper
+            cv2.rectangle(annotated, (box.x, box.y), (box.x2, box.y2), (15, 120, 20), 2)
+            tag_y = max(18, box.y - 4)
+            (tw, th), _ = cv2.getTextSize(region_id, cv2.FONT_HERSHEY_SIMPLEX, 0.48, 1)
+            # High-contrast opaque label badge
+            cv2.rectangle(annotated, (box.x, max(0, tag_y - th - 3)), (box.x + tw + 6, tag_y + 2), (240, 252, 240), -1)
+            cv2.rectangle(annotated, (box.x, max(0, tag_y - th - 3)), (box.x + tw + 6, tag_y + 2), (15, 120, 20), 1)
             cv2.putText(
                 annotated,
                 region_id,
-                (box.x, max(20, box.y - 6)),
+                (box.x + 3, tag_y - 1),
                 cv2.FONT_HERSHEY_SIMPLEX,
-                0.55,
-                (0, 160, 0),
-                2,
+                0.48,
+                (10, 90, 15),
+                1,
                 cv2.LINE_AA,
             )
 
@@ -965,14 +971,20 @@ class OCREngine:
                     crop_path=crop_path,
                 )
             )
-            cv2.rectangle(annotated, (box.x, box.y), (box.x2, box.y2), (0, 0, 255), 3)
+            # Dark, saturated crimson red box for diagram regions
+            cv2.rectangle(annotated, (box.x, box.y), (box.x2, box.y2), (15, 15, 180), 3)
+            d_tag_y = max(22, box.y - 6)
+            (dtw, dth), _ = cv2.getTextSize(region_id, cv2.FONT_HERSHEY_SIMPLEX, 0.58, 2)
+            # High-contrast opaque badge for diagram
+            cv2.rectangle(annotated, (box.x, max(0, d_tag_y - dth - 4)), (box.x + dtw + 6, d_tag_y + 2), (242, 240, 255), -1)
+            cv2.rectangle(annotated, (box.x, max(0, d_tag_y - dth - 4)), (box.x + dtw + 6, d_tag_y + 2), (15, 15, 180), 1)
             cv2.putText(
                 annotated,
                 region_id,
-                (box.x, max(24, box.y - 8)),
+                (box.x + 3, d_tag_y - 1),
                 cv2.FONT_HERSHEY_SIMPLEX,
-                0.65,
-                (0, 0, 230),
+                0.58,
+                (10, 10, 150),
                 2,
                 cv2.LINE_AA,
             )
