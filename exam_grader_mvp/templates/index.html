@@ -519,7 +519,7 @@
           <div id="unifiedUploadGrid" class="grid grid-cols-1 lg:grid-cols-3 gap-4">
 
             <!-- CARD 1: QUESTION PAPER (With Auto Subject & Max Marks Detection) -->
-            <div id="uploadCard_question" class="upload-feature-card rounded-3xl flex flex-col justify-between lg:min-h-[390px]">
+            <div id="uploadCard_question" class="upload-feature-card rounded-3xl flex flex-col justify-between overflow-hidden shadow-sm hover:shadow-md transition-shadow">
               <div class="h-1 w-full bg-gradient-to-r from-indigo-800 via-indigo-600 to-cyan-500"></div>
 
               <!-- Tinted Interior Header Band -->
@@ -539,7 +539,7 @@
               </div>
 
               <div class="p-4 sm:p-5 flex-1 flex flex-col justify-between space-y-3">
-                <div class="space-y-2.5">
+                <div class="space-y-2">
                   <!-- Saved Question Papers Dropdown -->
                   <div class="p-2.5 rounded-2xl bg-indigo-50/80 border border-indigo-200/90 shadow-2xs">
                     <div class="flex items-center justify-between mb-1.5">
@@ -558,6 +558,18 @@
                         🗑️
                       </button>
                     </div>
+
+                    <!-- Selected Paper Active Chip (Inline directly under select!) -->
+                    <div id="savedPaperActiveChip" class="hidden mt-2 p-2 rounded-xl bg-white border border-indigo-200 shadow-2xs flex items-center justify-between text-xs">
+                      <div class="flex items-center gap-2 min-w-0">
+                        <span class="text-sm shrink-0">📄</span>
+                        <div class="min-w-0">
+                          <span id="savedPaperChipTitle" class="font-black text-indigo-950 truncate block text-[11px]">Linux Exam</span>
+                          <span id="savedPaperChipSub" class="text-[10px] text-indigo-700 font-bold block">10 Qs • 60M Ready</span>
+                        </div>
+                      </div>
+                      <button type="button" onclick="clearSelectedSavedPaper()" class="text-slate-400 hover:text-rose-600 font-bold px-1.5 py-0.5 rounded-md hover:bg-rose-50 transition text-xs" title="Deselect">✕</button>
+                    </div>
                   </div>
 
                   <div class="flex items-center gap-2 my-1 text-[9px] font-black text-slate-400 uppercase tracking-wider">
@@ -570,13 +582,13 @@
                     ondragover="handleCardDragOver(event, this)"
                     ondragleave="handleCardDragLeave(event, this)"
                     ondrop="handleCardDrop(event, this, 'questionImageFile', handleQuestionFileChange)"
-                    class="border-2 border-dashed border-indigo-300/80 hover:border-indigo-600 rounded-2xl py-5 px-4 text-center bg-gradient-to-b from-indigo-50/50 via-sky-50/25 to-slate-50/80 hover:from-indigo-50 hover:to-sky-50/60 transition cursor-pointer group">
-                    <div class="w-10 h-10 rounded-xl bg-white border border-indigo-200 text-indigo-700 flex items-center justify-center text-xl mx-auto mb-2 shadow-xs ring-2 ring-indigo-100/70 group-hover:scale-105 transition">
+                    class="border-2 border-dashed border-indigo-300/80 hover:border-indigo-600 rounded-2xl py-2.5 sm:py-3 px-3 text-center bg-gradient-to-b from-indigo-50/50 via-sky-50/25 to-slate-50/80 hover:from-indigo-50 hover:to-sky-50/60 transition cursor-pointer group">
+                    <div class="w-8 h-8 rounded-xl bg-white border border-indigo-200 text-indigo-700 flex items-center justify-center text-lg mx-auto mb-1.5 shadow-xs ring-2 ring-indigo-100/70 group-hover:scale-105 transition">
                       📄
                     </div>
-                    <p class="text-xs sm:text-sm font-extrabold text-slate-950">Upload Question Paper</p>
+                    <p class="text-xs font-extrabold text-slate-950">Upload Question Paper</p>
                     <p class="text-[10px] font-semibold text-slate-600">Drop PDF, JPG, or PNG • Bilingual auto-filtered</p>
-                    <div class="mt-2">
+                    <div class="mt-1.5">
                       <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white border border-indigo-200 text-indigo-900 group-hover:bg-indigo-700 group-hover:text-white group-hover:border-indigo-700 text-[11px] font-extrabold shadow-2xs transition">
                         + Choose Question File
                       </span>
@@ -629,7 +641,7 @@
             </div>
 
             <!-- CARD 2: STUDENT ANSWER SHEET (Single Multi-Page OR Bulk Batch Multi-Student!) -->
-            <div id="uploadCard_student" class="upload-feature-card rounded-3xl flex flex-col justify-between lg:min-h-[390px]">
+            <div id="uploadCard_student" class="upload-feature-card rounded-3xl flex flex-col justify-between overflow-hidden shadow-sm hover:shadow-md transition-shadow">
               <div class="h-1 w-full bg-gradient-to-r from-cyan-800 via-teal-600 to-emerald-500"></div>
 
               <!-- Tinted Interior Header Band -->
@@ -649,7 +661,7 @@
               </div>
 
               <div class="p-4 sm:p-5 flex-1 flex flex-col justify-between space-y-3">
-                <div class="space-y-2.5">
+                <div class="space-y-2">
                   <!-- Saved Student Copies Dropdown -->
                   <div class="p-2.5 rounded-2xl bg-teal-50/80 border border-teal-200/90 shadow-2xs">
                     <div class="flex items-center justify-between mb-1.5">
@@ -668,6 +680,18 @@
                         🗑️
                       </button>
                     </div>
+
+                    <!-- Selected Sheet Active Chip (Inline directly under select!) -->
+                    <div id="savedSheetActiveChip" class="hidden mt-2 p-2 rounded-xl bg-white border border-teal-200 shadow-2xs flex items-center justify-between text-xs">
+                      <div class="flex items-center gap-2 min-w-0">
+                        <span class="text-sm shrink-0">✍️</span>
+                        <div class="min-w-0">
+                          <span id="savedSheetChipTitle" class="font-black text-teal-950 truncate block text-[11px]">Kanak Patel (SGSU250489)</span>
+                          <span id="savedSheetChipSub" class="text-[10px] text-teal-700 font-bold block">9 Handwritten Pages • Ready</span>
+                        </div>
+                      </div>
+                      <button type="button" onclick="clearSelectedSavedSheet()" class="text-slate-400 hover:text-rose-600 font-bold px-1.5 py-0.5 rounded-md hover:bg-rose-50 transition text-xs" title="Deselect">✕</button>
+                    </div>
                   </div>
 
                   <div class="flex items-center gap-2 my-1 text-[9px] font-black text-slate-400 uppercase tracking-wider">
@@ -680,13 +704,13 @@
                     ondragover="handleCardDragOver(event, this)"
                     ondragleave="handleCardDragLeave(event, this)"
                     ondrop="handleStudentDropSmart(event, this)"
-                    class="border-2 border-dashed border-teal-300/80 hover:border-teal-600 rounded-2xl py-5 px-4 text-center bg-gradient-to-b from-teal-50/50 via-cyan-50/25 to-slate-50/80 hover:from-teal-50 hover:to-emerald-50/50 transition cursor-pointer group">
-                    <div class="w-10 h-10 rounded-xl bg-white border border-teal-200 text-teal-700 flex items-center justify-center text-xl mx-auto mb-2 shadow-xs ring-2 ring-teal-100/70 group-hover:scale-105 transition">
+                    class="border-2 border-dashed border-teal-300/80 hover:border-teal-600 rounded-2xl py-2.5 sm:py-3 px-3 text-center bg-gradient-to-b from-teal-50/50 via-cyan-50/25 to-slate-50/80 hover:from-teal-50 hover:to-emerald-50/50 transition cursor-pointer group">
+                    <div class="w-8 h-8 rounded-xl bg-white border border-teal-200 text-teal-700 flex items-center justify-center text-lg mx-auto mb-1.5 shadow-xs ring-2 ring-teal-100/70 group-hover:scale-105 transition">
                       ✍️
                     </div>
-                    <p class="text-xs sm:text-sm font-extrabold text-slate-950">Upload Handwritten Copy or Bulk Batch</p>
+                    <p class="text-xs font-extrabold text-slate-950">Upload Handwritten Copy or Bulk Batch</p>
                     <p class="text-[10px] font-semibold text-slate-600">Multi-page PDF/Images, or multiple student PDFs</p>
-                    <div class="mt-2 flex flex-wrap items-center justify-center gap-1.5">
+                    <div class="mt-1.5 flex flex-wrap items-center justify-center gap-1.5">
                       <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white border border-teal-200 text-teal-900 group-hover:bg-teal-700 group-hover:text-white group-hover:border-teal-700 text-[11px] font-extrabold shadow-2xs transition">
                         + Single Copy
                       </span>
@@ -723,7 +747,7 @@
             </div>
 
             <!-- CARD 3: OFFICIAL ANSWER KEY (OPTIONAL) -->
-            <div id="uploadCard_answerKey" class="upload-feature-card rounded-3xl flex flex-col justify-between lg:min-h-[390px]">
+            <div id="uploadCard_answerKey" class="upload-feature-card rounded-3xl flex flex-col justify-between overflow-hidden shadow-sm hover:shadow-md transition-shadow">
               <div class="h-1 w-full bg-gradient-to-r from-slate-800 via-indigo-600 to-teal-600"></div>
 
               <!-- Tinted Interior Header Band -->
@@ -743,18 +767,18 @@
               </div>
 
               <div class="p-4 sm:p-5 flex-1 flex flex-col justify-between space-y-3">
-                <div class="space-y-2.5">
+                <div class="space-y-2">
                   <div onclick="document.getElementById('answerKeyFile').click()"
                     ondragover="handleCardDragOver(event, this)"
                     ondragleave="handleCardDragLeave(event, this)"
                     ondrop="handleCardDrop(event, this, 'answerKeyFile', handleAnswerKeyFileChange)"
-                    class="border-2 border-dashed border-slate-300 hover:border-indigo-600 rounded-2xl py-5 px-4 text-center bg-gradient-to-b from-slate-100/60 via-indigo-50/25 to-white hover:from-indigo-50/60 hover:to-teal-50/40 transition cursor-pointer group">
-                    <div class="w-10 h-10 rounded-xl bg-white border border-slate-200 text-indigo-800 flex items-center justify-center text-xl mx-auto mb-2 shadow-xs ring-2 ring-slate-200/60 group-hover:scale-105 transition">
+                    class="border-2 border-dashed border-slate-300 hover:border-indigo-600 rounded-2xl py-2.5 sm:py-3 px-3 text-center bg-gradient-to-b from-slate-100/60 via-indigo-50/25 to-white hover:from-indigo-50/60 hover:to-teal-50/40 transition cursor-pointer group">
+                    <div class="w-8 h-8 rounded-xl bg-white border border-slate-200 text-indigo-800 flex items-center justify-center text-lg mx-auto mb-1.5 shadow-xs ring-2 ring-slate-200/60 group-hover:scale-105 transition">
                       🔑
                     </div>
-                    <p class="text-xs sm:text-sm font-extrabold text-slate-950">Optional: Upload Answer Key if available</p>
+                    <p class="text-xs font-extrabold text-slate-950">Optional: Upload Answer Key if available</p>
                     <p class="text-[10px] font-semibold text-slate-600">Drop PDF or Photo • Leave blank to auto-infer</p>
-                    <div class="mt-2">
+                    <div class="mt-1.5">
                       <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white border border-slate-300 text-slate-900 group-hover:bg-slate-900 group-hover:text-white group-hover:border-slate-900 text-[11px] font-extrabold shadow-2xs transition">
                         + Choose Answer Key
                       </span>
@@ -1960,6 +1984,7 @@
       activeSavedPaperId = '';
       const pSel = document.getElementById('savedPapersSelect');
       if (pSel) pSel.value = '';
+      document.getElementById('savedPaperActiveChip')?.classList.add('hidden');
       document.getElementById('deleteSavedPaperBtn')?.classList.add('hidden');
 
       const container = document.getElementById('questionThumbnail');
@@ -2254,6 +2279,7 @@
       activeSavedSheetId = '';
       const sSel = document.getElementById('savedSheetsSelect');
       if (sSel) sSel.value = '';
+      document.getElementById('savedSheetActiveChip')?.classList.add('hidden');
       document.getElementById('deleteSavedSheetBtn')?.classList.add('hidden');
       const modeBadge = document.getElementById('studentModeBadge');
       if (modeBadge) {
@@ -2350,6 +2376,7 @@
     async function handleSelectSavedPaper(paperId) {
       if (!paperId) {
         activeSavedPaperId = '';
+        document.getElementById('savedPaperActiveChip')?.classList.add('hidden');
         document.getElementById('deleteSavedPaperBtn')?.classList.add('hidden');
         syncUploadCardHighlights();
         return;
@@ -2377,6 +2404,21 @@
       if (cardSubj) cardSubj.textContent = `Subject: ${pSubj}`;
       if (cardMarks) cardMarks.textContent = `Max: ${pMarks}`;
 
+      // Show inline active chip under dropdown, keep questionThumbnail hidden to prevent overflow
+      const qThumb = document.getElementById('questionThumbnail');
+      if (qThumb) {
+        qThumb.classList.add('hidden');
+        qThumb.innerHTML = '';
+      }
+      const chip = document.getElementById('savedPaperActiveChip');
+      const chipTitle = document.getElementById('savedPaperChipTitle');
+      const chipSub = document.getElementById('savedPaperChipSub');
+      if (chip && chipTitle && chipSub) {
+        chipTitle.textContent = pTitle;
+        chipSub.textContent = `10 Qs • ${pSubj} (${pMarks} Marks) Ready ✔`;
+        chip.classList.remove('hidden');
+      }
+
       setSilentRubricStatus('loading', `Loading saved rubric for ${pTitle}...`);
       try {
         const resp = await fetch(`/api/saved_papers/${encodeURIComponent(paperId)}/rubric`);
@@ -2385,21 +2427,8 @@
         currentRubric = rubricData;
         cachedRubricSignature = `saved:${paperId}`;
 
-        const qThumb = document.getElementById('questionThumbnail');
-        if (qThumb) {
-          qThumb.classList.remove('hidden');
-          qThumb.innerHTML = `
-            <div class="flex items-center justify-between p-2 bg-indigo-50 border border-indigo-200 rounded-xl text-xs">
-              <div class="flex items-center gap-2">
-                <span class="text-base">📄</span>
-                <div>
-                  <span class="font-extrabold text-indigo-950 block">${escapeHtmlSafe(pTitle)}</span>
-                  <span class="text-[10px] text-indigo-700">${rubricData.questions?.length || 0} Questions • Saved Rubric Ready (Instant 0s)</span>
-                </div>
-              </div>
-              <button type="button" onclick="clearQuestionFile()" class="text-slate-400 hover:text-rose-600 font-bold px-1" title="Clear">✕</button>
-            </div>
-          `;
+        if (chipSub) {
+          chipSub.textContent = `${rubricData.questions?.length || 0} Questions • ${pSubj} (${pMarks} Marks Ready ✔)`;
         }
 
         setSilentRubricStatus('ready', `✅ Saved Paper Ready: ${rubricData.questions?.length || 0} questions (${pSubj}, ${pMarks} Marks)`);
@@ -2410,9 +2439,16 @@
       }
     }
 
+    function clearSelectedSavedPaper() {
+      const sel = document.getElementById('savedPapersSelect');
+      if (sel) sel.value = '';
+      handleSelectSavedPaper('');
+    }
+
     async function handleSelectSavedSheet(sheetId) {
       if (!sheetId) {
         activeSavedSheetId = '';
+        document.getElementById('savedSheetActiveChip')?.classList.add('hidden');
         document.getElementById('deleteSavedSheetBtn')?.classList.add('hidden');
         syncUploadCardHighlights();
         return;
@@ -2442,47 +2478,38 @@
       }
       const helperNote = document.getElementById('studentHelperNote');
       if (helperNote) {
-        helperNote.textContent = `Selected: ${sName} (${sRoll}) • ${pCount} pages`;
+        helperNote.textContent = `Selected: ${sName} (${sRoll}) • ${pCount} pages ready`;
       }
       const btnText = document.getElementById('gradeBtnText');
       if (btnText) {
         btnText.textContent = 'Evaluate Saved Copy';
       }
 
+      // Show inline active chip under dropdown, keep studentThumbnails hidden to prevent overflow
       const container = document.getElementById('studentThumbnails');
-      const clearBtn = document.getElementById('clearStudentBtn');
       if (container) {
-        container.classList.remove('hidden');
-        if (clearBtn) clearBtn.classList.remove('hidden');
+        container.classList.add('hidden');
+        container.innerHTML = '';
+      }
+      const clearBtn = document.getElementById('clearStudentBtn');
+      if (clearBtn) clearBtn.classList.remove('hidden');
 
-        let pagesHtml = '';
-        if (sheetObj?.pages && sheetObj.pages.length) {
-          pagesHtml = sheetObj.pages.slice(0, 5).map((pUrl, pIdx) => `
-            <span class="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded bg-teal-100/80 text-teal-900 border border-teal-200">
-              Pg ${pIdx + 1}
-            </span>
-          `).join('');
-          if (sheetObj.pages.length > 5) {
-            pagesHtml += `<span class="text-[10px] text-teal-800 font-bold">+${sheetObj.pages.length - 5} more</span>`;
-          }
-        }
-
-        container.innerHTML = `
-          <div class="flex items-center justify-between p-2 bg-teal-50 border border-teal-200 rounded-xl text-xs">
-            <div class="flex items-center gap-2 min-w-0">
-              <span class="text-base">✍️</span>
-              <div class="min-w-0">
-                <span class="font-extrabold text-teal-950 block truncate">${escapeHtmlSafe(sName)} ${sRoll ? '(' + escapeHtmlSafe(sRoll) + ')' : ''}</span>
-                <span class="text-[10px] text-teal-700">${escapeHtmlSafe(sSubj)} • ${pCount} Handwritten Pages</span>
-                <div class="flex flex-wrap items-center gap-1 mt-1">${pagesHtml}</div>
-              </div>
-            </div>
-            <button type="button" onclick="clearStudentFiles()" class="text-slate-400 hover:text-rose-600 font-bold px-1" title="Clear">✕</button>
-          </div>
-        `;
+      const chip = document.getElementById('savedSheetActiveChip');
+      const chipTitle = document.getElementById('savedSheetChipTitle');
+      const chipSub = document.getElementById('savedSheetChipSub');
+      if (chip && chipTitle && chipSub) {
+        chipTitle.textContent = `${sName} ${sRoll ? '(' + sRoll + ')' : ''}`;
+        chipSub.textContent = `${pCount} Handwritten Pages • ${sSubj || 'Exam Copy'} Ready ✔`;
+        chip.classList.remove('hidden');
       }
 
       syncUploadCardHighlights();
+    }
+
+    function clearSelectedSavedSheet() {
+      const sel = document.getElementById('savedSheetsSelect');
+      if (sel) sel.value = '';
+      handleSelectSavedSheet('');
     }
 
     async function deleteActiveSavedPaper() {
@@ -2689,6 +2716,23 @@
         clearTimeout(liveFlipTimeout);
         liveFlipTimeout = null;
       }
+
+      // Restore all live stage elements visible for new evaluation
+      const flipStage = document.getElementById('liveFlipBookStage');
+      if (flipStage) flipStage.classList.remove('hidden');
+
+      const barEl = document.getElementById('liveProgressBar');
+      if (barEl && barEl.parentElement) barEl.parentElement.classList.remove('hidden');
+
+      const stepsList = document.getElementById('livePageStepsList');
+      if (stepsList) stepsList.classList.remove('hidden');
+
+      const counterEl = document.getElementById('liveProgressPageCounter');
+      if (counterEl) counterEl.classList.remove('hidden');
+
+      const pctEl = document.getElementById('liveProgressPercent');
+      if (pctEl) pctEl.classList.remove('hidden');
+
       const badge = document.getElementById('liveFlipSheetBadge');
       const status = document.getElementById('liveFlipSheetStatus');
       const footer = document.getElementById('liveFlipFooterLabel');
@@ -3028,35 +3072,59 @@
       const spinner = document.getElementById('liveSpinner');
       if (spinner) spinner.classList.add('hidden');
 
-      const titleEl = document.getElementById('loadingStageTitle');
-      if (titleEl) {
-        titleEl.innerHTML = `<span class="text-emerald-700 font-black text-sm">✅ Evaluation Complete! All questions checked accurately.</span>`;
-      }
+      // 1. TURN OFF LIVE 3D ANIMATION AND SCAN STAGE IMMEDIATELY ON COMPLETION
+      const flipStage = document.getElementById('liveFlipBookStage');
+      if (flipStage) flipStage.classList.add('hidden');
+
+      // 2. HIDE INTERMEDIATE PROGRESS BARS AND PAGE PILL LISTS
+      const barEl = document.getElementById('liveProgressBar');
+      if (barEl && barEl.parentElement) barEl.parentElement.classList.add('hidden');
+
+      const stepsList = document.getElementById('livePageStepsList');
+      if (stepsList) stepsList.classList.add('hidden');
+
+      const counterEl = document.getElementById('liveProgressPageCounter');
+      if (counterEl) counterEl.classList.add('hidden');
 
       const pctEl = document.getElementById('liveProgressPercent');
-      if (pctEl) pctEl.textContent = '100%';
+      if (pctEl) pctEl.classList.add('hidden');
 
-      const barEl = document.getElementById('liveProgressBar');
-      if (barEl) barEl.style.width = '100%';
+      const batchBadge = document.getElementById('liveBatchBadge');
+      if (batchBadge) batchBadge.classList.add('hidden');
+
+      // 3. SHOW CELEBRATORY COMPLETION TITLE
+      const titleEl = document.getElementById('loadingStageTitle');
+      if (titleEl) {
+        titleEl.innerHTML = `<span class="text-emerald-800 dark:text-emerald-300 font-black text-base flex items-center gap-2"><span>🎉</span> <span>Evaluation 100% Complete!</span></span>`;
+      }
 
       const rep = payload.grading_report || {};
       const score = Number(rep.total_marks_awarded || 0);
       const maxScore = Number(rep.total_max_marks || 0);
-      const pct = maxScore > 0 ? ((score / maxScore) * 100).toFixed(1) : '0';
+      const pctNum = maxScore > 0 ? (score / maxScore) * 100 : 0;
+      const pctStr = pctNum.toFixed(1);
       const stName = payload.student_meta?.student_name || rep.student_meta?.student_name || label;
       const stRoll = payload.student_meta?.roll_no || rep.student_meta?.roll_no || '';
+      const stSubj = payload.student_meta?.subject || rep.detected_subject || 'Exam Paper';
+      const qCount = (rep.question_results && rep.question_results.length) || (rep.results && rep.results.length) || (currentRubric && currentRubric.questions && currentRubric.questions.length) || 10;
 
       const summaryText = document.getElementById('evalCompleteSummaryText');
       if (summaryText) {
         summaryText.innerHTML = `
-          <div class="p-3 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 shadow-sm text-left">
-            <div class="flex items-center justify-between gap-2 text-xs font-black text-slate-950 dark:text-white mb-1.5">
-              <span class="truncate">👤 ${escapeHtmlSafe(stName)} ${stRoll ? `(${escapeHtmlSafe(stRoll)})` : ''}</span>
-              <span class="px-2.5 py-0.5 rounded-full bg-emerald-600 text-white font-extrabold text-[11px] shrink-0 shadow-2xs">${score.toFixed(1)} / ${maxScore.toFixed(1)} Marks</span>
+          <div class="p-3.5 rounded-2xl bg-gradient-to-br from-slate-50 via-teal-50/30 to-indigo-50/20 dark:bg-slate-900 border border-teal-200/90 dark:border-slate-700 shadow-sm text-left space-y-2">
+            <div class="flex items-center justify-between gap-2 border-b border-slate-200/70 pb-2">
+              <div class="min-w-0">
+                <span class="font-extrabold text-slate-950 dark:text-white text-sm block truncate">👤 ${escapeHtmlSafe(stName)}</span>
+                <span class="text-[11px] font-bold text-slate-600 dark:text-slate-400">Roll: ${escapeHtmlSafe(stRoll || 'SGSU250489')} • ${escapeHtmlSafe(stSubj)}</span>
+              </div>
+              <span class="px-3 py-1 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-700 text-white font-black text-sm shrink-0 shadow-sm">
+                ${score.toFixed(1)} / ${maxScore.toFixed(0)} Marks
+              </span>
             </div>
-            <p class="text-[11px] font-semibold text-slate-700 dark:text-slate-300">
-              Verified Score: <b class="text-emerald-700 dark:text-emerald-400 font-extrabold">${pct}%</b> • Step breakdown, MCQs &amp; handwritten answers are ready.
-            </p>
+            <div class="flex items-center justify-between text-[11px] font-semibold text-slate-700 dark:text-slate-300">
+              <span>Overall Score: <b class="text-emerald-700 dark:text-emerald-400 font-extrabold">${pctStr}%</b></span>
+              <span class="px-2 py-0.5 rounded-md bg-teal-100 text-teal-900 font-bold">${qCount} Questions Graded</span>
+            </div>
           </div>
         `;
       }

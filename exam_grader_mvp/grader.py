@@ -1722,27 +1722,50 @@ class ExamGrader:
                     question_pages.update(reassigned_pages)
                     question_page_texts.update(reassigned_ptexts)
 
-        # Cross-part healing: if an answer is tagged as P3_Q4 / P3_Q5 or generic Q4/Q5 (when Part III only has 1-2 questions),
-        # but P2_Q4 / P2_Q5 exists in the rubric and is not yet mapped, heal to the correct rubric question:
+        # Cross-part healing: if an answer is tagged as P3_Q4 / P3_Q5, generic Q1..Q10, or student-numbered Q2/Q3,
+        # heal it to the correct rubric question (e.g. student wrote Q2 for Absolute Path, which corresponds to P2_Q4):
         rubric_qids = {q.question_id for q in rubric.questions}
         for k in list(mapped_answers.keys()):
             if k not in rubric_qids and mapped_answers.get(k, "").strip():
+                ans_txt = mapped_answers[k]
                 m_num = re.search(r"\d+", k)
+                healed = False
+                
+                # First try exact number prefix match if available
                 if m_num:
                     num_str = m_num.group(0)
                     for target_prefix in ("P2_Q", "P3_Q", "Q"):
                         cand = f"{target_prefix}{num_str}"
                         if cand in rubric_qids and not mapped_answers.get(cand, "").strip():
-                            # Verify candidate has reasonable semantic relevance (> 0.25)
                             cand_q = next((q for q in rubric.questions if q.question_id == cand), None)
-                            cand_sim = self.semantic_scorer.score_answer(mapped_answers[k], cand_q)[0] if cand_q else 0.0
+                            cand_sim = self.semantic_scorer.score_answer(ans_txt, cand_q)[0] if cand_q else 0.0
                             if cand_sim >= 0.25:
                                 mapped_answers[cand] = mapped_answers.pop(k)
                                 if k in question_pages:
                                     question_pages[cand] = question_pages.pop(k)
                                 if k in question_page_texts:
                                     question_page_texts[cand] = question_page_texts.pop(k)
+                                healed = True
                                 break
+
+                # If not healed by same number, check ALL unmapped rubric questions by semantic similarity
+                if not healed:
+                    best_cand_qid = None
+                    best_cand_sim = 0.28
+                    for rq in rubric.questions:
+                        if rq.question_id not in mapped_answers or not mapped_answers.get(rq.question_id, "").strip():
+                            sim = self.semantic_scorer.score_answer(ans_txt, rq)[0]
+                            if sim > best_cand_sim:
+                                best_cand_sim = sim
+                                best_cand_qid = rq.question_id
+
+                    if best_cand_qid:
+                        logger.info(f"Cross-healed unmapped answer '{k}' -> '{best_cand_qid}' (semantic sim: {best_cand_sim:.3f})")
+                        mapped_answers[best_cand_qid] = mapped_answers.pop(k)
+                        if k in question_pages:
+                            question_pages[best_cand_qid] = question_pages.pop(k)
+                        if k in question_page_texts:
+                            question_page_texts[best_cand_qid] = question_page_texts.pop(k)
 
         # In multi-part university papers with optional choice sections (e.g. P2_Q1..P2_Q6 "Attempt Any 4/5",
         # P3_Q1..P3_Q3 "Attempt Any 2"), omit unattempted optional questions when other questions in that Part are attempted.
