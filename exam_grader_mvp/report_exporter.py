@@ -298,6 +298,9 @@ def build_report_pdf_bytes(report_payload: dict[str, Any]) -> bytes:
             fb_txt = _sanitize_pdf_text(q.get("student_feedback") or "")
             steps = q.get("step_wise_breakdown") or []
 
+            q_raw_text = _sanitize_pdf_text(q.get("question_text") or "").replace("Question:", "").strip()
+            q_lines = textwrap.wrap(f"Question: {q_raw_text}", width=92)[:2] if q_raw_text else []
+
             ans_lines = textwrap.wrap(ans_txt, width=92)[:7]
             if len(textwrap.wrap(ans_txt, width=92)) > 7:
                 ans_lines[-1] = ans_lines[-1][:84] + "..."
@@ -314,10 +317,21 @@ def build_report_pdf_bytes(report_payload: dict[str, Any]) -> bytes:
                 for ws in wrapped_s:
                     step_lines.append((st, ws))
 
+            if not fb_txt:
+                if not is_att:
+                    fb_txt = "Student did not attempt this question (0 Marks)."
+                elif aw >= mx:
+                    fb_txt = "Full marks awarded! Comprehensive, accurate answer addressing all required concepts."
+                elif aw > 0:
+                    fb_txt = f"Partial marks awarded ({aw:.2f} / {mx:.2f}). Core concepts covered."
+                else:
+                    fb_txt = "Answer did not match key concepts or answer key criteria."
+
             fb_lines = textwrap.wrap(f"Feedback: {fb_txt}", width=92)[:3] if fb_txt else []
 
             block_h = (
                 7.2
+                + (len(q_lines) * 2.5 + (1.6 if q_lines else 0.0))
                 + (len(ans_lines) * 2.5 + 3.2)
                 + (len(step_lines) * 2.4 + (2.4 if step_lines else 0.0))
                 + (len(fb_lines) * 2.5 + (2.0 if fb_lines else 0.0))
@@ -350,6 +364,12 @@ def build_report_pdf_bytes(report_payload: dict[str, Any]) -> bytes:
             ax.text(93.2, y - 3.0, f"Marks: {aw:.2f} / {mx:.2f}", fontsize=9.0, fontweight="bold", color=score_color, ha="right")
 
             cy = y - 7.3
+            if q_lines:
+                for ql in q_lines:
+                    ax.text(7.0, cy, ql, fontsize=7.8, fontweight="bold", color="#312e81")
+                    cy -= 2.4
+                cy -= 0.6
+
             ax.text(7.0, cy, "Extracted Handwritten Answer:", fontsize=7.6, fontweight="bold", color="#475569")
             cy -= 2.5
             for al in ans_lines:
@@ -465,6 +485,17 @@ def build_report_html(report_payload: dict[str, Any]) -> str:
         q_pct = (aw / mx * 100.0) if mx > 0 else 0.0
         ans = html.escape(str(q.get("student_answer") or ("Student did not attempt this question." if not is_att else "[No answer recorded]")))
         fb = html.escape(str(q.get("student_feedback") or ""))
+        q_text = html.escape(str(q.get("question_text") or f"Question {qid}").replace("Question:", "").strip())
+        if not fb:
+            if not is_att:
+                fb = "Student did not attempt this question (0 Marks awarded)."
+            elif aw >= mx:
+                fb = "Full marks awarded! Comprehensive, accurate answer addressing all required technical concepts."
+            elif aw > 0:
+                fb = f"Partial marks awarded ({aw:.2f} / {mx:.2f}). Found matching concepts; review minor secondary points."
+            else:
+                fb = "Answer does not match expected model answer key criteria."
+
         page_cell = "-" if pages == "Not Attempted" else f"P {pages}"
         page_head = "Not Attempted" if pages == "Not Attempted" else f"Page {pages}"
         rows_html.append(
@@ -479,10 +510,13 @@ def build_report_html(report_payload: dict[str, Any]) -> str:
         )
         details_html.append(
             f"<div class='qcard'><div class='qhead'><span><b>{qid}</b> ({qtype}) &bull; {page_head}</span>"
-            f"<span class='qmarks'>{aw:.2f} / {mx:.2f} Marks</span></div>"
-            f"<div class='qbody'><div class='lbl'>Extracted Handwritten Answer:</div><p class='ans'>{ans}</p>"
+            f"<span class='qmarks'>Marks: {aw:.2f} / {mx:.2f} ({q_pct:.0f}%)</span></div>"
+            f"<div class='qbody'>"
+            f"<div class='lbl'>Question:</div><p class='qprompt'>{q_text}</p>"
+            f"<div class='lbl'>Extracted Handwritten Answer:</div><p class='ans'>{ans}</p>"
             f"{('<ul class=\"steps\">' + steps_li + '</ul>') if steps_li else ''}"
-            f"{('<div class=\"fb\"><b>Feedback:</b> ' + fb + '</div>') if fb else ''}</div></div>"
+            f"<div class='fb'><b>Examiner AI Feedback:</b> {fb}</div>"
+            f"</div></div>"
         )
 
     remarks_html = f"<div class='remarks'><b>Examiner Remarks:</b> {remarks}</div>" if remarks else ""
@@ -514,6 +548,7 @@ def build_report_html(report_payload: dict[str, Any]) -> str:
   .qmarks {{ font-weight: 800; color: #047857; }}
   .qbody {{ padding: 12px 14px; font-size: 12.5px; }}
   .lbl {{ font-weight: 700; color: #475569; margin-bottom: 4px; font-size: 11.5px; text-transform: uppercase; }}
+  .qprompt {{ background: #eef2ff; border-left: 3px solid #6366f1; padding: 8px 12px; border-radius: 6px; font-weight: 600; margin: 0 0 10px; font-size: 13px; line-height: 1.5; color: #1e1b4b; }}
   .ans {{ margin: 0 0 10px; white-space: pre-wrap; line-height: 1.5; }}
   .steps {{ margin: 0 0 8px; padding-left: 18px; }}
   .steps li {{ margin-bottom: 4px; }}

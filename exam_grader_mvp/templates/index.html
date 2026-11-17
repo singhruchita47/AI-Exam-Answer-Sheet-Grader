@@ -4770,39 +4770,231 @@
       if (!wrap || !currentGradingReport) return;
 
       const items = getOrderedReviewItems();
-      const rows = items.map(it => {
+      const studentName = (document.getElementById('reportStudentName')?.value || '').trim() ||
+        (rawResultsPayload?.student_meta?.student_name || currentGradingReport?.student_meta?.student_name || 'Student Candidate');
+      const rollNo = (document.getElementById('reportRollNo')?.value || '').trim() ||
+        (rawResultsPayload?.student_meta?.roll_no || currentGradingReport?.student_meta?.roll_no || '—');
+      const subject = (document.getElementById('teacherSubject')?.value || '').trim() ||
+        (currentRubric?.detected_subject || 'Examination');
+      const examTitle = currentGradingReport.exam_title || `${subject} Assessment`;
+      
+      const totalAw = Number(currentGradingReport.total_marks_awarded || 0);
+      const totalMx = Number(currentGradingReport.total_max_marks || 0);
+      const grandPct = totalMx > 0 ? (totalAw / totalMx) * 100 : 0;
+      
+      let grandGrade = 'A';
+      if (grandPct < 40) grandGrade = 'F';
+      else if (grandPct < 55) grandGrade = 'C';
+      else if (grandPct < 70) grandGrade = 'B';
+      else if (grandPct < 85) grandGrade = 'A';
+      else grandGrade = 'A+';
+
+      const attemptedCount = items.filter(it => it.res.is_attempted).length;
+
+      // 1. Candidate & Exam Profile Banner (Upar Details)
+      const headerHtml = `
+        <div class="p-5 sm:p-6 bg-gradient-to-br from-slate-900 via-indigo-950 to-teal-950 text-white rounded-2xl shadow-md border border-indigo-900/50 mb-6">
+          <div class="flex flex-wrap items-start justify-between gap-4 pb-4 border-b border-white/10">
+            <div>
+              <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-teal-500/20 text-teal-300 border border-teal-400/30 text-[10px] font-black uppercase tracking-wider">
+                <span>🎓</span> <span>Official Exam Evaluation Report</span>
+              </span>
+              <h2 class="text-xl sm:text-2xl font-black mt-2 tracking-tight text-white heading-font">
+                ${escapeHtmlSafe(examTitle)}
+              </h2>
+              <p class="text-xs text-indigo-200/80 mt-0.5">Automated Vision OCR &amp; Rubric Key Verification</p>
+            </div>
+            <!-- Grand Total Score Badge -->
+            <div class="flex items-center gap-3 bg-white/10 backdrop-blur-md px-4 py-2.5 rounded-2xl border border-white/15">
+              <div class="text-right">
+                <span class="block text-[10px] font-bold uppercase tracking-wider text-teal-300">Total Marks</span>
+                <span class="text-2xl sm:text-3xl font-black text-white mono-font">${totalAw.toFixed(1)} <span class="text-base text-indigo-200 font-semibold">/ ${totalMx.toFixed(1)}</span></span>
+              </div>
+              <div class="pl-3 border-l border-white/15 text-center">
+                <span class="inline-block px-2.5 py-1 rounded-lg bg-emerald-500 text-slate-950 font-black text-xs shadow-2xs">${grandPct.toFixed(1)}%</span>
+                <span class="block text-[10px] font-extrabold text-teal-200 mt-0.5">Grade ${grandGrade}</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Student Meta Grid -->
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-4 text-xs">
+            <div class="p-2.5 rounded-xl bg-white/5 border border-white/10">
+              <span class="block text-[9px] font-black uppercase tracking-wider text-teal-300">Student Name</span>
+              <span class="font-extrabold text-white text-sm truncate block mt-0.5">${escapeHtmlSafe(studentName)}</span>
+            </div>
+            <div class="p-2.5 rounded-xl bg-white/5 border border-white/10">
+              <span class="block text-[9px] font-black uppercase tracking-wider text-teal-300">Roll No.</span>
+              <span class="font-extrabold text-white text-sm truncate block mt-0.5">${escapeHtmlSafe(rollNo)}</span>
+            </div>
+            <div class="p-2.5 rounded-xl bg-white/5 border border-white/10">
+              <span class="block text-[9px] font-black uppercase tracking-wider text-teal-300">Subject / Course</span>
+              <span class="font-extrabold text-white text-sm truncate block mt-0.5">${escapeHtmlSafe(subject)}</span>
+            </div>
+            <div class="p-2.5 rounded-xl bg-white/5 border border-white/10">
+              <span class="block text-[9px] font-black uppercase tracking-wider text-teal-300">Evaluation Status</span>
+              <span class="font-extrabold text-emerald-400 text-sm truncate block mt-0.5">${attemptedCount} / ${items.length} Attempted</span>
+            </div>
+          </div>
+        </div>
+      `;
+
+      // 2. Question-by-Question Section (Nichhe pure question likhe ho, side me kitne no. mile hain vo, aur chhota sa feedback)
+      const questionCardsHtml = items.map((it, idx) => {
         const r = it.res;
-        const att = Boolean(r.is_attempted);
+        const qid = formatDisplayQuestionId(r.question_id);
+        const qType = (r.question_type || '').replace('_', ' ').toUpperCase();
+        const rawQText = it.rubricQ?.question_text || r.question_text || `${qid} — Question from Exam Paper`;
+        const qText = rawQText.replace(/^Question\s*[:\-#]?\s*/i, '').trim();
+        const studentAns = (r.student_answer || '').trim() || (r.is_attempted ? '[Diagram or non-text response recorded]' : 'Student did not attempt this question.');
         const aw = Number(r.marks_awarded) || 0;
-        const mx = Number(r.max_marks) || 0;
+        const mx = Number(r.max_marks) || 1;
+        const qPct = mx > 0 ? (aw / mx) * 100 : 0;
+        const isAtt = Boolean(r.is_attempted && (studentAns.length > 0 || r.diagram_path || aw > 0));
+        const pNums = (r.page_numbers && r.page_numbers.length) ? `Page ${r.page_numbers.join(', ')}` : (isAtt ? 'Page 1' : 'Not Attempted');
+
+        // Card Border & Marks Color
+        let cardBorderClass = 'border-emerald-300 dark:border-emerald-800';
+        let marksBadgeClass = 'bg-emerald-600 text-white';
+        let feedbackBoxClass = 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800/70 text-emerald-950 dark:text-emerald-100';
+        let feedbackTitleClass = 'text-emerald-800 dark:text-emerald-300';
+        let statusBadge = `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-900 border border-emerald-200">Full Marks</span>`;
+
+        if (!isAtt) {
+          cardBorderClass = 'border-rose-300 dark:border-rose-800';
+          marksBadgeClass = 'bg-rose-600 text-white';
+          feedbackBoxClass = 'bg-rose-50 dark:bg-rose-950/40 border-rose-200 dark:border-rose-800/70 text-rose-950 dark:text-rose-100';
+          feedbackTitleClass = 'text-rose-800 dark:text-rose-300';
+          statusBadge = `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-900 border border-rose-200">Not Attempted</span>`;
+        } else if (aw === 0) {
+          cardBorderClass = 'border-rose-300 dark:border-rose-800';
+          marksBadgeClass = 'bg-rose-600 text-white';
+          feedbackBoxClass = 'bg-rose-50 dark:bg-rose-950/40 border-rose-200 dark:border-rose-800/70 text-rose-950 dark:text-rose-100';
+          feedbackTitleClass = 'text-rose-800 dark:text-rose-300';
+          statusBadge = `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-900 border border-rose-200">Incorrect (0 Marks)</span>`;
+        } else if (qPct < 90) {
+          cardBorderClass = 'border-amber-300 dark:border-amber-800';
+          marksBadgeClass = 'bg-amber-600 text-white';
+          feedbackBoxClass = 'bg-amber-50 dark:bg-amber-950/40 border-amber-200 dark:border-amber-800/70 text-amber-950 dark:text-amber-100';
+          feedbackTitleClass = 'text-amber-800 dark:text-amber-300';
+          statusBadge = `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-200">Partial (${qPct.toFixed(0)}%)</span>`;
+        }
+
+        // Concise Feedback Generator
+        let fb = (r.student_feedback || '').trim();
+        if (!isAtt) {
+          fb = 'Student did not attempt this question. Awarded 0 Marks.';
+        } else if (aw >= mx) {
+          if (!fb || fb.toLowerCase().includes('good') || fb.length < 15) {
+            fb = 'Full marks awarded! Comprehensive, accurate answer addressing all required technical concepts, commands, and conventions.';
+          }
+        } else if (aw > 0) {
+          if (!fb || fb.length < 15) {
+            const missing = (r.missing_key_points && r.missing_key_points.length > 0)
+              ? r.missing_key_points.slice(0, 2).join('; ')
+              : '';
+            fb = missing
+              ? `Partial credit awarded (${aw.toFixed(1)} / ${mx.toFixed(1)}). Core concepts covered; missing: ${missing}.`
+              : `Partial credit awarded (${aw.toFixed(1)} / ${mx.toFixed(1)}). Found matching key concepts; minor points or elaboration incomplete.`;
+          }
+        } else {
+          if (!fb || fb.length < 15) {
+            fb = 'Answer does not match key concepts or answer key criteria.';
+          }
+        }
+
+        // Sub-steps pills if available
+        let stepsPillsHtml = '';
+        if (r.step_wise_breakdown && r.step_wise_breakdown.length > 0) {
+          stepsPillsHtml = `
+            <div class="flex flex-wrap items-center gap-1.5 mt-2.5 pt-2 border-t border-slate-200/60 dark:border-slate-700/60">
+              <span class="text-[9px] font-black uppercase tracking-wider text-slate-500">Evaluation Breakdown:</span>
+              ${r.step_wise_breakdown.map((s, sIdx) => {
+                const sHit = s.status === 'Hit';
+                const sPart = s.status === 'Partial';
+                const sBadge = sHit
+                  ? 'bg-emerald-100 text-emerald-900 border-emerald-300 dark:bg-emerald-950 dark:text-emerald-200'
+                  : (sPart ? 'bg-amber-100 text-amber-900 border-amber-300 dark:bg-amber-950 dark:text-amber-200' : 'bg-rose-100 text-rose-900 border-rose-300 dark:bg-rose-950 dark:text-rose-200');
+                const icon = sHit ? '✔' : (sPart ? '●' : '✕');
+                const desc = (s.description || `Point ${sIdx + 1}`).slice(0, 32);
+                return `
+                  <span class="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md border ${sBadge}">
+                    <span>${icon}</span> <span>${escapeHtmlSafe(desc)}</span> <strong class="mono-font">(${Number(s.awarded_point_marks || 0).toFixed(1)}/${Number(s.max_point_marks || 1).toFixed(1)})</strong>
+                  </span>
+                `;
+              }).join('')}
+            </div>
+          `;
+        }
+
         return `
-          <tr class="border-t border-slate-100 text-xs">
-            <td class="px-4 py-2.5 font-bold text-slate-900">${escapeHtmlSafe(formatDisplayQuestionId(r.question_id))}</td>
-            <td class="px-4 py-2.5 text-slate-600">${escapeHtmlSafe((r.question_type || '').replace('_', ' '))}</td>
-            <td class="px-4 py-2.5">${att ? `<span class="text-emerald-700 font-semibold">Attempted (P${(r.page_numbers || [1]).join(',')})</span>` : `<span class="text-rose-600 font-semibold">Not Attempted</span>`}</td>
-            <td class="px-4 py-2.5 text-right font-extrabold text-slate-900 mono-font">${aw.toFixed(2)} / ${mx.toFixed(2)}</td>
-          </tr>
+          <div class="rounded-2xl border-2 ${cardBorderClass} bg-white dark:bg-slate-900 shadow-sm overflow-hidden mb-4">
+            <!-- Card Header with Side Marks Badge -->
+            <div class="px-4 py-3 bg-slate-50 dark:bg-slate-800/90 border-b border-slate-200 dark:border-slate-700 flex flex-wrap items-center justify-between gap-3">
+              <div class="flex flex-wrap items-center gap-2">
+                <span class="text-xs font-black px-3 py-1 rounded-lg bg-indigo-950 text-white shadow-2xs">
+                  ${escapeHtmlSafe(qid)}
+                </span>
+                <span class="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-slate-200">
+                  ${escapeHtmlSafe(qType)}
+                </span>
+                <span class="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+                  📄 ${escapeHtmlSafe(pNums)}
+                </span>
+                ${statusBadge}
+              </div>
+
+              <!-- Marks on the Side (Prominent!) -->
+              <div class="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl ${marksBadgeClass} font-black text-sm shadow-2xs">
+                <span>Marks:</span>
+                <span class="text-base font-black mono-font">${aw.toFixed(1)} / ${mx.toFixed(1)}</span>
+                <span class="text-[10px] font-bold px-1.5 py-0.2 rounded bg-black/25">(${qPct.toFixed(0)}%)</span>
+              </div>
+            </div>
+
+            <div class="p-4 sm:p-5 space-y-3.5">
+              <!-- Full Question Statement -->
+              <div class="p-3.5 rounded-xl bg-indigo-50/70 dark:bg-indigo-950/40 border border-indigo-200/80 dark:border-indigo-900/60 shadow-2xs">
+                <div class="text-[10px] font-black uppercase tracking-wider text-indigo-900 dark:text-indigo-300 mb-1 flex items-center gap-1.5">
+                  <span>📘</span> Question
+                </div>
+                <p class="text-xs sm:text-sm font-bold text-slate-950 dark:text-slate-50 leading-relaxed whitespace-pre-wrap">${escapeHtmlSafe(qText)}</p>
+              </div>
+
+              <!-- Student Transcribed Answer -->
+              <div class="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 shadow-2xs">
+                <div class="text-[10px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-400 mb-1 flex items-center gap-1.5">
+                  <span>✍️</span> Student's Transcribed Answer
+                </div>
+                <p class="text-xs text-slate-900 dark:text-slate-100 font-mono leading-relaxed whitespace-pre-wrap">${escapeHtmlSafe(studentAns)}</p>
+              </div>
+
+              <!-- Concise Feedback -->
+              <div class="p-3.5 rounded-xl border ${feedbackBoxClass} shadow-2xs">
+                <div class="text-[10px] font-black uppercase tracking-wider ${feedbackTitleClass} mb-1 flex items-center gap-1.5">
+                  <span>💡</span> Examiner AI Feedback
+                </div>
+                <p class="text-xs font-semibold leading-relaxed">
+                  ${escapeHtmlSafe(fb)}
+                </p>
+                ${stepsPillsHtml}
+              </div>
+            </div>
+          </div>
         `;
       }).join('');
 
       wrap.innerHTML = `
-        <table class="w-full text-left border-collapse">
-          <thead class="bg-slate-50 text-[11px] font-extrabold uppercase tracking-wider text-slate-500">
-            <tr>
-              <th class="px-4 py-2.5">Question</th>
-              <th class="px-4 py-2.5">Type</th>
-              <th class="px-4 py-2.5">Status</th>
-              <th class="px-4 py-2.5 text-right">Verified Score</th>
-            </tr>
-          </thead>
-          <tbody>${rows}</tbody>
-          <tfoot class="bg-indigo-50/60 border-t border-indigo-200 text-xs font-extrabold text-indigo-950">
-            <tr>
-              <td colspan="3" class="px-4 py-2.5">Grand Total Verified Score</td>
-              <td class="px-4 py-2.5 text-right mono-font">${Number(currentGradingReport.total_marks_awarded || 0).toFixed(2)} / ${Number(currentGradingReport.total_max_marks || 0).toFixed(2)}</td>
-            </tr>
-          </tfoot>
-        </table>
+        <div class="space-y-4">
+          ${headerHtml}
+          <div class="flex items-center justify-between pb-2">
+            <h3 class="text-sm font-black uppercase tracking-wider text-slate-900 dark:text-white flex items-center gap-1.5">
+              <span>📋</span> Detailed Question-by-Question Evaluation &amp; Feedback
+            </h3>
+            <span class="text-xs font-extrabold text-slate-500">${items.length} Questions Total</span>
+          </div>
+          ${questionCardsHtml}
+        </div>
       `;
     }
 
