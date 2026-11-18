@@ -495,6 +495,8 @@ def _build_final_payload(
     ocr_result: Any,
     report: Any,
     rubric: ExamRubric | None = None,
+    manual_student_name: str = "",
+    manual_roll_no: str = "",
 ) -> dict[str, Any]:
     """Format segmentation and grading report with client-friendly relative URLs and paper metadata."""
     from grader import _clean_ocr_handwriting_text, _normalize_qid
@@ -594,6 +596,19 @@ def _build_final_payload(
         )
 
     student_meta = dict(getattr(ocr_result, "student_meta", None) or {})
+    if manual_student_name and manual_student_name.strip():
+        student_meta["student_name"] = manual_student_name.strip()
+    if manual_roll_no and manual_roll_no.strip():
+        student_meta["roll_no"] = manual_roll_no.strip()
+
+    if "student_meta" in report_dump and isinstance(report_dump["student_meta"], dict):
+        if manual_student_name and manual_student_name.strip():
+            report_dump["student_meta"]["student_name"] = manual_student_name.strip()
+        if manual_roll_no and manual_roll_no.strip():
+            report_dump["student_meta"]["roll_no"] = manual_roll_no.strip()
+    elif manual_student_name or manual_roll_no:
+        report_dump["student_meta"] = dict(student_meta)
+
     return {
         "session_id": session_id,
         "reference_mode": reference_mode,
@@ -612,6 +627,8 @@ async def api_grade(
     use_photosynthesis_sample: bool = Form(False),
     rubric_json: str = Form(...),
     saved_sheet_id: str = Form(""),
+    student_name: str = Form(""),
+    roll_no: str = Form(""),
     pages: list[UploadFile] = File([]),
 ) -> dict[str, Any]:
     """Process uploaded pages or built-in samples, run OCR + Grading, and return JSON."""
@@ -646,22 +663,35 @@ async def api_grade(
         grader.semantic_scorer = get_semantic_scorer()
         report = grader.grade_exam(ocr_result, rubric, strictness_level=strictness_level)
 
-        # Update saved sheet metadata with extracted student details
+        # Update saved sheet metadata with extracted or manually provided student details
         if active_sheet_id:
             safe_s = Path(active_sheet_id).name
             s_meta_path = SAVED_SHEETS_DIR / safe_s / "meta.json"
             if s_meta_path.exists():
                 try:
                     sm = json.loads(s_meta_path.read_text(encoding="utf-8"))
-                    if getattr(ocr_result, "student_meta", None):
-                        for k in ("student_name", "roll_no", "subject"):
-                            if ocr_result.student_meta.get(k):
-                                sm[k] = ocr_result.student_meta[k]
-                        s_meta_path.write_text(json.dumps(sm, indent=2), encoding="utf-8")
+                    if student_name and student_name.strip():
+                        sm["student_name"] = student_name.strip()
+                    elif getattr(ocr_result, "student_meta", None) and ocr_result.student_meta.get("student_name"):
+                        sm["student_name"] = ocr_result.student_meta["student_name"]
+                    if roll_no and roll_no.strip():
+                        sm["roll_no"] = roll_no.strip()
+                    elif getattr(ocr_result, "student_meta", None) and ocr_result.student_meta.get("roll_no"):
+                        sm["roll_no"] = ocr_result.student_meta["roll_no"]
+                    if getattr(ocr_result, "student_meta", None) and ocr_result.student_meta.get("subject"):
+                        sm["subject"] = ocr_result.student_meta["subject"]
+                    s_meta_path.write_text(json.dumps(sm, indent=2), encoding="utf-8")
                 except Exception:
                     pass
 
-        return _build_final_payload(session_id, ocr_result, report, rubric=rubric)
+        return _build_final_payload(
+            session_id,
+            ocr_result,
+            report,
+            rubric=rubric,
+            manual_student_name=student_name,
+            manual_roll_no=roll_no,
+        )
     except Exception as exc:
         logger.exception("Error evaluating exam sheets")
         raise HTTPException(status_code=500, detail=str(exc))
@@ -675,6 +705,8 @@ async def api_grade_stream(
     use_photosynthesis_sample: bool = Form(False),
     rubric_json: str = Form(...),
     saved_sheet_id: str = Form(""),
+    student_name: str = Form(""),
+    roll_no: str = Form(""),
     pages: list[UploadFile] = File([]),
 ) -> StreamingResponse:
     """Stream live page-by-page evaluation progress (NDJSON) followed by the final grading report."""
@@ -744,22 +776,35 @@ async def api_grade_stream(
             grader.semantic_scorer = get_semantic_scorer()
             report = grader.grade_exam(ocr_result, rubric, strictness_level=lvl)
 
-            # Update saved sheet metadata with extracted student details
+            # Update saved sheet metadata with extracted or manually provided student details
             if active_sheet_id:
                 safe_s = Path(active_sheet_id).name
                 s_meta_path = SAVED_SHEETS_DIR / safe_s / "meta.json"
                 if s_meta_path.exists():
                     try:
                         sm = json.loads(s_meta_path.read_text(encoding="utf-8"))
-                        if getattr(ocr_result, "student_meta", None):
-                            for k in ("student_name", "roll_no", "subject"):
-                                if ocr_result.student_meta.get(k):
-                                    sm[k] = ocr_result.student_meta[k]
-                            s_meta_path.write_text(json.dumps(sm, indent=2), encoding="utf-8")
+                        if student_name and student_name.strip():
+                            sm["student_name"] = student_name.strip()
+                        elif getattr(ocr_result, "student_meta", None) and ocr_result.student_meta.get("student_name"):
+                            sm["student_name"] = ocr_result.student_meta["student_name"]
+                        if roll_no and roll_no.strip():
+                            sm["roll_no"] = roll_no.strip()
+                        elif getattr(ocr_result, "student_meta", None) and ocr_result.student_meta.get("roll_no"):
+                            sm["roll_no"] = ocr_result.student_meta["roll_no"]
+                        if getattr(ocr_result, "student_meta", None) and ocr_result.student_meta.get("subject"):
+                            sm["subject"] = ocr_result.student_meta["subject"]
+                        s_meta_path.write_text(json.dumps(sm, indent=2), encoding="utf-8")
                     except Exception:
                         pass
 
-            payload = _build_final_payload(session_id, ocr_result, report, rubric=rubric)
+            payload = _build_final_payload(
+                session_id,
+                ocr_result,
+                report,
+                rubric=rubric,
+                manual_student_name=student_name,
+                manual_roll_no=roll_no,
+            )
             push_event(
                 {
                     "type": "complete",
