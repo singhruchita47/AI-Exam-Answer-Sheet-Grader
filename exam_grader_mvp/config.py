@@ -25,12 +25,14 @@ TROCR_MODEL_NAME: str = os.getenv(
     "TROCR_MODEL_NAME", "microsoft/trocr-base-handwritten"
 )
 EMBEDDING_MODEL_NAME: str = os.getenv("EMBEDDING_MODEL_NAME", "all-MiniLM-L6-v2")
-GEMINI_MODEL_NAME: str = os.getenv("GEMINI_MODEL_NAME", "gemini-3.5-flash-lite")
+GEMINI_MODEL_NAME: str = os.getenv("GEMINI_MODEL_NAME", "gemini-3.8-flash")
 GEMINI_FALLBACK_MODELS: tuple[str, ...] = (
+    "gemini-3.8-flash",
     "gemini-3.5-flash-lite",
     "gemini-3.1-flash-lite",
 )
 GEMINI_FAST_GRADING_MODELS: tuple[str, ...] = (
+    "gemini-3.8-flash",
     "gemini-3.5-flash-lite",
     "gemini-3.1-flash-lite",
 )
@@ -57,6 +59,15 @@ _MODEL_COOLDOWN_UNTIL: dict[str, float] = {}
 _KEY_LOCK = threading.Lock()
 _KEY_INDEX = 0
 _KEY_LIST: list[str] = []
+_BAD_KEY_COOLDOWN: dict[str, float] = {}
+
+
+def mark_gemini_key_bad(key: str, ttl_seconds: float = 300.0) -> None:
+    """Mark an unauthorized (403/401) or depleted key temporarily bad so failover routes to working keys."""
+    if not key:
+        return
+    with _KEY_LOCK:
+        _BAD_KEY_COOLDOWN[key] = time.monotonic() + ttl_seconds
 
 
 class FastGenResponse:
@@ -121,7 +132,7 @@ def build_fast_gemini_config(model_name: str, response_schema: Any = None) -> An
         kwargs["response_schema"] = response_schema
 
     lower_m = (model_name or "").lower()
-    if "3.5-flash-lite" in lower_m or "3.1-flash-lite" in lower_m:
+    if "flash-lite" in lower_m or "3.8-flash" in lower_m or "3.5-flash" in lower_m:
         kwargs["thinking_config"] = types.ThinkingConfig(thinking_level="MINIMAL")
 
     return types.GenerateContentConfig(**kwargs)
@@ -216,25 +227,40 @@ def generate_content_fast(
     response_schema: Any = None,
     timeout_ms: int = 14000,
 ) -> Any:
-    """Execute generate_content using adaptive cooldown routing across Gemini Flash-Lite models with transient retry and Groq fallback."""
-    client = get_gemini_client(api_key, timeout_ms=timeout_ms)
+    """Execute generate_content using adaptive cooldown routing across Gemini models with transient retry, multi-key failover, and Groq fallback."""
+    keys_to_try = [api_key]
+    for alt_k in get_all_valid_gemini_api_keys():
+        if alt_k not in keys_to_try:
+            keys_to_try.append(alt_k)
+
     last_err: Exception | None = None
-    for m_name in _ordered_healthy_models(models):
-        for attempt in range(2):
-            try:
-                return client.models.generate_content(
-                    model=m_name,
-                    contents=contents,
-                    config=build_fast_gemini_config(m_name, response_schema=response_schema),
-                )
-            except Exception as exc:
-                last_err = exc
-                msg = str(exc).upper()
-                if any(tok in msg for tok in ("503", "UNAVAILABLE", "429")) and attempt == 0:
-                    time.sleep(1.0)
-                    continue
-                _mark_model_transient_cooldown(m_name, exc)
+    for cur_key in keys_to_try:
+        client = get_gemini_client(cur_key, timeout_ms=timeout_ms)
+        key_auth_error = False
+        for m_name in _ordered_healthy_models(models):
+            for attempt in range(2):
+                try:
+                    return client.models.generate_content(
+                        model=m_name,
+                        contents=contents,
+                        config=build_fast_gemini_config(m_name, response_schema=response_schema),
+                    )
+                except Exception as exc:
+                    last_err = exc
+                    msg = str(exc).upper()
+                    if any(tok in msg for tok in ("PERMISSION_DENIED", "ACCESS_DENIED", "UNAUTHENTICATED", "API_KEY_INVALID", "403", "401")):
+                        mark_gemini_key_bad(cur_key, 600.0)
+                        key_auth_error = True
+                        break
+                    if any(tok in msg for tok in ("503", "UNAVAILABLE", "429")) and attempt == 0:
+                        time.sleep(1.0)
+                        continue
+                    _mark_model_transient_cooldown(m_name, exc)
+                    break
+            if key_auth_error:
                 break
+        if not key_auth_error and last_err is None:
+            break
 
     # If Gemini failed across all models, try Groq fallback if configured
     groq_k = get_groq_api_key()
@@ -287,10 +313,19 @@ def get_all_gemini_api_keys() -> list[str]:
     return list(dict.fromkeys(keys))
 
 
+def get_all_valid_gemini_api_keys() -> list[str]:
+    """Return all configured Gemini API keys that are healthy and not in temporary cooldown."""
+    all_k = get_all_gemini_api_keys()
+    now = time.monotonic()
+    with _KEY_LOCK:
+        valid_k = [k for k in all_k if _BAD_KEY_COOLDOWN.get(k, 0.0) <= now]
+    return valid_k if valid_k else all_k
+
+
 def get_next_gemini_api_key() -> str | None:
-    """Return next Gemini API key in round-robin rotation across all configured keys."""
+    """Return next Gemini API key in round-robin rotation across healthy configured keys."""
     global _KEY_INDEX, _KEY_LIST
-    active_keys = get_all_gemini_api_keys()
+    active_keys = get_all_valid_gemini_api_keys()
     if not active_keys:
         return None
     with _KEY_LOCK:
@@ -305,6 +340,18 @@ def get_next_gemini_api_key() -> str | None:
 def get_gemini_api_key() -> str | None:
     """Hot-reload .env to return an active GEMINI_API_KEY (with round-robin rotation)."""
     return get_next_gemini_api_key()
+
+
+def get_google_cloud_vision_api_key() -> str | None:
+    """Return active Google Cloud Vision API key if configured."""
+    load_dotenv(dotenv_path=_ENV_PATH, override=True)
+    k = os.getenv("GOOGLE_CLOUD_VISION_API_KEY", "").strip()
+    if k and len(k) > 10:
+        return k
+    for key in get_all_gemini_api_keys():
+        if key.startswith("AIzaSy"):
+            return key
+    return None
 
 
 def get_groq_api_key() -> str | None:

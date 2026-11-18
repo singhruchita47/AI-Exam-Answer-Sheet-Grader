@@ -1061,18 +1061,61 @@ class OCREngine:
             logger.debug("Cover metadata RapidOCR skipped: %s", exc)
         return meta
 
+    def transcribe_page_google_vision(
+        self,
+        image_path: str | Path,
+        api_key: str | None = None,
+    ) -> str:
+        """High-accuracy Google Cloud Vision Document Text Detection (DOCUMENT_TEXT_DETECTION)."""
+        import base64
+        import requests
+        from config import get_google_cloud_vision_api_key
+
+        key = api_key or get_google_cloud_vision_api_key()
+        if not key:
+            return ""
+
+        try:
+            with open(image_path, "rb") as f:
+                img_b64 = base64.b64encode(f.read()).decode("utf-8")
+
+            url = f"https://vision.googleapis.com/v1/images:annotate?key={key}"
+            payload = {
+                "requests": [
+                    {
+                        "image": {"content": img_b64},
+                        "features": [{"type": "DOCUMENT_TEXT_DETECTION"}],
+                    }
+                ]
+            }
+            resp = requests.post(url, json=payload, timeout=25.0)
+            if resp.status_code == 200:
+                data = resp.json()
+                responses = data.get("responses", [])
+                if responses:
+                    full_text = responses[0].get("fullTextAnnotation", {}).get("text", "")
+                    if full_text.strip():
+                        return full_text.strip()
+            else:
+                logger.debug("Google Cloud Vision API status %d: %s", resp.status_code, resp.text[:120])
+        except Exception as exc:
+            logger.debug("Google Cloud Vision OCR failed: %s", exc)
+        return ""
+
     def _transcribe_single_page_gemini(
         self,
         image_path: str | Path,
         page_number: int,
         active_key: str,
     ) -> str:
-        """Accurate single-page handwriting Vision OCR using Gemini to eliminate RapidOCR handwriting distortion."""
+        """Accurate single-page handwriting Vision OCR using Gemini with Google Cloud Vision fallback."""
         from google.genai import types
         from config import (
             GEMINI_FALLBACK_MODELS,
             GEMINI_MODEL_NAME,
             get_gemini_client,
+            get_all_valid_gemini_api_keys,
+            mark_gemini_key_bad,
             _ordered_healthy_models,
         )
         import io
@@ -1094,23 +1137,41 @@ class OCREngine:
                 "Part-I, Q1A:, Q1B:, A-1, A-(i), P2_Q1:, P2_Q2:, P3_Q1:, etc. exactly as written by the student. "
                 "Return clean digital text."
             )
-            client = get_gemini_client(active_key, timeout_ms=28000)
             cfg = types.GenerateContentConfig(
                 temperature=0.0,
                 thinking_config=types.ThinkingConfig(thinking_level="MINIMAL"),
             )
-            for m_name in _ordered_healthy_models([GEMINI_MODEL_NAME, *GEMINI_FALLBACK_MODELS]):
-                try:
-                    resp = client.models.generate_content(
-                        model=m_name,
-                        contents=[prompt, part],
-                        config=cfg,
-                    )
-                    return (resp.text or "").strip()
-                except Exception:
-                    continue
+
+            keys_to_try = [active_key]
+            for alt_k in get_all_valid_gemini_api_keys():
+                if alt_k not in keys_to_try:
+                    keys_to_try.append(alt_k)
+
+            for cur_key in keys_to_try:
+                client = get_gemini_client(cur_key, timeout_ms=28000)
+                for m_name in _ordered_healthy_models([GEMINI_MODEL_NAME, *GEMINI_FALLBACK_MODELS]):
+                    try:
+                        resp = client.models.generate_content(
+                            model=m_name,
+                            contents=[prompt, part],
+                            config=cfg,
+                        )
+                        text = (resp.text or "").strip()
+                        if text:
+                            return text
+                    except Exception as exc:
+                        msg = str(exc).upper()
+                        if any(tok in msg for tok in ("PERMISSION_DENIED", "ACCESS_DENIED", "UNAUTHENTICATED", "403", "401")):
+                            mark_gemini_key_bad(cur_key, 600.0)
+                            break
+                        continue
         except Exception as exc:
             logger.warning("Single page Gemini handwriting OCR failed for P%s: %s", page_number, exc)
+
+        # High-accuracy Google Cloud Vision Document Text Detection fallback
+        cloud_txt = self.transcribe_page_google_vision(image_path)
+        if cloud_txt:
+            return cloud_txt
         return ""
 
     def _transcribe_pages_gemini(
@@ -1444,6 +1505,8 @@ class OCREngine:
                         active_k = get_gemini_api_key()
                         if active_k:
                             p.transcript = self._transcribe_single_page_gemini(p.source_path, p.page_number, active_k)
+                        if not p.transcript.strip():
+                            p.transcript = self.transcribe_page_google_vision(p.source_path)
                         if not p.transcript.strip():
                             p.transcript = self._transcribe_page_rapidocr(p.source_path)
                 full_transcript = "\n".join(p.transcript for p in pages if p.transcript)
