@@ -1206,7 +1206,7 @@ class OCREngine:
             subject: str = ""
             pages: list[PageItem]
 
-        batch_size = 2
+        batch_size = 4 if len(pages) >= 8 else 2
         batches = [pages[i : i + batch_size] for i in range(0, len(pages), batch_size)]
 
         def _process_batch(batch: list[PageOCRResult]) -> tuple[dict[int, str], dict[str, str]]:
@@ -1223,7 +1223,7 @@ class OCREngine:
                 "   - SPECIAL SYMBOLS & SHORT CODES (UNIX / CS / CODING / COMMANDS / MATH):\n"
                 "     * Tokens like '..' (dot-dot / parent directory), '.', '/', '-', '~', '*', '|', '>', '0', '1', or single letters 'a'..'d' ARE VALID ANSWERS!\n"
                 "     * If a student writes '..' or '(..)' for item 5 (e.g. 'A-5 ..'), NEVER omit it or leave the line blank. Transcribe it EXACTLY: e.g. '(v) ..' or '(v) (..)'.\n"
-                "   - Standard sequential exams (Answer no. 01, Answer no. - 02, Q2, Ans 3, प्रश्न 1, प्रश्न क्रमांक 1, उत्तर 1, उत्तर क्रमांक 1, etc.): start each main question on its own line with 'Q1:', 'Q2:', 'Q3:', etc.\n"
+                "   - Standard sequential exams (Answer no. 01, Answer no. - 02, Q2, Ans 3, प्रश्न 1, प्रश्न क्रमांक 1, उत्तर 1, उत्तर क्रमांक 1, etc.): ALWAYS start each main question on its OWN new line ('\\n') with 'Q1:', 'Q2:', 'Q3:', etc. NEVER place 'Q11:' or 'Q13:' mid-line after another answer without a '\\n' before it!\n"
                 "   - Board Exam / Objective Question Booklet Sub-items (MCQ, Fill in blanks, True/False, One-word items):\n"
                 "     * Transcribe EVERY sub-item line in order from top to bottom (do NOT miss line 1 directly below the question heading, e.g. '(i) (a) June, 1992').\n"
                 "     * Put EACH sub-item on its OWN separate line using '(i) ...', '(ii) ...', '(iii) ...', etc. (never merge multiple objective answers onto a single line).\n"

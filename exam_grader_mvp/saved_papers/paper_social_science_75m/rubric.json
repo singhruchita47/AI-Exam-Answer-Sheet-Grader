@@ -1,0 +1,917 @@
+{
+  "exam_title": "MP Board Class 10 Social Science (Set C - 2025)",
+  "detected_subject": "SOCIAL SCIENCE",
+  "printed_max_marks": 75.0,
+  "reference_mode": "auto_inferred",
+  "questions": [
+    {
+      "question_id": "Q1",
+      "question_text": "Answer in one sentence:\n(1) भारत में पहली कपड़ा मिल किस स्थान पर लगी थी? / In which place did India's first cotton mill set up?\n(2) प्रथम विश्व युद्ध कब लड़ा गया (सन)? / First world war held in which year?\n(3) द्वितीयक क्षेत्र की गतिविधि का नाम लिखिए। / Write the name of one activity of secondary sector.\n(4) अतीत में देशों को जोड़ने वाला मुख्य माध्यम क्या था? / What was the main channel (medium) connecting countries in the past?\n(5) किसी राष्ट्र में सरकार विरोधी समूहों की हिंसक लड़ाई जो युद्ध सी लगे उसे क्या कहते हैं? / A violent conflict between government opposing groups within a country that becomes so intense, appears like a war called what?\n(6) परिवहन का कौन सा साधन सबसे सुविधाजनक है? / Which is the most convenient means of transport?",
+      "question_type": "one_word",
+      "model_answer": "(1) Mumbai (Bombay)\n(2) 1914 (or 1914-1918)\n(3) Manufacturing / Cloth manufacturing / Industrial production\n(4) Trade / Silk routes\n(5) Civil War\n(6) Roadways / Road transport",
+      "key_points": [
+        {
+          "point_id": "Q1_P1",
+          "description": "(i) भारत में पहली कपड़ा मिल किस स्थान पर लगी थी? / In which place did India's first cotton mill set up?: Mumbai",
+          "weight": 1.0
+        },
+        {
+          "point_id": "Q1_P2",
+          "description": "(ii) प्रथम विश्व युद्ध कब लड़ा गया (सन)? / First world war held in which year?: 1914",
+          "weight": 1.0
+        },
+        {
+          "point_id": "Q1_P3",
+          "description": "(iii) द्वितीयक क्षेत्र की गतिविधि का नाम लिखिए। / Write the name of one activity of secondary sector: Manufacturing / Industrial production",
+          "weight": 1.0
+        },
+        {
+          "point_id": "Q1_P4",
+          "description": "(iv) अतीत में देशों को जोड़ने वाला मुख्य माध्यम क्या था? / What was the main channel (medium) connecting countries in the past?: Trade",
+          "weight": 1.0
+        },
+        {
+          "point_id": "Q1_P5",
+          "description": "(v) किसी राष्ट्र में सरकार विरोधी समूहों की हिंसक लड़ाई जो युद्ध सी लगे उसे क्या कहते हैं? / A violent conflict between government opposing groups within a country that becomes so intense, appears like a war called what?: Civil War",
+          "weight": 1.0
+        },
+        {
+          "point_id": "Q1_P6",
+          "description": "(vi) परिवहन का कौन सा साधन सबसे सुविधाजनक है? / Which is the most convenient means of transport?: Road transport",
+          "weight": 1.0
+        }
+      ],
+      "requires_diagram": false,
+      "diagram_criteria": "",
+      "max_marks": 6.0
+    },
+    {
+      "question_id": "Q2",
+      "question_text": "Choose and write the correct option:\n(i) ब्राजील के rio-de-janeiro में पर्यावरण और विकास सम्मेलन कब हुआ? / Rio-de-Janeiro in Brazil, Earth Summit was held in which year?\n(ii) छोटा नागपुर क्षेत्र की मुंडा और संथाल जनजातियां किन पेड़ों की पूजा करती हैं? / The Mundas and the Santhals tribes of Chota Nagpur region worship which trees?\n(iii) भारत की एक बड़ी जल संसाधन परियोजना जिसमें महाराष्ट्र, मध्य प्रदेश, गुजरात तथा राजस्थान सम्मिलित हैं: / The largest water resource project of India covering four states - Maharashtra, Madhya Pradesh, Gujarat and Rajasthan is:\n(iv) भारत की मुख्य खाद्यन्न फसल है: / Main staple food crop of India is:\n(v) महात्मा गांधी की प्रसिद्ध पुस्तक का नाम है: / Famous book of Mahatma Gandhi is:\n(vi) H.D.I. का अर्थ है: / H.D.I. means:",
+      "question_type": "mcq",
+      "model_answer": "(i) (a) June, 1992\n(ii) (c) Mahua and Kadamba\n(iii) (a) Sardar Sarovar Dam\n(iv) (c) Paddy\n(v) (b) Hind Swaraj\n(vi) (b) Human Development Index",
+      "key_points": [
+        {
+          "point_id": "Q2_P1",
+          "description": "(i) ब्राजील के rio-de-janeiro में पर्यावरण और विकास सम्मेलन कब हुआ? / Rio-de-Janeiro in Brazil, Earth Summit was held in which year?: (a) June, 1992",
+          "weight": 1.0
+        },
+        {
+          "point_id": "Q2_P2",
+          "description": "(ii) छोटा नागपुर क्षेत्र की मुंडा और संथाल जनजातियां किन पेड़ों की पूजा करती हैं? / The Mundas and the Santhals tribes of Chota Nagpur region worship which trees?: (c) Mahua and Kadamba",
+          "weight": 1.0
+        },
+        {
+          "point_id": "Q2_P3",
+          "description": "(iii) भारत की एक बड़ी जल संसाधन परियोजना जिसमें महाराष्ट्र, मध्य प्रदेश, गुजरात तथा राजस्थान सम्मिलित हैं: / The largest water resource project of India covering four states - Maharashtra, Madhya Pradesh, Gujarat and Rajasthan is: (a) Sardar Sarovar Dam",
+          "weight": 1.0
+        },
+        {
+          "point_id": "Q2_P4",
+          "description": "(iv) भारत की मुख्य खाद्यन्न फसल है: / Main staple food crop of India is: (c) Paddy",
+          "weight": 1.0
+        },
+        {
+          "point_id": "Q2_P5",
+          "description": "(v) महात्मा गांधी की प्रसिद्ध पुस्तक का नाम है: / Famous book of Mahatma Gandhi is: (b) Hind Swaraj",
+          "weight": 1.0
+        },
+        {
+          "point_id": "Q2_P6",
+          "description": "(vi) H.D.I. का अर्थ है: / H.D.I. means: (b) Human Development Index",
+          "weight": 1.0
+        }
+      ],
+      "requires_diagram": false,
+      "diagram_criteria": "",
+      "max_marks": 6.0
+    },
+    {
+      "question_id": "Q3",
+      "question_text": "Fill in the blanks:\n(i) म. गां. रा. ग्रामीण रोजगार गारंटी अधिनियम-2005 के अंतर्गत _______ दिनों के कार्य/रोजगार की गारंटी दी गई है। / According to MGNREGA-2005 provided employment guarantee for ______ days.\n(ii) कृषि _______ क्षेत्र की गतिविधि है। / Agriculture is _______ sector activity.\n(iii) मध्य प्रदेश का एक राष्ट्रीय उद्यान _______ है। / One national park of Madhya Pradesh is _______\n(iv) सन् _______ में श्रीलंका स्वतंत्र राष्ट्र बना था। / Sri Lanka emerged as an independent country in _______ (year).\n(v) _______ सरकार दो या अधिक स्तरोंवाली होती है। / _______ government are two or more levels (tiers of government).\n(vi) अफ्रीका में 1890 में रिंडरपेस्ट _______ था। / In Africa 1890s Rinderpest was _______",
+      "question_type": "fill_blank",
+      "model_answer": "(i) 100\n(ii) Primary\n(iii) Kanha Kisli / Bandhavgarh\n(iv) 1948\n(v) Federal\n(vi) Cattle plague / disease",
+      "key_points": [
+        {
+          "point_id": "Q3_P1",
+          "description": "(i) म. गां. रा. ग्रामीण रोजगार गारंटी अधिनियम-2005 के अंतर्गत _______ दिनों के कार्य/रोजगार की गारंटी दी गई है। / According to MGNREGA-2005 provided employment guarantee for ______ days: 100",
+          "weight": 1.0
+        },
+        {
+          "point_id": "Q3_P2",
+          "description": "(ii) कृषि _______ क्षेत्र की गतिविधि है। / Agriculture is _______ sector activity: Primary",
+          "weight": 1.0
+        },
+        {
+          "point_id": "Q3_P3",
+          "description": "(iii) मध्य प्रदेश का एक राष्ट्रीय उद्यान _______ है। / One national park of Madhya Pradesh is _______: Kanha Kisli / Bandhavgarh",
+          "weight": 1.0
+        },
+        {
+          "point_id": "Q3_P4",
+          "description": "(iv) सन् _______ में श्रीलंका स्वतंत्र राष्ट्र बना था। / Sri Lanka emerged as an independent country in _______ (year): 1948",
+          "weight": 1.0
+        },
+        {
+          "point_id": "Q3_P5",
+          "description": "(v) _______ सरकार दो या अधिक स्तरोंवाली होती है। / _______ government are two or more levels (tiers of government): Federal",
+          "weight": 1.0
+        },
+        {
+          "point_id": "Q3_P6",
+          "description": "(vi) अफ्रीका में 1890 में रिंडरपेस्ट _______ था। / In Africa 1890s Rinderpest was _______: Cattle plague / disease",
+          "weight": 1.0
+        }
+      ],
+      "requires_diagram": false,
+      "diagram_criteria": "",
+      "max_marks": 6.0
+    },
+    {
+      "question_id": "Q4",
+      "question_text": "Write True / False:\n(i) गैर-नवीकरणीय साधन वो हैं जो कुछ ही वर्षों के प्रयोग के पश्चात् समाप्त हो जाते हैं। / Non-renewable resources are those which will get exhausted after a few years of use.\n(ii) भारत में अब कुल 22 भाषाओं को संविधान की 8वीं अनुसूची में रखा गया है। / In India 22 languages are now included in the Eighth Schedule of Constitution.\n(iii) भारत में संघीय व्यवस्था नहीं है। / India is no longer a federal system.\n(iv) हल्दिया पत्तन, कोलकाता का सहायक पत्तन है। / Haldia port is a subsidiary port of Kolkatta.\n(v) प्राथमिक, द्वितीयक और तृतीयक क्षेत्र की गतिविधियां स्वतंत्र हैं। / The activities in primary, secondary and tertiary sectors are independent.\n(vi) मुद्रा के आधुनिक रूप में करेंसी - कागज के नोट और सिक्के शामिल हैं। / Modern forms of money include currency - paper notes and coins.",
+      "question_type": "short_answer",
+      "model_answer": "(i) True\n(ii) True\n(iii) False\n(iv) True\n(v) False\n(vi) True",
+      "key_points": [
+        {
+          "point_id": "Q4_P1",
+          "description": "(i) True",
+          "weight": 1.0
+        },
+        {
+          "point_id": "Q4_P2",
+          "description": "(ii) True",
+          "weight": 1.0
+        },
+        {
+          "point_id": "Q4_P3",
+          "description": "(iii) False",
+          "weight": 1.0
+        },
+        {
+          "point_id": "Q4_P4",
+          "description": "(iv) True",
+          "weight": 1.0
+        },
+        {
+          "point_id": "Q4_P5",
+          "description": "(v) False",
+          "weight": 1.0
+        },
+        {
+          "point_id": "Q4_P6",
+          "description": "(vi) True",
+          "weight": 1.0
+        }
+      ],
+      "requires_diagram": false,
+      "diagram_criteria": "",
+      "max_marks": 6.0
+    },
+    {
+      "question_id": "Q5",
+      "question_text": "Match the correct pairs:\n(a) Reserve Bank of India - (i) Public and Private sectors\n(b) Sectors in terms of ownership - (ii) Cement\n(c) Works of political parties - (iii) Formal source of credit\n(d) Print media - (iv) 1928 A.D.\n(e) Lime stone - (v) Elections and government system\n(f) Simon Commission - (vi) Social issues and News",
+      "question_type": "short_answer",
+      "model_answer": "(a) -> (iii)\n(b) -> (i)\n(c) -> (v)\n(d) -> (vi)\n(e) -> (ii)\n(f) -> (iv)",
+      "key_points": [
+        {
+          "point_id": "Q5_P1",
+          "description": "(a) Reserve Bank of India matches with Formal source of credit",
+          "weight": 1.0
+        },
+        {
+          "point_id": "Q5_P2",
+          "description": "(b) Sectors in terms of ownership matches with Public and Private sectors",
+          "weight": 1.0
+        },
+        {
+          "point_id": "Q5_P3",
+          "description": "(c) Works of political parties matches with Elections and government system",
+          "weight": 1.0
+        },
+        {
+          "point_id": "Q5_P4",
+          "description": "(d) Print media matches with Social issues and News",
+          "weight": 1.0
+        },
+        {
+          "point_id": "Q5_P5",
+          "description": "(e) Lime stone matches with Cement",
+          "weight": 1.0
+        },
+        {
+          "point_id": "Q5_P6",
+          "description": "(f) Simon Commission matches with 1928 A.D.",
+          "weight": 1.0
+        }
+      ],
+      "requires_diagram": false,
+      "diagram_criteria": "",
+      "max_marks": 6.0
+    },
+    {
+      "question_id": "Q6",
+      "question_text": "Why do lenders ask for collateral (Security) while lending? OR Write formal sector of loan and informal sector of loan sources.",
+      "question_type": "short_answer",
+      "model_answer": "[Option 1] Lenders ask for collateral (asset security) to guarantee loan repayment and recover losses if the borrower defaults. [OR Option 2] Formal sources of loan: Commercial banks and Cooperative societies. Informal sources of loan: Moneylenders, traders, employers, friends, and relatives.",
+      "key_points": [
+        {
+          "point_id": "Q6_P1",
+          "description": "First core point accurately answering the chosen option (collateral purpose OR formal loan sources)",
+          "weight": 1.0,
+          "keywords": [
+            "collateral",
+            "security",
+            "formal",
+            "banks",
+            "cooperatives"
+          ]
+        },
+        {
+          "point_id": "Q6_P2",
+          "description": "Second core point accurately answering the chosen option (risk recovery OR informal loan sources)",
+          "weight": 1.0,
+          "keywords": [
+            "repayment",
+            "default",
+            "informal",
+            "moneylenders",
+            "relatives"
+          ]
+        }
+      ],
+      "requires_diagram": false,
+      "diagram_criteria": "",
+      "max_marks": 2.0
+    },
+    {
+      "question_id": "Q7",
+      "question_text": "What are the various ways by which people may be exploited in the market? OR Write two important learnings to become well informed consumers.",
+      "question_type": "short_answer",
+      "model_answer": "[Option 1] Ways consumers are exploited: under-weighing, adulteration, high pricing, false claims, substandard/expired goods. [OR Option 2] Two learnings to become well-informed consumers: (1) Checking expiry date, ingredients, safety, and quality marks like ISI/AGMARK; (2) Demanding cash memos/bills and knowing consumer rights.",
+      "key_points": [
+        {
+          "point_id": "Q7_P1",
+          "description": "First valid point answering the chosen option (exploitation method OR consumer awareness learning)",
+          "weight": 1.0,
+          "keywords": [
+            "adulteration",
+            "underweight",
+            "quality",
+            "expiry",
+            "harmful",
+            "isi"
+          ]
+        },
+        {
+          "point_id": "Q7_P2",
+          "description": "Second valid point answering the chosen option (second exploitation way OR second consumer learning)",
+          "weight": 1.0,
+          "keywords": [
+            "price",
+            "substandard",
+            "bill",
+            "expiry",
+            "check",
+            "rights"
+          ]
+        }
+      ],
+      "requires_diagram": false,
+      "diagram_criteria": "",
+      "max_marks": 2.0
+    },
+    {
+      "question_id": "Q8",
+      "question_text": "Name two movements for conservation of forest. OR Write two direct importances of forests.",
+      "question_type": "short_answer",
+      "model_answer": "[Option 1] Two movements for forest conservation: Chipko Movement and Appiko Movement (or Beej Bachao Andolan). [OR Option 2] Two direct importances of forests: releasing oxygen and absorbing CO2, providing food/shelter/timber, and bringing rainfall / controlling floods.",
+      "key_points": [
+        {
+          "point_id": "Q8_P1",
+          "description": "First valid conservation movement OR first direct importance of forests (depending on chosen option)",
+          "weight": 1.0,
+          "keywords": [
+            "chipko",
+            "appiko",
+            "oxygen",
+            "carbon",
+            "timber",
+            "food"
+          ]
+        },
+        {
+          "point_id": "Q8_P2",
+          "description": "Second valid conservation movement OR second direct importance of forests (depending on chosen option)",
+          "weight": 1.0,
+          "keywords": [
+            "movement",
+            "beej",
+            "shelter",
+            "rainfall",
+            "monsoon",
+            "animals"
+          ]
+        }
+      ],
+      "requires_diagram": false,
+      "diagram_criteria": "",
+      "max_marks": 2.0
+    },
+    {
+      "question_id": "Q9",
+      "question_text": "Write names of two millets. OR Write names of two commercial crops.",
+      "question_type": "short_answer",
+      "model_answer": "Two millets are Jowar and Bajra. Two commercial crops are Cotton and Sugarcane.",
+      "key_points": [
+        {
+          "point_id": "Q9_P1",
+          "description": "First valid millet (Jowar, Bajra, Ragi) OR first commercial crop (depending on chosen option)",
+          "weight": 1.0,
+          "keywords": [
+            "jowar",
+            "bajra",
+            "ragi",
+            "cotton",
+            "sugarcane",
+            "tea"
+          ]
+        },
+        {
+          "point_id": "Q9_P2",
+          "description": "Second valid millet OR second commercial crop (depending on chosen option)",
+          "weight": 1.0,
+          "keywords": [
+            "jowar",
+            "bajra",
+            "ragi",
+            "jute",
+            "coffee",
+            "rubber"
+          ]
+        }
+      ],
+      "requires_diagram": false,
+      "diagram_criteria": "",
+      "max_marks": 2.0
+    },
+    {
+      "question_id": "Q10",
+      "question_text": "National Thermal Power Corporation (NTPC) shows the way to protective approach for preserving natural environment pollution, write any two ways. OR Write any two types of Industrial Pollutions.",
+      "question_type": "short_answer",
+      "model_answer": "NTPC preserves environment through optimum utilization of equipment and minimizing waste generation. Two types of industrial pollution are Air pollution and Water pollution.",
+      "key_points": [
+        {
+          "point_id": "Q10_P1",
+          "description": "First valid NTPC environmental measure OR first industrial pollution type with explanation",
+          "weight": 1.0,
+          "keywords": [
+            "ntpc",
+            "equipment",
+            "air",
+            "water",
+            "gases"
+          ]
+        },
+        {
+          "point_id": "Q10_P2",
+          "description": "Second valid NTPC environmental measure OR second industrial pollution type with explanation",
+          "weight": 1.0,
+          "keywords": [
+            "waste",
+            "ash",
+            "water",
+            "noise",
+            "thermal",
+            "rivers"
+          ]
+        }
+      ],
+      "requires_diagram": false,
+      "diagram_criteria": "",
+      "max_marks": 2.0
+    },
+    {
+      "question_id": "Q11",
+      "question_text": "Who was Giuseppe Mazzini? OR What is Utopian?",
+      "question_type": "short_answer",
+      "model_answer": "Giuseppe Mazzini was an Italian revolutionary born in Genoa who founded Young Italy. A Utopian vision refers to a society that is so ideal that it is unlikely to actually exist.",
+      "key_points": [
+        {
+          "point_id": "Q11_P1",
+          "description": "Core identification of Giuseppe Mazzini (Italian revolutionary) OR accurate definition of Utopian vision",
+          "weight": 1.0,
+          "keywords": [
+            "mazzini",
+            "italian",
+            "revolutionary",
+            "utopian",
+            "ideal",
+            "society"
+          ]
+        },
+        {
+          "point_id": "Q11_P2",
+          "description": "Key supporting details (Young Italy/Young Europe, Genoa/unification OR unlikely to exist in reality)",
+          "weight": 1.0,
+          "keywords": [
+            "young",
+            "italy",
+            "europe",
+            "genoa",
+            "ideal",
+            "reality"
+          ]
+        }
+      ],
+      "requires_diagram": false,
+      "diagram_criteria": "",
+      "max_marks": 2.0
+    },
+    {
+      "question_id": "Q12",
+      "question_text": "Write two points about Jallianwala Bagh massacre? OR What do you understand by Boycott?",
+      "question_type": "short_answer",
+      "model_answer": "Jallianwala Bagh massacre took place on April 13, 1919, where General Dyer opened fire on a peaceful gathering. Boycott means the refusal to deal and associate with people, or participate in activities as a form of protest.",
+      "key_points": [
+        {
+          "point_id": "Q12_P1",
+          "description": "First valid point (13 April 1919 Amritsar/Dyer OR clear definition of Boycott as refusal to participate/associate)",
+          "weight": 1.0,
+          "keywords": [
+            "1919",
+            "april",
+            "dyer",
+            "amritsar",
+            "boycott",
+            "refusal"
+          ]
+        },
+        {
+          "point_id": "Q12_P2",
+          "description": "Second valid point (firing on peaceful crowd/impact OR boycott as non-violent protest form)",
+          "weight": 1.0,
+          "keywords": [
+            "fire",
+            "baisakhi",
+            "peaceful",
+            "protest",
+            "goods",
+            "deal"
+          ]
+        }
+      ],
+      "requires_diagram": false,
+      "diagram_criteria": "",
+      "max_marks": 2.0
+    },
+    {
+      "question_id": "Q13",
+      "question_text": "Write two points about Silk Routes. OR Write two qualities of Spining Jenny.",
+      "question_type": "short_answer",
+      "model_answer": "Silk Routes were vibrant pre-modern trade links connecting Asia to Europe and northern Africa. Spinning Jenny sped up the spinning process and reduced labor demand.",
+      "key_points": [
+        {
+          "point_id": "Q13_P1",
+          "description": "First valid point on Silk Routes OR first quality of Spinning Jenny",
+          "weight": 1.0,
+          "keywords": [
+            "silk",
+            "trade",
+            "asia",
+            "europe",
+            "spinning",
+            "jenny"
+          ]
+        },
+        {
+          "point_id": "Q13_P2",
+          "description": "Second valid point on Silk Routes (goods/culture) OR second quality of Spinning Jenny",
+          "weight": 1.0,
+          "keywords": [
+            "spices",
+            "pottery",
+            "cultural",
+            "speed",
+            "spindles",
+            "labor"
+          ]
+        }
+      ],
+      "requires_diagram": false,
+      "diagram_criteria": "",
+      "max_marks": 2.0
+    },
+    {
+      "question_id": "Q14",
+      "question_text": "What is the meaning of Tariff? OR What happened when Corn Law was scrapped in Britain?",
+      "question_type": "short_answer",
+      "model_answer": "Tariff is a tax imposed on a country's imports from the rest of the world. When Corn Laws were scrapped, food could be imported into Britain more cheaply than it could be produced within the country.",
+      "key_points": [
+        {
+          "point_id": "Q14_P1",
+          "description": "Accurate core concept (Tax on imports OR cheaper food imports in Britain after Corn Law abolition)",
+          "weight": 1.0,
+          "keywords": [
+            "tariff",
+            "tax",
+            "imports",
+            "corn",
+            "imported",
+            "prices"
+          ]
+        },
+        {
+          "point_id": "Q14_P2",
+          "description": "Complete explanation (applied at border OR British agriculture/farmers impact and migration)",
+          "weight": 1.0,
+          "keywords": [
+            "border",
+            "duty",
+            "farmers",
+            "migration",
+            "cities",
+            "cheaper"
+          ]
+        }
+      ],
+      "requires_diagram": false,
+      "diagram_criteria": "",
+      "max_marks": 2.0
+    },
+    {
+      "question_id": "Q15",
+      "question_text": "Write two points of importance of Printing or Print Media. OR Explain effects of 'Print on Women'.",
+      "question_type": "short_answer",
+      "model_answer": "Print media helps in mass dissemination of news, knowledge, and ideas. Print culture led to increased reading among women, leading to writings highlighting women's lives and experiences.",
+      "key_points": [
+        {
+          "point_id": "Q15_P1",
+          "description": "First valid point on importance of print media OR first effect of print on women",
+          "weight": 1.0,
+          "keywords": [
+            "knowledge",
+            "enlightenment",
+            "news",
+            "women",
+            "reading",
+            "education"
+          ]
+        },
+        {
+          "point_id": "Q15_P2",
+          "description": "Second valid point on print media (debate/awareness) OR second effect of print on women",
+          "weight": 1.0,
+          "keywords": [
+            "debate",
+            "discussion",
+            "awareness",
+            "writings",
+            "novels",
+            "rights"
+          ]
+        }
+      ],
+      "requires_diagram": false,
+      "diagram_criteria": "",
+      "max_marks": 2.0
+    },
+    {
+      "question_id": "Q16",
+      "question_text": "Write two characteristics of Indian ideal woman in society. OR What is Feminist Movement?",
+      "question_type": "short_answer",
+      "model_answer": "[Option 1] Two characteristics of Indian ideal woman in traditional society: self-sacrificing, devoted to family/home, nurturing and upholding moral values. [OR Option 2] Feminist Movement: An ideology and organized movement demanding equal social, political, economic, and personal rights and opportunities for women and men.",
+      "key_points": [
+        {
+          "point_id": "Q16_P1",
+          "description": "First characteristic of ideal woman OR clear core definition of Feminist Movement",
+          "weight": 1.0,
+          "keywords": [
+            "feminist",
+            "feminism",
+            "movement",
+            "family",
+            "devoted",
+            "equality"
+          ]
+        },
+        {
+          "point_id": "Q16_P2",
+          "description": "Second characteristic OR core principle of Feminist Movement (equal rights for women and men)",
+          "weight": 1.0,
+          "keywords": [
+            "equal",
+            "rights",
+            "women",
+            "men",
+            "opportunity",
+            "sacrifice"
+          ]
+        }
+      ],
+      "requires_diagram": false,
+      "diagram_criteria": "",
+      "max_marks": 2.0
+    },
+    {
+      "question_id": "Q17",
+      "question_text": "Write importance of Democracy. OR Write two outcomes of Democracy.",
+      "question_type": "short_answer",
+      "model_answer": "Democracy is important as it promotes equality among citizens and enhances the dignity of the individual. Two outcomes are accountable government and resolution of conflicts.",
+      "key_points": [
+        {
+          "point_id": "Q17_P1",
+          "description": "First valid point on importance of democracy OR first outcome (accountable/legitimate government)",
+          "weight": 1.0,
+          "keywords": [
+            "equality",
+            "dignity",
+            "legitimate",
+            "accountable",
+            "responsible"
+          ]
+        },
+        {
+          "point_id": "Q17_P2",
+          "description": "Second valid point on importance OR second outcome (transparency/conflict resolution)",
+          "weight": 1.0,
+          "keywords": [
+            "transparency",
+            "conflicts",
+            "decision",
+            "citizens",
+            "rules"
+          ]
+        }
+      ],
+      "requires_diagram": false,
+      "diagram_criteria": "",
+      "max_marks": 2.0
+    },
+    {
+      "question_id": "Q18",
+      "question_text": "Write some efforts and suggestions to reform political parties. OR Write three challenges of political parties.",
+      "question_type": "short_answer",
+      "model_answer": "[Option 1] Party reforms: Anti-defection law, mandatory filing of property/criminal affidavits by candidates, internal organizational elections. [OR Option 2] Three challenges of political parties: (1) Lack of internal democracy (concentration of power in top leaders); (2) Dynastic/family succession; (3) Growing role of money & muscle power and lack of transparent candidate background / meaningful choice.",
+      "key_points": [
+        {
+          "point_id": "Q18_P1",
+          "description": "First reform effort OR first party challenge with clear explanation",
+          "weight": 1.0,
+          "keywords": [
+            "internal",
+            "democracy",
+            "defection",
+            "leaders",
+            "power"
+          ]
+        },
+        {
+          "point_id": "Q18_P2",
+          "description": "Second reform effort OR second party challenge (e.g. candidate information/money-muscle or affidavit)",
+          "weight": 1.0,
+          "keywords": [
+            "affidavit",
+            "information",
+            "criminal",
+            "money",
+            "muscle"
+          ]
+        },
+        {
+          "point_id": "Q18_P3",
+          "description": "Third reform effort OR third party challenge (e.g. family/dynastic succession or meaningful choice)",
+          "weight": 1.0,
+          "keywords": [
+            "family",
+            "dynastic",
+            "succession",
+            "inheritance",
+            "capable"
+          ]
+        }
+      ],
+      "requires_diagram": false,
+      "diagram_criteria": "",
+      "max_marks": 3.0
+    },
+    {
+      "question_id": "Q19",
+      "question_text": "Draw soil profile and describe. OR Write names of three soils of India with their regions and one feature each.",
+      "question_type": "short_answer",
+      "model_answer": "[Option 1] Soil profile shows vertical horizons (Topsoil/A-horizon, Subsoil/B-horizon, Weathered rock/C-horizon, Bedrock). [OR Option 2] Three soils of India: (1) Alluvial soil (Northern plains — very fertile, rich in potash/silt); (2) Black/Regur soil (Deccan plateau/Maharashtra/Gujarat — holds moisture, ideal for cotton); (3) Red/Laterite/Arid soil (Plateau/Western Rajasthan — iron-rich or sandy/calcium-rich with irrigation).",
+      "key_points": [
+        {
+          "point_id": "Q19_P1",
+          "description": "First soil horizon/type with region and feature",
+          "weight": 1.0,
+          "keywords": [
+            "alluvial",
+            "topsoil",
+            "northern",
+            "fertile",
+            "silt"
+          ]
+        },
+        {
+          "point_id": "Q19_P2",
+          "description": "Second soil horizon/type with region and feature",
+          "weight": 1.0,
+          "keywords": [
+            "black",
+            "regur",
+            "deccan",
+            "cotton",
+            "subsoil"
+          ]
+        },
+        {
+          "point_id": "Q19_P3",
+          "description": "Third soil horizon/type with region and feature",
+          "weight": 1.0,
+          "keywords": [
+            "arid",
+            "red",
+            "laterite",
+            "rajasthan",
+            "calcium",
+            "iron"
+          ]
+        }
+      ],
+      "requires_diagram": false,
+      "diagram_criteria": "Clear layering of soil horizons (Topsoil, Subsoil, Substratum, Unweathered parent rock) or accurate description of soils.",
+      "max_marks": 3.0
+    },
+    {
+      "question_id": "Q20",
+      "question_text": "How to control of environmental degradation in India? OR What are basic industries? Give an example.",
+      "question_type": "short_answer",
+      "model_answer": "Environmental degradation can be controlled by reducing industrial effluents, afforestation, and water harvesting. Basic industries supply raw materials to other industries, e.g., Iron and Steel industry.",
+      "key_points": [
+        {
+          "point_id": "Q20_P1",
+          "description": "First control measure or basic industry definition",
+          "weight": 1.0
+        },
+        {
+          "point_id": "Q20_P2",
+          "description": "Second control measure or basic industry explanation",
+          "weight": 1.0
+        },
+        {
+          "point_id": "Q20_P3",
+          "description": "Third control measure or providing an example",
+          "weight": 1.0
+        }
+      ],
+      "requires_diagram": false,
+      "diagram_criteria": "",
+      "max_marks": 3.0
+    },
+    {
+      "question_id": "Q21",
+      "question_text": "Compair Road Transport and Rail Transport in four points. OR Write in four points about water transport and air transportation.",
+      "question_type": "long_answer",
+      "model_answer": "Road transport offers door-to-door service and flexible routes, whereas rail transport is suitable for bulk goods over long distances. Water transport is the cheapest means for heavy cargo, and air transport is the fastest but most expensive.",
+      "key_points": [
+        {
+          "point_id": "Q21_P1",
+          "description": "First comparison/feature point",
+          "weight": 1.0
+        },
+        {
+          "point_id": "Q21_P2",
+          "description": "Second comparison/feature point",
+          "weight": 1.0
+        },
+        {
+          "point_id": "Q21_P3",
+          "description": "Third comparison/feature point",
+          "weight": 1.0
+        },
+        {
+          "point_id": "Q21_P4",
+          "description": "Fourth comparison/feature point",
+          "weight": 1.0
+        }
+      ],
+      "requires_diagram": false,
+      "diagram_criteria": "",
+      "max_marks": 4.0
+    },
+    {
+      "question_id": "Q22",
+      "question_text": "Explain any two of the following: (a) Simon Commission (b) Dandi March (c) Quit India Movement (d) Mahatma Gandhiji's views on Satyagraha. OR Why did Gandhiji decide to withdraw the Non-Cooperation Movement?",
+      "question_type": "long_answer",
+      "model_answer": "[Option 1 — Any Two] (a) Simon Commission (1928): Statutory commission headed by Sir John Simon without a single Indian member, opposed with 'Go Back Simon'. (b) Dandi March (1930): Started on 12 March 1930 after 11 demands to Lord Irwin failed; Gandhiji walked 240 miles from Sabarmati to Dandi with 78 volunteers over 24 days to break the Salt Law, launching the Civil Disobedience Movement. (c) Quit India Movement (1942): Launched on 8 August 1942 in Bombay demanding immediate end of British rule with the 'Do or Die' slogan. (d) Gandhiji's views on Satyagraha: Emphasized the power of truth and non-violence to appeal to the oppressor's conscience rather than using physical force; demonstrated in Champaran (1917), Kheda (1917), and Ahmedabad mill strike (1918). [OR Option 2] Non-Cooperation Movement was withdrawn in February 1922 after the violent Chauri Chaura incident in Gorakhpur where angry protesters burned a police station.",
+      "key_points": [
+        {
+          "point_id": "Q22_P1",
+          "description": "First selected topic (or withdrawal decision) stated with accurate context/dates",
+          "weight": 1.0,
+          "keywords": [
+            "dandi",
+            "1930",
+            "simon",
+            "quit",
+            "satyagraha",
+            "chauri"
+          ]
+        },
+        {
+          "point_id": "Q22_P2",
+          "description": "Complete factual details and significance of first topic (or primary violence cause)",
+          "weight": 1.0,
+          "keywords": [
+            "salt",
+            "irwin",
+            "sabarmati",
+            "volunteers",
+            "non-violence",
+            "1922"
+          ]
+        },
+        {
+          "point_id": "Q22_P3",
+          "description": "Second selected topic (or supporting reasoning) clearly explained with historical examples",
+          "weight": 1.0,
+          "keywords": [
+            "satyagraha",
+            "truth",
+            "champaran",
+            "kheda",
+            "ahmedabad",
+            "march"
+          ]
+        },
+        {
+          "point_id": "Q22_P4",
+          "description": "Full historical elaboration and impact/outcome completing the 4-mark response",
+          "weight": 1.0,
+          "keywords": [
+            "movement",
+            "disobedience",
+            "1917",
+            "1918",
+            "oppressor",
+            "successful"
+          ]
+        }
+      ],
+      "requires_diagram": false,
+      "diagram_criteria": "",
+      "max_marks": 4.0
+    },
+    {
+      "question_id": "Q23",
+      "question_text": "Show the following areas in the map of India: (i) Mumbai High (ii) Delhi (iii) Raniganj (iv) Tuticorin. OR Show the following areas in the map of India: (i) Digboi (ii) Goa (iii) Durg (iv) Lakshadweep.",
+      "question_type": "long_answer",
+      "model_answer": "[Option 1] Mumbai High (offshore Maharashtra), Delhi (National Capital), Raniganj (West Bengal coalfield), Tuticorin (Tamil Nadu port). [OR Option 2] (i) Digboi (northeastern Assam), (ii) Goa (western coast south of Maharashtra), (iii) Durg (central Chhattisgarh), (iv) Lakshadweep (island group in Arabian Sea off Kerala coast).",
+      "key_points": [
+        {
+          "point_id": "Q23_P1",
+          "description": "First map location accurately identified and plotted (Mumbai High OR Digboi)",
+          "weight": 1.0,
+          "keywords": [
+            "mumbai",
+            "digboi",
+            "assam"
+          ]
+        },
+        {
+          "point_id": "Q23_P2",
+          "description": "Second map location accurately identified and plotted (Delhi OR Goa)",
+          "weight": 1.0,
+          "keywords": [
+            "delhi",
+            "goa"
+          ]
+        },
+        {
+          "point_id": "Q23_P3",
+          "description": "Third map location accurately identified and plotted (Raniganj OR Durg)",
+          "weight": 1.0,
+          "keywords": [
+            "raniganj",
+            "durg",
+            "chhattisgarh"
+          ]
+        },
+        {
+          "point_id": "Q23_P4",
+          "description": "Fourth map location accurately identified and plotted (Tuticorin OR Lakshadweep)",
+          "weight": 1.0,
+          "keywords": [
+            "tuticorin",
+            "lakshadweep"
+          ]
+        }
+      ],
+      "requires_diagram": true,
+      "diagram_criteria": "Outline map of India accurately plotting all 4 regions from EITHER Set 1 (Mumbai High, Delhi, Raniganj, Tuticorin) OR the [OR] Set 2 (Digboi in Assam, Goa on western coast, Durg in Chhattisgarh, Lakshadweep in Arabian Sea).",
+      "max_marks": 4.0
+    }
+  ],
+  "subject": "Social Science"
+}

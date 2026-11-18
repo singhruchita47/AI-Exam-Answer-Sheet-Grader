@@ -502,8 +502,8 @@
             <div class="flex items-center gap-2 shrink-0">
               <button type="button" onclick="loadLinuxDemoSetup()" id="linuxDemoBtn"
                 class="px-3 py-1.5 rounded-xl bg-gradient-to-r from-indigo-700 via-indigo-600 to-teal-600 hover:from-indigo-800 hover:to-teal-700 text-white font-extrabold text-xs shadow-sm transition cursor-pointer flex items-center gap-1.5 whitespace-nowrap"
-                title="1-Click: Loads the 60-mark Scope Global Skills Univ Linux Exam &amp; Kanak Patel 9-Page Copy">
-                <span>🚀</span> <span>Load Linux 60M Exam</span>
+                title="1-Click: Loads the saved Social Science (75M, 23 Qs) Exam &amp; 20-Page Student Copy">
+                <span>🚀</span> <span>Load Saved Exam</span>
               </button>
               <button type="button" onclick="loadSampleDemoSetup()" id="sampleDemoBtn"
                 class="px-3 py-1.5 rounded-xl bg-gradient-to-r from-slate-900 via-indigo-900 to-teal-800 hover:from-slate-800 hover:to-teal-700 text-white font-extrabold text-xs shadow-sm transition cursor-pointer flex items-center gap-1.5 whitespace-nowrap">
@@ -1633,6 +1633,19 @@
           renderSavedSheetsDropdown(savedSheetsList);
         }
 
+        if (savedPapersList.length === 1) {
+          const onlyP = savedPapersList[0].id;
+          await handleSelectSavedPaper(onlyP);
+          const selP = document.getElementById('savedPapersSelect');
+          if (selP) selP.value = onlyP;
+        }
+        if (savedSheetsList.length === 1) {
+          const onlyS = savedSheetsList[0].id;
+          await handleSelectSavedSheet(onlyS);
+          const selS = document.getElementById('savedSheetsSelect');
+          if (selS) selS.value = onlyS;
+        }
+
         updateStrictnessLevel(5);
         updateDualRefBadge();
         initViewportDragPan();
@@ -2539,7 +2552,7 @@
       const chipSub = document.getElementById('savedPaperChipSub');
       if (chip && chipTitle && chipSub) {
         chipTitle.textContent = pTitle;
-        chipSub.textContent = `10 Qs • ${pSubj} (${pMarks} Marks) Ready ✔`;
+        chipSub.textContent = `${paperObj?.total_questions || 0} Qs • ${pSubj} (${pMarks} Marks) Ready ✔`;
         chip.classList.remove('hidden');
       }
 
@@ -2680,12 +2693,18 @@
     }
 
     async function loadLinuxDemoSetup() {
-      await handleSelectSavedPaper('paper_linux_60m');
+      const targetPaper = (savedPapersList.find(p => p.id === 'paper_social_science_75m') || savedPapersList[0])?.id || '';
+      const targetSheet = (savedSheetsList.find(s => s.id === 'sheet_social_science_student') || savedSheetsList[0])?.id || '';
+      if (!targetPaper || !targetSheet) {
+        alert('No saved Question Paper or Student Sheet found. Please upload files directly.');
+        return;
+      }
+      await handleSelectSavedPaper(targetPaper);
       const selP = document.getElementById('savedPapersSelect');
-      if (selP) selP.value = 'paper_linux_60m';
-      await handleSelectSavedSheet('sheet_kanak_patel');
+      if (selP) selP.value = targetPaper;
+      await handleSelectSavedSheet(targetSheet);
       const selS = document.getElementById('savedSheetsSelect');
-      if (selS) selS.value = 'sheet_kanak_patel';
+      if (selS) selS.value = targetSheet;
     }
 
     function loadSampleDemoSetup() {
@@ -3867,8 +3886,6 @@
 
     function stripDevanagariClean(text) {
       return String(text || '')
-        .replace(/[\u0900-\u097F]+/g, '')
-        .replace(/\s*\/\s*(?=\)|$)/g, ' ')
         .replace(/\s{2,}/g, ' ')
         .trim();
     }
@@ -3877,6 +3894,31 @@
       const text = String(rawText || '').trim();
       const map = new Map();
       if (!text) return map;
+
+      // 0. Line-start markers when already formatted line-by-line (keeps Match Pairs & MCQs intact)
+      if (text.includes('\n')) {
+        const lineRe = /^\s*(?:\(\s*([ivx]{1,4}|\d{1,2}|[a-f])\s*\)|(\d{1,2})\s*[\)\.]|([a-f])\s*[\)\.])/i;
+        const rawLines = text.split('\n').map(l => l.trim()).filter(Boolean);
+        const matchedLines = rawLines.filter(l => lineRe.test(l));
+        if (matchedLines.length >= 2) {
+          let curIdx = 0;
+          rawLines.forEach(ln => {
+            const m = ln.match(lineRe);
+            if (m) {
+              curIdx += 1;
+              const rem = ln.slice(m[0].length).trim();
+              const cleanSlice = stripDevanagariClean(rem);
+              map.set(curIdx, cleanSlice || rem);
+            } else if (curIdx > 0) {
+              const prev = map.get(curIdx) || '';
+              const extra = stripDevanagariClean(ln) || ln;
+              map.set(curIdx, `${prev} ${extra}`.trim());
+            }
+          });
+          if (map.size >= 2) return map;
+          map.clear();
+        }
+      }
 
       // 1. Roman: (i), (ii), i), i.
       const romanRe = /(?:^|\s|\n)(?:\(\s*(i|ii|iii|iv|v|vi|vii|viii|ix|x)\s*\)|(?<!\w)(i|ii|iii|iv|v|vi|vii|viii|ix|x)\s*(?:[:\)\-]|\.(?!\.))*\s*)/gi;
@@ -3937,18 +3979,23 @@
 
     function shouldExpandSubCards(res) {
       if (!res) return false;
-      const qSubMap = extractSubItemsMap(res.question_text);
-      const ansSubMap = extractSubItemsMap(res.student_answer);
-      const modSubMap = extractSubItemsMap(res.model_answer);
-      const hasExplicitSubItems = (qSubMap.size >= 2 || ansSubMap.size >= 2 || modSubMap.size >= 2);
-      if (hasExplicitSubItems) return true;
-
       const norm = normalizeQidClient(res.question_id);
+      const rubricQ = (currentRubric?.questions || []).find(q => normalizeQidClient(q.question_id) === norm);
+      const reqDiag = Boolean(res.requires_diagram || rubricQ?.requires_diagram);
+      if (res.question_type === 'long_answer' || reqDiag) return false;
+
       if (/^Q1[AB]$/.test(norm)) return true;
 
       const steps = res.step_wise_breakdown || [];
-      if (isObjectiveQuestionType(res.question_type) && steps.length >= 2) return true;
+      const isObjType = isObjectiveQuestionType(res.question_type);
+      const qSubMap = extractSubItemsMap(res.question_text);
+      const modSubMap = extractSubItemsMap(res.model_answer);
+      const maxM = Number(res.max_marks) || 0;
+      const isObjGroupBlock = maxM >= 4 && steps.length >= 4 && Math.abs(steps.length - maxM) <= 0.5 && (qSubMap.size >= 4 || modSubMap.size >= 4);
 
+      if ((isObjType || isObjGroupBlock) && (steps.length >= 2 || qSubMap.size >= 2 || modSubMap.size >= 2)) {
+        return true;
+      }
       return false;
     }
 
@@ -5054,17 +5101,32 @@
 
     function splitSubQuestions(text) {
       if (!text || typeof text !== 'string') return [];
-      const rawParts = text.split(/(?=\((?:[ivxIVX]+|\d+|[a-zA-Z])\)\s*|\b\d+\)\s*)/g);
-      const cleaned = rawParts.map(p => p.trim()).filter(p => p.length > 0);
-      return cleaned;
+      if (text.includes('\n')) {
+        const lineRe = /^\s*(?:\((?:[ivxIVX]{1,4}|\d{1,2}|[a-fA-F])\)|\d{1,2}\))\s*/;
+        const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+        const markerCount = lines.filter(l => lineRe.test(l)).length;
+        if (markerCount >= 2) {
+          const grouped = [];
+          lines.forEach(ln => {
+            if (lineRe.test(ln) || grouped.length === 0) {
+              grouped.push(ln);
+            } else {
+              grouped[grouped.length - 1] += ' ' + ln;
+            }
+          });
+          return grouped;
+        }
+      }
+      const rawParts = text.split(/(?=(?:\((?:[ivxIVX]{1,4}|\d{1,2}|[a-fA-F])\)|(?<!\()\b\d{1,2}\))\s+)/g);
+      return rawParts.map(p => p.trim()).filter(p => p.length > 0);
     }
 
-    function renderQuestionStatementCell(rawQText, stepBreakdown, aw, mx) {
+    function renderQuestionStatementCell(rawQText, stepBreakdown, aw, mx, questionType = '', reqDiag = false) {
       const qText = (rawQText || '').replace(/^Question\s*[:\-#]?\s*/i, '').trim();
       const parts = splitSubQuestions(qText);
 
       if (parts.length <= 1) {
-        return `<span class="text-slate-900 dark:text-slate-100 font-semibold leading-snug">${escapeHtmlSafe(qText)}</span>`;
+        return `<span class="text-slate-900 dark:text-slate-100 font-semibold leading-snug whitespace-pre-line">${escapeHtmlSafe(qText)}</span>`;
       }
 
       let intro = '';
@@ -5078,10 +5140,25 @@
       }
 
       if (subItems.length <= 1) {
-        return `<span class="text-slate-900 dark:text-slate-100 font-semibold leading-snug">${escapeHtmlSafe(qText)}</span>`;
+        return `<span class="text-slate-900 dark:text-slate-100 font-semibold leading-snug whitespace-pre-line">${escapeHtmlSafe(qText)}</span>`;
       }
 
       const steps = Array.isArray(stepBreakdown) ? stepBreakdown : [];
+      const isObjMulti = !reqDiag && questionType !== 'long_answer' && (
+        isObjectiveQuestionType(questionType)
+        || (Number(mx) >= 4 && steps.length >= 4 && Math.abs(steps.length - Number(mx)) <= 0.5 && subItems.length === steps.length)
+      );
+
+      if (!isObjMulti) {
+        return `
+          <div class="space-y-1 py-0.5">
+            ${intro ? `<div class="text-xs font-bold text-slate-900 dark:text-slate-100">${escapeHtmlSafe(intro)}</div>` : ''}
+            <div class="text-xs text-slate-700 dark:text-slate-300 space-y-0.5 pl-1">
+              ${subItems.map(s => `<div>${escapeHtmlSafe(s)}</div>`).join('')}
+            </div>
+          </div>
+        `;
+      }
 
       const linesHtml = subItems.map((sub, sIdx) => {
         let sAw = null;
@@ -5234,7 +5311,7 @@
           return `
             <tr class="${rowBg} hover:bg-teal-50/40 dark:hover:bg-slate-800 transition border-b border-slate-200/80 dark:border-slate-800">
               <td class="py-3 px-4 font-black text-indigo-950 dark:text-indigo-300 whitespace-nowrap text-xs align-top">${escapeHtmlSafe(qid)}</td>
-              <td class="py-3 px-4 text-slate-900 dark:text-slate-100 leading-snug align-top">${renderQuestionStatementCell(rawQText, r.step_wise_breakdown, aw, mx)}</td>
+              <td class="py-3 px-4 text-slate-900 dark:text-slate-100 leading-snug align-top">${renderQuestionStatementCell(rawQText, r.step_wise_breakdown, aw, mx, r.question_type, Boolean(r.requires_diagram || it.rubricQ?.requires_diagram))}</td>
               <td class="py-3 px-4 text-right mono-font font-bold text-slate-600 dark:text-slate-400 whitespace-nowrap align-top">${mx.toFixed(1)}</td>
               <td class="py-3 px-4 text-right mono-font font-black ${marksColor} text-sm whitespace-nowrap align-top">${aw.toFixed(1)}</td>
               <td class="py-3 px-4 text-center whitespace-nowrap align-top">

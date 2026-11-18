@@ -436,8 +436,8 @@ class RubricGenerator:
                 "    2. In `model_answer`: write each expected sub-answer line-by-line: '(i) ...\\n(ii) ...\\n(iii) ...'.",
                 "    3. In `key_points`: generate EXACTLY ONE `KeyPoint` per sub-item (e.g. 5 key_points for 5 MCQs). Set `point_id` to '{qid}_P1', '{qid}_P2'..., `description` to the specific expected answer e.g. '(i) (b) Operating System', `weight` to 1.0 (EVERY objective question/sub-item is strictly 1 mark, NEVER 2 marks; for 5 MCQs max_marks is 5.0, for 6 MCQs max_marks is 6.0), and `keywords` to the option letter and answer keywords.",
                 "- DESCRIPTIVE / SHORT / LONG QUESTIONS: keep question_text clear, model_answer concise (1-2 sentences), and 2-3 weighted key_points.",
-                "- '[OR]' options: keep both in ONE question so either gets credit.",
-                "- question_type: mcq | fill_blank | one_word | short_answer | long_answer; requires_diagram=true ONLY if drawing/sketch requested.",
+                "- '[OR]' / 'अथवा' OPTIONS: keep both alternatives in `question_text` AND provide complete `model_answer` coverage for BOTH alternatives (or all 'any N' items). CRITICAL FOR `key_points`: write option-neutral rubric key points evaluating whichever single option the student answers (e.g., 'First core point/definition for chosen option', 'Second point/example for chosen option'), NEVER assigning Option A to KP1 and Option B to KP2!",
+                "- question_type: mcq | fill_blank | one_word | short_answer | long_answer; requires_diagram=true if a required drawing/sketch OR outline map plotting ('Show in map') is mandatory for the question; if an [OR] branch does not require a diagram, set requires_diagram=false.",
                 "- Set `detected_subject` from header/topic, `printed_max_marks` from printed header total (never double-count OR/optional questions), each question's `max_marks` as printed, and `exam_title` = '<detected_subject> Examination Rubric'.",
             ]
         )

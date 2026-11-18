@@ -48,6 +48,28 @@ def _sanitize_pdf_text(text: Any) -> str:
     return s.strip()
 
 
+_LINE_MARKER_RE = re.compile(r"^\s*(?:\((?:[ivxIVX]{1,4}|\d{1,2}|[a-fA-F])\)|\d{1,2}\))\s*")
+_INLINE_SUB_SPLIT_RE = re.compile(r"(?=(?:\((?:[ivxIVX]{1,4}|\d{1,2}|[a-fA-F])\)|(?<!\()\b\d{1,2}\))\s+)")
+
+
+def _split_sub_questions(text: str) -> list[str]:
+    """Split multi-part objective text cleanly line-by-line without fragmenting parentheses or match pairs."""
+    raw = str(text or "").strip()
+    if not raw:
+        return []
+    if "\n" in raw:
+        lines = [ln.strip() for ln in raw.splitlines() if ln.strip()]
+        if sum(1 for ln in lines if _LINE_MARKER_RE.match(ln)) >= 2:
+            grouped: list[str] = []
+            for ln in lines:
+                if _LINE_MARKER_RE.match(ln) or not grouped:
+                    grouped.append(ln)
+                else:
+                    grouped[-1] = f"{grouped[-1]} {ln}"
+            return grouped
+    return [p.strip() for p in _INLINE_SUB_SPLIT_RE.split(raw) if p.strip()]
+
+
 def _compute_grade_and_pct(awarded: float, max_marks: float) -> tuple[float, str]:
     pct = (awarded / max_marks * 100.0) if max_marks > 0 else 0.0
     if pct >= 90.0:
@@ -267,7 +289,15 @@ def build_report_pdf_bytes(report_payload: dict[str, Any], report_mode: str = "d
 
             if is_short:
                 raw_q_text = _sanitize_pdf_text(q.get("question_text") or f"Question {q_id}").replace("Question:", "").strip()
-                sub_parts = [p.strip() for p in re.split(r'(?=\((?:[ivxIVX]+|\d+|[a-zA-Z])\)\s*|\b\d+\)\s*)', raw_q_text) if p.strip()]
+                raw_parts = _split_sub_questions(raw_q_text)
+                if len(raw_parts) > 1 and not _LINE_MARKER_RE.match(raw_parts[0]):
+                    raw_parts = raw_parts[1:]
+                q_type_str = str(q.get("question_type") or "")
+                is_obj_block = (not q.get("requires_diagram")) and q_type_str != "long_answer" and (
+                    q_type_str in ("mcq", "fill_blank", "one_word")
+                    or (mx >= 4.0 and len(steps) >= 4 and abs(len(steps) - mx) <= 0.5 and len(raw_parts) == len(steps))
+                )
+                sub_parts = raw_parts if (is_obj_block and len(raw_parts) > 1) else []
                 if len(sub_parts) > 1:
                     ax.text(7.0, y - 2.6, q_id, fontsize=8.2, fontweight="bold", color="#312e81")
                     ax.text(18.0, y - 2.6, f"Objective / Sub-Questions ({len(sub_parts)} items)", fontsize=7.8, fontweight="bold", color="#1e1b4b")
@@ -587,14 +617,14 @@ def build_report_html(report_payload: dict[str, Any]) -> str:
         )
         # Multi-part question line-by-line formatting (top to bottom)
         raw_q_unprefixed = str(q.get("question_text") or "").replace("Question:", "").strip()
-        sub_parts = [p.strip() for p in re.split(r'(?=\((?:[ivxIVX]+|\d+|[a-zA-Z])\)\s*|\b\d+\)\s*)', raw_q_unprefixed) if p.strip()]
+        sub_parts = _split_sub_questions(raw_q_unprefixed)
         if len(sub_parts) > 1:
             q_prompt_html = "".join(f"<div style='padding:5px 9px;margin:3px 0;background:#fff;border-left:3px solid #6366f1;border-radius:4px;font-weight:600;font-size:12.5px;'>{html.escape(sp)}</div>" for sp in sub_parts)
         else:
             q_prompt_html = f"<p class='qprompt'>{q_text}</p>"
 
         ans_raw = str(q.get("student_answer") or "")
-        ans_parts = [p.strip() for p in re.split(r'(?=\((?:[ivxIVX]+|\d+|[a-zA-Z])\)\s*|\b\d+\)\s*)', ans_raw) if p.strip()]
+        ans_parts = _split_sub_questions(ans_raw)
         if len(ans_parts) > 1:
             ans_display_html = "".join(f"<div style='padding:4px 8px;margin:2px 0;font-family:monospace;font-size:12px;background:#f8fafc;border-radius:4px;'>{html.escape(ap)}</div>" for ap in ans_parts)
         else:
@@ -715,7 +745,15 @@ def build_short_report_html(report_payload: dict[str, Any]) -> str:
         steps = q.get("step_wise_breakdown") or []
 
         # Multi-part question line-by-line formatting with marks in front
-        sub_parts = [p.strip() for p in re.split(r'(?=\((?:[ivxIVX]+|\d+|[a-zA-Z])\)\s*|\b\d+\)\s*)', raw_q_text) if p.strip()]
+        raw_parts_html = _split_sub_questions(raw_q_text)
+        if len(raw_parts_html) > 1 and not _LINE_MARKER_RE.match(raw_parts_html[0]):
+            raw_parts_html = raw_parts_html[1:]
+        q_type_html = str(q.get("question_type") or "")
+        is_obj_html = (not q.get("requires_diagram")) and q_type_html != "long_answer" and (
+            q_type_html in ("mcq", "fill_blank", "one_word")
+            or (mx >= 4.0 and len(steps) >= 4 and abs(len(steps) - mx) <= 0.5 and len(raw_parts_html) == len(steps))
+        )
+        sub_parts = raw_parts_html if (is_obj_html and len(raw_parts_html) > 1) else []
         if len(sub_parts) > 1:
             sub_rows = []
             for idx_sp, sp in enumerate(sub_parts):

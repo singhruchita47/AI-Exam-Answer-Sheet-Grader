@@ -155,14 +155,14 @@ _EXPLICIT_MARKER_PATTERNS: tuple[re.Pattern[str], ...] = (
         r"^\s*(?:उत्तर|उ[\.\s\:\-]*|उ(?:त्तर)?[\s\.\:\-]*क्र(?:मांक|\.)?|उ[\s\.\:\-]*सं(?:ख्या|\.)?)\s*0*([0-9]{1,2})\s*(?:[:\)\-]|\.(?!\.))*\s*(.*)$",
         re.IGNORECASE,
     ),
-    # Matches: Q1, Q.1, Q. No. 1, Question no. - 01, Q1), Question 1:
+    # Matches: Q1, Q.1, Q. No. 1, Q. No. 23 [or], Question no. - 01, Q1), Question 1:
     re.compile(
-        r"^\s*Q(?:uestion)?\s*(?:no\.?|number)?\s*[\.\-:#]?\s*0*([0-9]{1,2}|[!lI|])\s*(?:\[?\s*or\s*\]?|\(\s*or\s*\))?\s*(?:[:\)\-]|\.(?!\.))*\s*(.*)$",
+        r"^\s*Q(?:uestion)?[\.\s]*(?:no\.?|number)?\s*[\.\-:#]?\s*0*([0-9]{1,2}|[!lI|])\s*(?:\[\s*or\s*\]|\(\s*or\s*\))?\s*(?:[:\)\-]|\.(?!\.))*\s*(.*)$",
         re.IGNORECASE,
     ),
     # Matches: Answer no. - 01, Answer no.-06 [or], Ans. No. 2, Ans 1, A-1, A-2
     re.compile(
-        r"^\s*(?:ans(?:wer)?|an[a-z]{2,5}|[a-z]{0,2}[ns]|[a-z]?s|[Aa])\s*(?:no\.?|m?no\.?|number)?\s*[\.\-:#\s]*\s*0*([0-9]{1,2}|[!lI|])\s*(?:\[?\s*or\s*\]?|\(\s*or\s*\))?\s*(?:[:\)\-]|\.(?!\.))*\s*(.*)$",
+        r"^\s*(?:(?:ans(?:wer)?|an[a-z]{2,5})[\.\s]*(?:no\.?|m?no\.?|number)?[\.\-:#\s]*|[Aa]\s*(?:(?:no\.?|number)[\.\-:#\s]*|[\-\.:#]\s*))0*([0-9]{1,2}|[!lI|])\s*(?:\[\s*or\s*\]|\(\s*or\s*\))?\s*(?:[:\)\-]|\.(?!\.))*\s*(.*)$",
         re.IGNORECASE,
     ),
     # Also matches Ans1, Ans2 (no space) with digits
@@ -293,15 +293,44 @@ def _match_question_marker(
                             flags=re.IGNORECASE,
                         ).strip()
                 remainder = _clean_ocr_handwriting_text(remainder)
+                if remainder:
+                    nested = _match_question_marker(remainder, explicit_only=True)
+                    if nested is not None and nested[0] == f"Q{q_num}":
+                        remainder = nested[1]
                 return f"Q{q_num}", remainder
     return None
+
+
+_INLINE_Q_SPLIT_RE = re.compile(
+    r"(?<=\S)\s+(?=(?:"
+    r"P(?:art)?[\s_\-]*(?:II|III|I|2|3|1)[\s_\-]*Q(?:uestion)?\s*(?:no\.?)?[\.\-:#]?\s*0*[0-9]{1,2}\s*[:\-]"
+    r"|Q(?:uestion)?[\.\s]*(?:no\.?|number)?\s*[\.\-:#]?\s*0*[0-9]{1,2}\s*(?:\[\s*or\s*\]|\(\s*or\s*\))?\s*[:\-]"
+    r"|(?:Answer|Ans)[\.\s]*(?:no\.?|number)\s*[\.\-:#\s]*0*[0-9]{1,2}\s*(?:\[\s*or\s*\]|\(\s*or\s*\))?(?:\s*[:\-]|(?=\s+\S))"
+    r"|(?:प्रश्न|उत्तर)[\s\.\:\-]*(?:क्र(?:मांक|\.)?)?\s*0*[0-9]{1,2}\s*[:\-]"
+    r"))",
+    re.IGNORECASE,
+)
+
+
+def _split_inline_question_lines(text: str) -> list[str]:
+    """Break inline question boundary tags (e.g. '...end. Q11: Answer no. 11 ...') onto separate lines."""
+    lines: list[str] = []
+    for raw_ln in text.splitlines():
+        s = raw_ln.strip()
+        if not s:
+            continue
+        for sub in _INLINE_Q_SPLIT_RE.split(s):
+            sub_s = sub.strip()
+            if sub_s:
+                lines.append(sub_s)
+    return lines
 
 
 def parse_questions(full_text: str) -> dict[str, str]:
     """Split continuous reconstructed OCR text into a {question_id: answer_text} map."""
     mapped: dict[str, list[str]] = {}
     current_qid: str = "Q1"  # Default start to Q1 so top text is never discarded
-    lines = [raw.strip() for raw in full_text.splitlines() if raw.strip()]
+    lines = _split_inline_question_lines(full_text)
     has_explicit = any(_match_question_marker(l, explicit_only=True) is not None for l in lines)
 
     for line in lines:
@@ -403,10 +432,9 @@ def parse_questions_with_page_texts(
     )
 
     all_lines = [
-        raw.strip()
+        ln
         for page in pages
-        for raw in page.transcript.splitlines()
-        if raw.strip()
+        for ln in _split_inline_question_lines(page.transcript)
     ]
     has_explicit = any(
         _match_question_marker(l, explicit_only=True) is not None for l in all_lines
@@ -414,10 +442,7 @@ def parse_questions_with_page_texts(
 
     for page in pages:
         p_str = str(page.page_number)
-        for raw_line in page.transcript.splitlines():
-            line = raw_line.strip()
-            if not line:
-                continue
+        for line in _split_inline_question_lines(page.transcript):
 
             # Detect Part-I / Part-II / Part-III section headers
             pm = part_header_re.match(line)
@@ -943,14 +968,15 @@ def _evaluate_diagram_gemini(
     pil_image.save(buf, format="JPEG", quality=76, optimize=True)
     img_part = types.Part.from_bytes(data=buf.getvalue(), mime_type="image/jpeg")
     prompt = (
-        "You are an expert STEM exam evaluator grading a student's hand-drawn diagram.\n"
+        "You are an expert exam evaluator grading a student's hand-drawn diagram or labeled geography outline map.\n"
         f"Question ({question.question_id}): {question.question_text}\n"
-        f"Expected Diagram Criteria: {question.diagram_criteria or 'Relevant, accurately labeled scientific diagram.'}\n\n"
-        "Inspect the attached cropped diagram image carefully and return a JSON assessment with:\n"
-        "- is_relevant: whether the drawing actually depicts the requested concept/system.\n"
-        "- labels_accurate: whether key parts are visibly and accurately labeled.\n"
-        "- structure_score: float from 0.0 to 1.0 reflecting completeness, clarity, and accuracy.\n"
-        "- critique: concise, constructive 1-2 sentence feedback on what is drawn well and what is missing."
+        f"Expected Diagram / Map Criteria: {question.diagram_criteria or 'Relevant, accurately labeled scientific diagram or geography outline map.'}\n\n"
+        "IMPORTANT: If the question contains internal choices ('OR' / 'अथवा', e.g., Set 1 OR Set 2 of map locations), evaluate ONLY the option the student attempted on the diagram/map. For geography maps, verify whether each marked point/location (e.g. Digboi, Goa, Durg, Lakshadweep, Mumbai High, Delhi, Raniganj, Tuticorin) is labeled and placed in approximately its correct geographic region.\n"
+        "Inspect the attached image carefully and return a JSON assessment with:\n"
+        "- is_relevant: whether the drawing/map actually depicts the requested concept/geography.\n"
+        "- labels_accurate: whether key parts or map locations are visibly and accurately labeled.\n"
+        "- structure_score: float from 0.0 to 1.0 reflecting completeness, clarity, and geographical/structural accuracy.\n"
+        "- critique: concise, constructive 1-2 sentence feedback listing which labeled parts/locations are accurately shown and any missing."
     )
 
     response = generate_content_fast(
@@ -1503,11 +1529,14 @@ class ExamGrader:
             "   - Grade each sub-item ((i), (ii), (1), (2), etc.) directly based on factual correctness of the student's term, number, or option.\n"
             "   - If a key point asks an open-ended question (e.g., 'Name of any valid national park') or 'any N features' and the student gives factually valid answers, award FULL MARKS ('Hit')!\n"
             "   - Tolerate minor OCR transcription slips (e.g. 'Federa' for 'Federal', 'kernal' for 'kernel').\n"
-            "3. INTERNAL '[OR]' CHOICES:\n"
-            "   - If the question has an '[OR]' option, the student only needs to answer ONE of the options. Award full credit if their chosen option is answered accurately.\n"
-            "4. EVIDENCE GROUNDING (NO HALLUCINATIONS):\n"
-            "   - Only award credit for content actually present in the student's transcribed text. Never assume or invent points not written by the student.\n"
-            "5. SUBJECTIVE QUESTIONS (Short Answer, Long Answer):\n"
+            "3. INTERNAL '[OR]' / 'अथवा' / 'ANY N' CHOICES (CRITICAL):\n"
+            "   - If the question has an '[OR]' / 'अथवा' choice (e.g., Option A OR Option B) or asks to 'Explain any two/three': identify ONLY the option/items the student chose to answer and grade 100% against THAT chosen option/items.\n"
+            "   - Even if some Rubric Key Points refer to the unchosen alternative option, STILL mark ALL key points 'Hit' and award FULL proportional marks if the chosen option is answered accurately! NEVER deduct marks or list missing points for the unchosen alternative!\n"
+            "4. DIAGRAMS / OUTLINE MAPS:\n"
+            "   - If `Diagram Evaluation` shows accurate labels and `structure_score` for a diagram or India outline map question, award marks proportionally up to Full Max Marks based on the plotted locations/labels and criteria.\n"
+            "5. EVIDENCE GROUNDING (NO HALLUCINATIONS):\n"
+            "   - Only award credit for content actually present in the student's transcribed text or Diagram Evaluation. Never assume or invent points not written by the student.\n"
+            "6. SUBJECTIVE QUESTIONS (Short Answer, Long Answer):\n"
             f"   - Grade according to the Strictness Guidelines ({lvl}/10) above.\n\n"
             f"Question Type: {question.question_type.upper()}\n"
             f"Question ({question.question_id}, Max Marks = {question.max_marks}):\n{question.question_text}\n\n"
@@ -1549,11 +1578,18 @@ class ExamGrader:
         ocr_result: "OCRPipelineResult",
         used_diagrams: set[str],
     ) -> Path | None:
-        """Associate an unused detected diagram on the question's page(s) with the question."""
+        """Associate the largest unused detected diagram on the question's page(s) with the question."""
+        def _diag_area(d: Any) -> int:
+            try:
+                return max(1, (d.bbox.x2 - d.bbox.x1) * (d.bbox.y2 - d.bbox.y1))
+            except Exception:
+                return 0
+
         for page in ocr_result.pages:
             if q_pages and page.page_number not in q_pages:
                 continue
-            for diag in page.diagrams:
+            candidates = sorted(page.diagrams, key=_diag_area, reverse=True)
+            for diag in candidates:
                 key = str(diag.crop_path)
                 if key not in used_diagrams:
                     used_diagrams.add(key)
@@ -1561,7 +1597,8 @@ class ExamGrader:
 
         if question.requires_diagram:
             for page in ocr_result.pages:
-                for diag in page.diagrams:
+                candidates = sorted(page.diagrams, key=_diag_area, reverse=True)
+                for diag in candidates:
                     key = str(diag.crop_path)
                     if key not in used_diagrams:
                         used_diagrams.add(key)
@@ -1594,10 +1631,11 @@ class ExamGrader:
             "CRITICAL RULES:\n"
             "1. FACTUAL ACCURACY & RIGOR: Enforce technical correctness. Penalize wrong claims. MULTILINGUAL SUPPORT: Evaluate conceptual correctness regardless of whether written in English, Hindi (Devanagari), or bilingual.\n"
             "2. OBJECTIVE QUESTIONS / 6-item blocks: Check each sub-item directly. Award full marks ('Hit') for factually correct answers (including open-ended examples and minor OCR slips like 'kernal' for 'kernel').\n"
-            "3. INTERNAL '[OR]' CHOICES: Award full credit if the student accurately answered EITHER option.\n"
-            "4. EVIDENCE GROUNDING: Only award credit for concepts demonstrably written in the student's text. Never hallucinate or assume unwritten points.\n"
-            f"5. SUBJECTIVE QUESTIONS (Short/Long Answer): Evaluate according to the Strictness Guidelines ({lvl}/10).\n"
-            "6. Keep `notes` very short (<= 10 words) and `student_feedback` concise (1 sentence <= 18 words). If any answer/sub-item is WRONG (0 marks despite attempt), start notes / student_feedback with 'Wrong — <brief reason vs expected answer>'.\n"
+            "3. INTERNAL '[OR]' / 'अथवा' / 'ANY N' CHOICES (CRITICAL): If a question has 'Option A OR Option B' or 'Explain any N', evaluate 100% against the ONE option/N items chosen by the student. Mark ALL key points 'Hit' and award FULL proportional marks if the chosen option is accurate — NEVER deduct marks or penalize for the unchosen OR option!\n"
+            "4. DIAGRAMS / OUTLINE MAPS: When Diagram Evaluation confirms accurate labels and structure, award full proportional diagram/map credit.\n"
+            "5. EVIDENCE GROUNDING: Only award credit for concepts demonstrably written in the student's text or diagram evaluation. Never hallucinate or assume unwritten points.\n"
+            f"6. SUBJECTIVE QUESTIONS (Short/Long Answer): Evaluate according to the Strictness Guidelines ({lvl}/10).\n"
+            "7. Keep `notes` very short (<= 10 words) and `student_feedback` concise (1 sentence <= 18 words). If any answer/sub-item is WRONG (0 marks despite attempt), start notes / student_feedback with 'Wrong — <brief reason vs expected answer>'.\n"
             "Return strict JSON with a result for every question_id below:\n"
         ]
 
@@ -1608,17 +1646,26 @@ class ExamGrader:
                 if question.requires_diagram
                 else question.max_marks
             )
+            diagram_budget = round(question.max_marks - text_budget, 2)
             q_map[question.question_id] = (question, kp_sims, text_budget)
             total_weight = sum(kp.weight for kp in question.key_points) or 1.0
             kp_str = "\n".join(
                 f"  * {kp.point_id} (max {round((kp.weight / total_weight) * text_budget, 2)}M, match_score={kp_sims.get(kp.point_id, 0.0):.2f}): {kp.description}"
                 for kp in question.key_points
             )
+            diag_txt = ""
+            if question.requires_diagram or diagram_eval is not None:
+                diag_txt = (
+                    f"Diagram Evaluation (budget={diagram_budget}M): {diagram_eval.model_dump_json()}\n"
+                    if diagram_eval is not None
+                    else f"Diagram Evaluation (budget={diagram_budget}M): MISSING\n"
+                )
             blocks.append(
                 f"=== {question.question_id} ({question.question_type}, Max={question.max_marks}M) ===\n"
                 f"Q: {question.question_text}\n"
                 f"Official Model Answer: {question.model_answer}\n"
                 f"Key Points:\n{kp_str}\n"
+                f"{diag_txt}"
                 f"Student Answer: {student_answer if student_answer.strip() else '[NO ANSWER]'}\n"
             )
 
@@ -1906,7 +1953,7 @@ class ExamGrader:
 
                 diagram_eval: DiagramEvaluation | None = None
                 if diagram_path is not None:
-                    if diag_pool is not None and question.requires_diagram and is_short_submission:
+                    if diag_pool is not None and question.requires_diagram:
                         fut = diag_pool.submit(_evaluate_diagram_gemini, diagram_path, question, self.api_key)
                         diag_futures[qid] = (fut, False, diagram_path, question)
                     else:
@@ -1941,7 +1988,7 @@ class ExamGrader:
                         non_diag_items.append((q, ans, osim, ksims, deval))
 
             grade_pool: ThreadPoolExecutor | None = (
-                ThreadPoolExecutor(max_workers=6) if non_diag_items else None
+                ThreadPoolExecutor(max_workers=4) if non_diag_items else None
             )
             non_diag_futures: list[Any] = []
             try:
@@ -1952,7 +1999,7 @@ class ExamGrader:
                             ("single", q1.question_id, grade_pool.submit(self._grade_with_gemini, q1, ans1, osim1, ksims1, deval1, lvl))
                         )
                     else:
-                        chunk_size = 3
+                        chunk_size = 5
                         for i in range(0, len(non_diag_items), chunk_size):
                             chunk = non_diag_items[i : i + chunk_size]
                             non_diag_futures.append(
