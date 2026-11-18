@@ -16,6 +16,8 @@ from config import (
     SEGMENTATION_CONFIG,
     TROCR_MODEL_NAME,
     SegmentationConfig,
+    get_gemini_api_key,
+    get_gemini_client,
 )
 
 logger = logging.getLogger(__name__)
