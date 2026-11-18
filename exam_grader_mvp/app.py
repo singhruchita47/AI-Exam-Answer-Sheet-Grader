@@ -218,7 +218,11 @@ def _extract_reference_upload(
             if len(p_text) > 40:
                 extracted_chunks.append(p_text)
 
-        if len(doc) > 0 and (not extracted_chunks or sum(len(c) for c in extracted_chunks) < 120):
+        # Render up to 15 pages of Question Paper as high-res images for Gemini Vision
+        if not offline and get_gemini_api_key() and len(doc) > 0:
+            pil_images = [doc[p_idx].render(scale=1.5).to_pil() for p_idx in range(min(len(doc), 15))]
+
+        if len(doc) > 0 and not image_path:
             first_page = doc[0].render(scale=2.0).to_pil()
             image_path = target_dir / f"{prefix}_page_1.jpg"
             first_page.save(image_path, "JPEG", quality=92)
@@ -233,19 +237,15 @@ def _extract_reference_upload(
                     res, _ = rapid_ocr(np.array(pil_img))
                     if res:
                         lines = [r[1].strip() for r in res if r[1].strip()]
-                        clean_lines = [filter_hindi_keep_english(l) for l in lines]
-                        clean_text = "\n".join(l for l in clean_lines if l.strip())
+                        clean_text = "\n".join(l for l in lines if l.strip())
                         if clean_text:
                             extracted_chunks.append(clean_text)
             except Exception as ocr_err:
                 logger.warning("RapidOCR question paper extraction failed: %s", ocr_err)
 
-            if not extracted_chunks and not offline and get_gemini_api_key():
-                pil_images = [doc[p_idx].render(scale=1.5).to_pil() for p_idx in range(min(len(doc), 15))]
-
         doc.close()
         if extracted_chunks:
-            extracted_text = filter_hindi_keep_english("\n\n".join(extracted_chunks))
+            extracted_text = "\n\n".join(extracted_chunks).strip()
     else:
         image_path = target_dir / f"{prefix}{file_ext}"
         with image_path.open("wb") as f:

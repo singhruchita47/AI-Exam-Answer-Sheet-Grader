@@ -1129,12 +1129,13 @@ class OCREngine:
             part = types.Part.from_bytes(data=buf.getvalue(), mime_type="image/jpeg")
 
             prompt = (
-                f"You are an expert handwriting examiner transcribing Page {page_number} of a student's handwritten English exam sheet. "
-                "Transcribe all handwritten student answers accurately into clean digital text. "
-                "CRITICAL: Tokens like '..' (dot-dot / parent directory), '.', '/', '-', '~', '*', '|', '>' ARE VALID ANSWERS. "
+                f"You are an expert handwriting examiner transcribing Page {page_number} of a student's handwritten exam sheet. "
+                "Transcribe all handwritten student answers accurately into clean digital text (supporting English, Hindi/Devanagari, or mixed bilingual answers). "
+                "CRITICAL: The student's handwriting may be in English, Hindi (Devanagari script), or bilingual. Transcribe Hindi in clean Devanagari script and English in clean Latin text. "
+                "Tokens like '..' (dot-dot / parent directory), '.', '/', '-', '~', '*', '|', '>' ARE VALID ANSWERS. "
                 "If student wrote '..' for A-5 or MCQ 5, transcribe it exactly: '(v) ..' or 'A-5 ..'. Never omit it! "
                 "Ignore printed university cover metadata. Keep all question numbering and markers: "
-                "Part-I, Q1A:, Q1B:, A-1, A-(i), P2_Q1:, P2_Q2:, P3_Q1:, etc. exactly as written by the student. "
+                "Q1, Q2, A-1, प्रश्न 1, प्रश्न क्रमांक 1, उत्तर 1, उत्तर क्रमांक 1, Part-I, Q1A:, Q1B:, (i), (ii), (क), (ख), etc. exactly as written by the student. "
                 "Return clean digital text."
             )
             cfg = types.GenerateContentConfig(
@@ -1210,29 +1211,30 @@ class OCREngine:
 
         def _process_batch(batch: list[PageOCRResult]) -> tuple[dict[int, str], dict[str, str]]:
             contents: list[Any] = [
-                "You are an expert handwriting recognition specialist. Transcribe the student's handwritten English answers from each attached exam sheet page into clean, accurate, properly spelled digital text.\n"
+                "You are an expert handwriting recognition specialist. Transcribe the student's handwritten answers from each attached exam sheet page into clean, accurate, properly spelled digital text (supporting English, Hindi/Devanagari, or mixed bilingual answers).\n"
                 "CRITICAL RULES:\n"
-                "1. IGNORE COVER / INTRODUCTION / COLLEGE METADATA IN TRANSCRIPTS: Completely ignore all university/college/school names (e.g. 'SCOPE GLOBAL SKILLS UNIVERSITY', 'ANSWER BOOK FOR MST / PUT EXAMINATION', 'MP Board'), course/branch/year/sem, date, marks-awarded grid, examiner/invigilator names & signatures, printed Hindi headers, and crossed-out words inside `pages[].transcript`. Focus `pages[].transcript` ONLY on the student's main handwritten exam answers.\n"
+                "1. MULTILINGUAL & HINDI SUPPORT: The student's handwriting may be in English, Hindi (Devanagari script), or mixed bilingual / Hinglish. Transcribe Hindi text in clean Devanagari script and English in clean Latin text exactly as written. Never ignore, drop, or omit Hindi answers!\n"
+                "2. IGNORE COVER / COLLEGE BOILERPLATE IN TRANSCRIPTS: Ignore printed university/college/school boilerplate names, marks grids, and examiner signatures inside `pages[].transcript`. Focus `pages[].transcript` ONLY on the student's handwritten exam answers.\n"
                 "   HOWEVER, if Page 1 visibly shows handwritten or printed student identity fields, extract ONLY these 3 top-level fields (leave empty string '' if NOT visibly written; NEVER guess from university/college names, filenames, or answer body text):\n"
                 "   - student_name: visibly written student name on cover/top header (else '')\n"
                 "   - roll_no: visibly written roll/enrollment number (else '')\n"
                 "   - subject: visibly written subject name on cover/top header (else '')\n"
-                "2. QUESTION & PART NUMBERING & CRITICAL SYMBOL PRESERVATION:\n"
+                "3. QUESTION & PART NUMBERING & CRITICAL SYMBOL PRESERVATION:\n"
                 "   - SPECIAL SYMBOLS & SHORT CODES (UNIX / CS / CODING / COMMANDS / MATH):\n"
                 "     * Tokens like '..' (dot-dot / parent directory), '.', '/', '-', '~', '*', '|', '>', '0', '1', or single letters 'a'..'d' ARE VALID ANSWERS!\n"
                 "     * If a student writes '..' or '(..)' for item 5 (e.g. 'A-5 ..'), NEVER omit it or leave the line blank. Transcribe it EXACTLY: e.g. '(v) ..' or '(v) (..)'.\n"
-                "   - Standard sequential exams (Answer no. 01, Answer no. - 02, Q2, Ans 3, etc.): start each main question on its own line with 'Q1:', 'Q2:', 'Q3:', etc.\n"
+                "   - Standard sequential exams (Answer no. 01, Answer no. - 02, Q2, Ans 3, प्रश्न 1, प्रश्न क्रमांक 1, उत्तर 1, उत्तर क्रमांक 1, etc.): start each main question on its own line with 'Q1:', 'Q2:', 'Q3:', etc.\n"
                 "   - Board Exam / Objective Question Booklet Sub-items (MCQ, Fill in blanks, True/False, One-word items):\n"
                 "     * Transcribe EVERY sub-item line in order from top to bottom (do NOT miss line 1 directly below the question heading, e.g. '(i) (a) June, 1992').\n"
                 "     * Put EACH sub-item on its OWN separate line using '(i) ...', '(ii) ...', '(iii) ...', etc. (never merge multiple objective answers onto a single line).\n"
-                "   - SHORT / LONG DESCRIPTIVE ANSWERS: keep each sentence/paragraph flowing naturally in clean continuous English text without breaking every visual line unnecessarily.\n"
+                "   - SHORT / LONG DESCRIPTIVE ANSWERS: keep each sentence/paragraph flowing naturally in clean continuous text without breaking every visual line unnecessarily.\n"
                 "   - Multi-part exams with 'Part-I', 'Part-II', 'Part-III' headings where question numbers restart in each part:\n"
                 "     * Under Part-I: start Q.1(A) on its own line with 'Q1A:' and write its sub-answers line-by-line top-to-bottom as '(i) ...', '(ii) ...', '(iii) ...', '(iv) ...', '(v) ...' (even if the student wrote A-1..A-5). Start Q.1(B) / (B) on its own line with 'Q1B:' and write its sub-answers line-by-line as '(i) ...', '(ii) ...', '(iii) ...', '(iv) ...', '(v) ...' (if (iii)..(v) continue at the top of the next page before Part-II, write them as '(iii) ...', '(iv) ...', '(v) ...' without a new main question tag so they continue Q1B).\n"
                 "     * Under Part-II: starts on Page 2 and continues through Pages 3, 4, 5, 6 until 'Part-III' appears. Start each main answer ('A-1', 'A-2', 'A-3', 'A-4', 'A-5', 'Q.1', etc.) on its own line with 'P2_Q1:', 'P2_Q2:', 'P2_Q3:', 'P2_Q4:', 'P2_Q5:', 'P2_Q6:', preserving the exact question number written by the student. NEVER label answers on Pages 2-6 as 'P3_*'!\n"
                 "     * Under Part-III: starts ONLY where 'Part-III' is visibly written (Page 7). Start each main answer on its own line with 'P3_Q1:', 'P3_Q2:', 'P3_Q3:' preserving the EXACT number written in the margin by the student (e.g., if the student writes 'A-2', output 'P3_Q2:' — NEVER renumber 'A-2' to 'P3_Q1:'). Keep numbered sub-items inside an answer like '1-> Echo', '2-> printf', '3-> who', '4-> date', '5-> cal' on separate lines formatted as '(1) Echo...', '(2) printf...', etc.\n"
                 "   - If a page starts with a continuation of an answer from the previous page before any new question marker appears, transcribe the continuation lines first before starting the next question tag.\n"
-                "3. Convert messy cursive handwriting carefully into clean, accurate digital English words, numbers, and scientific formulas (e.g., V = IR, CO2, H2O). Do NOT hallucinate or invent words not written on the page.\n"
-                "4. Return strict JSON matching BatchTranscript schema."
+                "4. Convert messy handwriting carefully into clean, accurate digital text (English words, Devanagari Hindi text, numbers, formulas). Do NOT hallucinate or invent words not written on the page.\n"
+                "5. Return strict JSON matching BatchTranscript schema."
             ]
             import io
 

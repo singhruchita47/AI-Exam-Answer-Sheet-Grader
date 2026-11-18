@@ -135,15 +135,24 @@ class ExamGradingReport(BaseModel):
 # ---------------------------------------------------------------------------
 # Regex Question Boundary Segmentation
 # ---------------------------------------------------------------------------
+_PART_PREFIX_PATTERN = re.compile(
+    r"^\s*(?:P(?:art)?[\s_\-]*(II|III|I|2|3|1)[\s_\-]*)Q(?:uestion)?\s*(?:no\.?|number)?\s*[\.\-:#]?\s*0*([0-9]{1,2}[ABab]?)\s*[\)\.\-:#]*(?:\s+(.*))?$",
+    re.IGNORECASE,
+)
+_SUB_AB_PATTERN = re.compile(
+    r"^\s*Q(?:uestion)?\s*[\.\-:#]?\s*0*1\s*[:\-#]?\s*\(?\s*([ABab])\s*\)?\s*[\)\.\-:#]*(?:\s+(.*))?$",
+    re.IGNORECASE,
+)
+
 _EXPLICIT_MARKER_PATTERNS: tuple[re.Pattern[str], ...] = (
-    # Matches: P2_Q1, P3_Q2, PartII_Q1, Part-II Q.1, Part III Q2:
+    # Matches: प्रश्न 1, प्रश्न क्रमांक 1, प्रश्न क्र. 1, प्र. 1, प्र० 1, प्र.क्र. 1, प्र 1
     re.compile(
-        r"^\s*(?:P(?:art)?[\s_\-]*(II|III|I|2|3|1)[\s_\-]*)Q(?:uestion)?\s*(?:no\.?|number)?\s*[\.\-:#]?\s*0*([0-9]{1,2}[ABab]?)\s*[\)\.\-:#]*(?:\s+(.*))?$",
+        r"^\s*(?:प्रश्न|प्र[\.\s\:\-]*|प्र(?:श्न)?[\s\.\:\-]*क्र(?:मांक|\.)?|प्र[\s\.\:\-]*सं(?:ख्या|\.)?)\s*0*([0-9]{1,2})\s*(?:[:\)\-]|\.(?!\.))*\s*(.*)$",
         re.IGNORECASE,
     ),
-    # Matches: Q1A, Q1B, Q.1(A), Q.1 (B), Q1: (A), Q.1: (B)
+    # Matches: उत्तर 1, उत्तर क्रमांक 1, उत्तर क्र. 1, उ. 1, उ० 1, उ.क्र. 1, उ 1
     re.compile(
-        r"^\s*Q(?:uestion)?\s*[\.\-:#]?\s*0*1\s*[:\-#]?\s*\(?\s*([ABab])\s*\)?\s*[\)\.\-:#]*(?:\s+(.*))?$",
+        r"^\s*(?:उत्तर|उ[\.\s\:\-]*|उ(?:त्तर)?[\s\.\:\-]*क्र(?:मांक|\.)?|उ[\s\.\:\-]*सं(?:ख्या|\.)?)\s*0*([0-9]{1,2})\s*(?:[:\)\-]|\.(?!\.))*\s*(.*)$",
         re.IGNORECASE,
     ),
     # Matches: Q1, Q.1, Q. No. 1, Question no. - 01, Q1), Question 1:
@@ -214,9 +223,7 @@ def _normalize_qid(qid: str) -> str:
 
 
 def _clean_ocr_handwriting_text(text: str) -> str:
-    """Fix common OCR misrecognitions, strip Devanagari/Hindi characters, and filter TrOCR hallucinations."""
-    # Strip any Hindi / Devanagari characters
-    text = re.sub(r"[\u0900-\u097F]+", "", text)
+    """Fix common OCR misrecognitions while preserving all English and Hindi/Devanagari characters."""
     # Strip known TrOCR Wikipedia/IAM noise patterns
     for pat in _TROCR_HALLUCINATION_PATTERNS:
         text = pat.sub(" ", text)
@@ -239,27 +246,29 @@ def _match_question_marker(
     stripped = line.strip()
     if not stripped:
         return None
+    # Priority 1: Check Part-prefixed pattern (P2_Q1, P3_Q2, PartII_Q1, Part-II Q.1)
+    m_part = _PART_PREFIX_PATTERN.match(stripped)
+    if m_part and m_part.lastindex and m_part.lastindex >= 2:
+        part_raw = (m_part.group(1) or "").strip().upper()
+        q_raw = (m_part.group(2) or "").strip().upper()
+        rem_raw = (m_part.group(3) or "").strip() if m_part.lastindex >= 3 else ""
+        part_num = 3 if part_raw in ("III", "3") else (2 if part_raw in ("II", "2") else 1)
+        rem_clean = _clean_ocr_handwriting_text(rem_raw)
+        if part_num == 1 and q_raw in ("1A", "1B"):
+            return f"Q{q_raw}", rem_clean
+        return f"P{part_num}_Q{q_raw}", rem_clean
+
+    # Priority 2: Check Q1A / Q1B / Q.1(A) / Q.1(B)
+    m_ab = _SUB_AB_PATTERN.match(stripped)
+    if m_ab:
+        sub_ab = (m_ab.group(1) or "").strip().upper()
+        rem_raw = (m_ab.group(2) or "").strip() if m_ab.lastindex and m_ab.lastindex >= 2 else ""
+        return f"Q1{sub_ab}", _clean_ocr_handwriting_text(rem_raw)
+
     patterns = _EXPLICIT_MARKER_PATTERNS if explicit_only else _QUESTION_MARKER_PATTERNS
-    for idx_p, pattern in enumerate(patterns):
+    for pattern in patterns:
         match = pattern.match(stripped)
         if match:
-            # Pattern 0: Part-prefixed (P2_Q1, P3_Q2, PartII_Q1)
-            if idx_p == 0 and match.lastindex and match.lastindex >= 2:
-                part_raw = (match.group(1) or "").strip().upper()
-                q_raw = (match.group(2) or "").strip().upper()
-                rem_raw = (match.group(3) or "").strip() if match.lastindex >= 3 else ""
-                part_num = 3 if part_raw in ("III", "3") else (2 if part_raw in ("II", "2") else 1)
-                rem_clean = _clean_ocr_handwriting_text(rem_raw)
-                if part_num == 1 and q_raw in ("1A", "1B"):
-                    return f"Q{q_raw}", rem_clean
-                return f"P{part_num}_Q{q_raw}", rem_clean
-
-            # Pattern 1: Q1A / Q1B / Q.1(A) / Q.1(B)
-            if idx_p == 1:
-                sub_ab = (match.group(1) or "").strip().upper()
-                rem_raw = (match.group(2) or "").strip() if match.lastindex and match.lastindex >= 2 else ""
-                return f"Q1{sub_ab}", _clean_ocr_handwriting_text(rem_raw)
-
             raw_num = match.group(1).strip()
             if raw_num in ("!", "l", "I", "|"):
                 q_num = 1
@@ -269,7 +278,7 @@ def _match_question_marker(
                 except ValueError:
                     continue
             if 1 <= q_num <= 50:
-                raw_rem = (match.group(2) or "").strip()
+                raw_rem = (match.group(2) or "").strip() if match.lastindex and match.lastindex >= 2 else ""
                 if raw_rem in ("..", "(..)", ".") or raw_rem.startswith("..") or raw_rem.startswith("(..)"):
                     remainder = raw_rem
                 else:
@@ -319,9 +328,9 @@ def _join_answer_parts(parts: list[str]) -> str:
     if not non_empty:
         return ""
 
-    # Already split line-by-line by OCR (e.g., (i) ..., (ii) ..., 1) ..., a) ...)
+    # Already split line-by-line by OCR (e.g., (i) ..., (ii) ..., 1) ..., a) ..., (क) ..., (अ) ...)
     line_start_re = re.compile(
-        r"^\s*(?:\(\s*(?:[ivx]{1,4}|\d{1,2}|[a-f])\s*\)|(?:[ivx]{1,4}|\d{1,2}|[a-f])\s*[\)\.])\s+",
+        r"^\s*(?:\(\s*(?:[ivx]{1,4}|\d{1,2}|[a-f]|[कखगघङचछजझञटठडढणतथदधनपफबभम]|[अआइईउऊऋएऐओऔ])\s*\)|(?:[ivx]{1,4}|\d{1,2}|[a-f]|[कखगघङचछजझञटठडढणतथदधनपफबभम]|[अआइईउऊऋएऐओऔ])\s*[\)\.])\s+",
         re.IGNORECASE,
     )
     sub_line_count = sum(1 for ln in non_empty if line_start_re.match(ln))
@@ -471,7 +480,8 @@ def parse_questions_with_page_texts(
                     q_num_val = int(marker_qid[1:])
                     # If inside Q1A (Part-I MCQ block) and student wrote A-1..A-5, keep inside Q1A as (i)..(v)!
                     if (
-                        current_qid == "Q1A"
+                        current_part == 1
+                        and current_qid in ("Q1A", "Q1")
                         and 1 <= q_num_val <= 6
                         and re.match(r"^\s*A[\s\-_]*0*[1-6]\b", line, flags=re.IGNORECASE)
                     ):
@@ -541,6 +551,26 @@ def parse_questions_with_page_texts(
         }
         for qid, p_map in page_texts_list.items()
     }
+
+    # Auto-split combined Q1 into Q1A and Q1B if text contains A: and B: or (A) and (B)
+    if "Q1" in clean_answers and ("Q1A" not in clean_answers or "Q1B" not in clean_answers):
+        q1_text = clean_answers["Q1"]
+        m_split = re.search(r"(?:^|\n)\s*(?:Q\.?\s*1\s*[:\-]*)?\(?B\)?\s*[:\-]\s*", q1_text, re.IGNORECASE)
+        if m_split:
+            split_idx = m_split.start()
+            part_a = q1_text[:split_idx].strip()
+            part_b = q1_text[m_split.end():].strip()
+            # Clean A: marker if present
+            part_a = re.sub(r"^\s*(?:Q\.?\s*1\s*[:\-]*)?\(?A\)?\s*[:\-]\s*", "", part_a, flags=re.IGNORECASE).strip()
+            clean_answers["Q1A"] = part_a
+            clean_answers["Q1B"] = part_b
+            if "Q1" in question_pages:
+                question_pages["Q1A"] = list(question_pages["Q1"])
+                question_pages["Q1B"] = list(question_pages["Q1"])
+            if "Q1" in clean_page_texts:
+                clean_page_texts["Q1A"] = dict(clean_page_texts["Q1"])
+                clean_page_texts["Q1B"] = dict(clean_page_texts["Q1"])
+
     return clean_answers, question_pages, clean_page_texts
 
 
@@ -1466,7 +1496,8 @@ class ExamGrader:
             f"{strictness_block}\n\n"
             "CRITICAL GRADING RULES:\n"
             "1. FACTUAL ACCURACY & RIGOR:\n"
-            "   - Check factual accuracy strictly: explicitly penalize wrong technical claims (e.g. claiming an external command like 'ls' is internal, or incorrect formulas/definitions).\n"
+            "   - Check factual accuracy strictly: explicitly penalize wrong technical claims.\n"
+            "   - MULTILINGUAL & HINDI SUPPORT: Students may write in English, Hindi (Devanagari), or mixed bilingual / Hinglish. Evaluate the conceptual correctness of their answers against the model answer/key points regardless of language.\n"
             "   - Everyday analogies earn partial credit, but full credit requires technical correctness.\n"
             "2. OBJECTIVE QUESTIONS & MULTI-PART OBJECTIVE GROUPS (MCQ, Fill in blanks, One word/sentence, True/False, Match pairs):\n"
             "   - Grade each sub-item ((i), (ii), (1), (2), etc.) directly based on factual correctness of the student's term, number, or option.\n"
@@ -1561,7 +1592,7 @@ class ExamGrader:
             "You are an expert academic examiner and evaluator grading a batch of student answers against rubric key points.\n"
             f"{strictness_block}\n\n"
             "CRITICAL RULES:\n"
-            "1. FACTUAL ACCURACY & RIGOR: Enforce technical correctness. Penalize wrong claims (e.g. claiming 'ls' is an internal command). Everyday analogies earn partial credit; technical depth earns full credit.\n"
+            "1. FACTUAL ACCURACY & RIGOR: Enforce technical correctness. Penalize wrong claims. MULTILINGUAL SUPPORT: Evaluate conceptual correctness regardless of whether written in English, Hindi (Devanagari), or bilingual.\n"
             "2. OBJECTIVE QUESTIONS / 6-item blocks: Check each sub-item directly. Award full marks ('Hit') for factually correct answers (including open-ended examples and minor OCR slips like 'kernal' for 'kernel').\n"
             "3. INTERNAL '[OR]' CHOICES: Award full credit if the student accurately answered EITHER option.\n"
             "4. EVIDENCE GROUNDING: Only award credit for concepts demonstrably written in the student's text. Never hallucinate or assume unwritten points.\n"

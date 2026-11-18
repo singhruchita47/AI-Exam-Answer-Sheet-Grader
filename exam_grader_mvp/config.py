@@ -25,14 +25,12 @@ TROCR_MODEL_NAME: str = os.getenv(
     "TROCR_MODEL_NAME", "microsoft/trocr-base-handwritten"
 )
 EMBEDDING_MODEL_NAME: str = os.getenv("EMBEDDING_MODEL_NAME", "all-MiniLM-L6-v2")
-GEMINI_MODEL_NAME: str = os.getenv("GEMINI_MODEL_NAME", "gemini-3.8-flash")
+GEMINI_MODEL_NAME: str = os.getenv("GEMINI_MODEL_NAME", "gemini-3.5-flash-lite")
 GEMINI_FALLBACK_MODELS: tuple[str, ...] = (
-    "gemini-3.8-flash",
     "gemini-3.5-flash-lite",
     "gemini-3.1-flash-lite",
 )
 GEMINI_FAST_GRADING_MODELS: tuple[str, ...] = (
-    "gemini-3.8-flash",
     "gemini-3.5-flash-lite",
     "gemini-3.1-flash-lite",
 )
@@ -91,9 +89,13 @@ def _ordered_healthy_models(models: tuple[str, ...] | list[str]) -> list[str]:
 
 
 def _mark_model_transient_cooldown(model_name: str, exc: Exception) -> None:
-    """Put transient 503/504/429 models on a brief cooldown so parallel calls skip slow stalls."""
+    """Put transient 503/504/429 models on cooldown so parallel calls skip slow stalls."""
     msg = str(exc).upper()
-    if any(tok in msg for tok in ("503", "UNAVAILABLE", "504", "DEADLINE_EXCEEDED", "429", "RESOURCE_EXHAUSTED")):
+    if any(tok in msg for tok in ("429", "RESOURCE_EXHAUSTED", "QUOTA")):
+        ttl = 900.0  # 15 min cooldown for quota exhaustion
+        with _COOLDOWN_LOCK:
+            _MODEL_COOLDOWN_UNTIL[model_name] = time.monotonic() + ttl
+    elif any(tok in msg for tok in ("503", "UNAVAILABLE", "504", "DEADLINE_EXCEEDED")):
         ttl = 6.0
         with _COOLDOWN_LOCK:
             _MODEL_COOLDOWN_UNTIL[model_name] = time.monotonic() + ttl

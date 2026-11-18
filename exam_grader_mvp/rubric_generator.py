@@ -39,43 +39,11 @@ DIAGRAM_KEYWORDS: tuple[str, ...] = (
 
 
 def filter_hindi_keep_english(text: str) -> str:
-    """Filter out Hindi / Devanagari lines from bilingual exam papers, keeping only English with numbering."""
-    marker_pattern = re.compile(
-        r"^\s*(\(?\s*(?:\d{1,2}|[ivxIVX]{1,4})\s*[\)\.\-:]|\(\s*(?:\d{1,2}|[ivxIVX]{1,4})\s*\))\s+"
-    )
-    cleaned_lines: list[str] = []
-    pending_marker = ""
-
-    for raw_line in text.splitlines():
-        line = raw_line.strip()
-        if not line:
-            continue
-        dev_count = len(re.findall(r"[\u0900-\u097F]", line))
-        latin_count = len(re.findall(r"[A-Za-z]", line))
-
-        m = marker_pattern.match(line)
-        marker = m.group(1).strip() if m else ""
-
-        # Pure or predominantly Hindi line
-        if dev_count > 0 and latin_count < 4:
-            if marker:
-                pending_marker = marker
-            continue
-
-        # English or mixed line: strip out any Devanagari characters
-        clean_en = re.sub(r"[\u0900-\u097F]+", "", line).strip()
-        clean_en = re.sub(r"\s{2,}", " ", clean_en)
-
-        if pending_marker and not marker_pattern.match(clean_en):
-            clean_en = f"{pending_marker} {clean_en}"
-            pending_marker = ""
-        elif marker_pattern.match(clean_en):
-            pending_marker = ""
-
-        if clean_en:
-            cleaned_lines.append(clean_en)
-
-    return "\n".join(cleaned_lines)
+    """Normalize whitespace and formatting while preserving both English and Hindi / Devanagari text."""
+    if not text:
+        return ""
+    lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
+    return "\n".join(lines)
 
 
 def _detect_printed_subject(raw_text: str) -> str:
@@ -459,8 +427,9 @@ class RubricGenerator:
         prompt_parts.extend(
             [
                 "\nCOMPACT EXTRACTION RULES (HIGH-PRECISION JSON):",
-                "- Ignore Hindi/Devanagari & cover boilerplate; extract exclusively in English.",
-                "- IDs: 'Q1','Q2'.. or multi-part 'Q1A','Q1B','P2_Q1'..'P2_Qn','P3_Q1'..'P3_Qn'. Keep EVERY printed question.",
+                "- BILINGUAL & MULTILINGUAL SUPPORT: Indian exam papers are frequently bilingual (English & Hindi) or Hindi-medium. Preserve the complete question text in both languages or the primary language as printed. Never drop questions because they are in Hindi!",
+                "- EXHAUSTIVE QUESTION EXTRACTION: Detect and extract EVERY SINGLE printed question across all pages of the Question Paper (Section A, B, C, D; Q1 to Q23, etc.). Do not truncate or skip any questions.",
+                "- IDs: Use sequential IDs matching the paper: 'Q1', 'Q2' ... 'Q23' (or multi-part 'Q1A', 'Q1B', 'P2_Q1' if explicitly partitioned into Parts). Keep EVERY printed question.",
                 "- OBJECTIVE / MULTI-ITEM QUESTIONS (MCQ, Fill in blanks, True/False, Match, One-word):",
                 "  * For ANY question with multiple sub-items (such as (i)..(vi), (1)..(6), (a)..(f)) — including Q1, Q2, Q3, Q4, Q5, Q1A, Q1B:",
                 "    1. In `question_text`: clearly write each sub-question labeled e.g. '(i) ... (ii) ... (iii) ...'.",
