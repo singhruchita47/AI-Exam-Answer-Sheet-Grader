@@ -266,14 +266,45 @@ def build_report_pdf_bytes(report_payload: dict[str, Any], report_mode: str = "d
             ax.add_patch(row_rect)
 
             if is_short:
-                q_text = _sanitize_pdf_text(q.get("question_text") or f"Question {q_id}").replace("Question:", "").strip()
-                if len(q_text) > 52:
-                    q_text = q_text[:49] + "..."
-                ax.text(7.0, y - 2.6, q_id, fontsize=8.2, fontweight="bold", color="#312e81")
-                ax.text(18.0, y - 2.6, q_text, fontsize=7.8, color="#1e293b")
-                ax.text(70.0, y - 2.6, f"{mx:.2f}", fontsize=8.0, color="#475569", ha="right")
-                ax.text(82.0, y - 2.6, f"{aw:.2f}", fontsize=8.2, fontweight="bold", color="#047857", ha="right")
-                ax.text(93.5, y - 2.6, f"{q_pct:.0f}%", fontsize=8.0, color="#334155", ha="right")
+                raw_q_text = _sanitize_pdf_text(q.get("question_text") or f"Question {q_id}").replace("Question:", "").strip()
+                sub_parts = [p.strip() for p in re.split(r'(?=\((?:[ivxIVX]+|\d+|[a-zA-Z])\)\s*|\b\d+\)\s*)', raw_q_text) if p.strip()]
+                if len(sub_parts) > 1:
+                    ax.text(7.0, y - 2.6, q_id, fontsize=8.2, fontweight="bold", color="#312e81")
+                    ax.text(18.0, y - 2.6, f"Objective / Sub-Questions ({len(sub_parts)} items)", fontsize=7.8, fontweight="bold", color="#1e1b4b")
+                    ax.text(70.0, y - 2.6, f"{mx:.2f}", fontsize=8.0, color="#475569", ha="right")
+                    ax.text(82.0, y - 2.6, f"{aw:.2f}", fontsize=8.2, fontweight="bold", color="#047857", ha="right")
+                    ax.text(93.5, y - 2.6, f"{q_pct:.0f}%", fontsize=8.0, color="#334155", ha="right")
+                    y -= 3.6
+                    for idx_sp, sp in enumerate(sub_parts):
+                        if y < 16.0:
+                            _add_footer(ax, page_num)
+                            pdf.savefig(fig)
+                            plt.close(fig)
+                            page_num += 1
+                            fig, ax = _new_a4_page()
+                            y = 133.0
+                        if steps and idx_sp < len(steps):
+                            s_aw = float(steps[idx_sp].get("awarded_point_marks") or 0.0)
+                            s_mx = float(steps[idx_sp].get("max_point_marks") or (mx / len(sub_parts)))
+                        else:
+                            s_aw = float(aw / len(sub_parts))
+                            s_mx = float(mx / len(sub_parts))
+                        disp_sp = sp[:48] + ("..." if len(sp) > 48 else "")
+                        row_sp_rect = patches.Rectangle((16, y - 3.2), 79, 3.2, facecolor="#f1f5f9" if idx_sp % 2 == 0 else "#ffffff", edgecolor="#e2e8f0", linewidth=0.3)
+                        ax.add_patch(row_sp_rect)
+                        ax.text(18.0, y - 2.2, disp_sp, fontsize=7.2, color="#334155")
+                        ax.text(82.0, y - 2.2, f"{s_aw:.1f}/{s_mx:.1f} M", fontsize=7.2, fontweight="bold", color="#047857", ha="right")
+                        y -= 3.2
+                else:
+                    q_text = raw_q_text
+                    if len(q_text) > 52:
+                        q_text = q_text[:49] + "..."
+                    ax.text(7.0, y - 2.6, q_id, fontsize=8.2, fontweight="bold", color="#312e81")
+                    ax.text(18.0, y - 2.6, q_text, fontsize=7.8, color="#1e293b")
+                    ax.text(70.0, y - 2.6, f"{mx:.2f}", fontsize=8.0, color="#475569", ha="right")
+                    ax.text(82.0, y - 2.6, f"{aw:.2f}", fontsize=8.2, fontweight="bold", color="#047857", ha="right")
+                    ax.text(93.5, y - 2.6, f"{q_pct:.0f}%", fontsize=8.0, color="#334155", ha="right")
+                    y -= 3.9
             else:
                 ax.text(7.0, y - 2.6, q_id, fontsize=8.2, fontweight="bold", color="#312e81")
                 ax.text(21.0, y - 2.6, q_type[:18], fontsize=8.0, color="#334155")
@@ -282,7 +313,7 @@ def build_report_pdf_bytes(report_payload: dict[str, Any], report_mode: str = "d
                 ax.text(75.0, y - 2.6, f"{aw:.2f}", fontsize=8.2, fontweight="bold", color="#047857", ha="right")
                 ax.text(85.0, y - 2.6, f"{mx:.2f}", fontsize=8.0, color="#475569", ha="right")
                 ax.text(93.5, y - 2.6, f"{q_pct:.0f}%", fontsize=8.0, color="#334155", ha="right")
-            y -= 3.9
+                y -= 3.9
 
         # Total Summary Row
         tot_rect = patches.Rectangle((5, y - 4.4), 90, 4.4, facecolor="#ecfdf5", edgecolor="#059669", linewidth=0.9)
@@ -554,12 +585,27 @@ def build_report_html(report_payload: dict[str, Any]) -> str:
             f"{html.escape(str(s.get('description') or ''))}</li>"
             for s in (q.get("step_wise_breakdown") or [])
         )
+        # Multi-part question line-by-line formatting (top to bottom)
+        raw_q_unprefixed = str(q.get("question_text") or "").replace("Question:", "").strip()
+        sub_parts = [p.strip() for p in re.split(r'(?=\((?:[ivxIVX]+|\d+|[a-zA-Z])\)\s*|\b\d+\)\s*)', raw_q_unprefixed) if p.strip()]
+        if len(sub_parts) > 1:
+            q_prompt_html = "".join(f"<div style='padding:5px 9px;margin:3px 0;background:#fff;border-left:3px solid #6366f1;border-radius:4px;font-weight:600;font-size:12.5px;'>{html.escape(sp)}</div>" for sp in sub_parts)
+        else:
+            q_prompt_html = f"<p class='qprompt'>{q_text}</p>"
+
+        ans_raw = str(q.get("student_answer") or "")
+        ans_parts = [p.strip() for p in re.split(r'(?=\((?:[ivxIVX]+|\d+|[a-zA-Z])\)\s*|\b\d+\)\s*)', ans_raw) if p.strip()]
+        if len(ans_parts) > 1:
+            ans_display_html = "".join(f"<div style='padding:4px 8px;margin:2px 0;font-family:monospace;font-size:12px;background:#f8fafc;border-radius:4px;'>{html.escape(ap)}</div>" for ap in ans_parts)
+        else:
+            ans_display_html = f"<p class='ans'>{ans}</p>"
+
         details_html.append(
             f"<div class='qcard'><div class='qhead'><span><b>{qid}</b> ({qtype}) &bull; {page_head}</span>"
             f"<span class='qmarks'>Marks: {aw:.2f} / {mx:.2f} ({q_pct:.0f}%)</span></div>"
             f"<div class='qbody'>"
-            f"<div class='lbl'>Question:</div><p class='qprompt'>{q_text}</p>"
-            f"<div class='lbl'>Extracted Handwritten Answer:</div><p class='ans'>{ans}</p>"
+            f"<div class='lbl'>Question:</div>{q_prompt_html}"
+            f"<div class='lbl'>Extracted Handwritten Answer:</div>{ans_display_html}"
             f"{('<ul class=\"steps\">' + steps_li + '</ul>') if steps_li else ''}"
             f"<div class='fb'><b>Examiner AI Feedback:</b> {fb}</div>"
             f"</div></div>"
@@ -665,7 +711,30 @@ def build_short_report_html(report_payload: dict[str, Any]) -> str:
         aw = float(q.get("marks_awarded") or 0.0)
         mx = float(q.get("max_marks") or 0.0)
         q_pct = (aw / mx * 100.0) if mx > 0 else 0.0
-        q_text = html.escape(str(q.get("question_text") or f"Question {qid}").replace("Question:", "").strip())
+        raw_q_text = str(q.get("question_text") or f"Question {qid}").replace("Question:", "").strip()
+        steps = q.get("step_wise_breakdown") or []
+
+        # Multi-part question line-by-line formatting with marks in front
+        sub_parts = [p.strip() for p in re.split(r'(?=\((?:[ivxIVX]+|\d+|[a-zA-Z])\)\s*|\b\d+\)\s*)', raw_q_text) if p.strip()]
+        if len(sub_parts) > 1:
+            sub_rows = []
+            for idx_sp, sp in enumerate(sub_parts):
+                if steps and idx_sp < len(steps):
+                    s_aw = float(steps[idx_sp].get("awarded_point_marks") or 0.0)
+                    s_mx = float(steps[idx_sp].get("max_point_marks") or (mx / len(sub_parts)))
+                else:
+                    s_aw = float(aw / len(sub_parts))
+                    s_mx = float(mx / len(sub_parts))
+                sub_badge_col = "#047857" if s_aw >= s_mx else ("#b45309" if s_aw > 0 else "#b91c1c")
+                sub_rows.append(
+                    f"<div style='display:flex;justify-content:space-between;align-items:center;gap:8px;padding:3px 6px;margin:2px 0;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;font-size:11.5px;'>"
+                    f"<span style='font-weight:600;color:#1e293b;'>{html.escape(sp)}</span>"
+                    f"<span style='font-family:monospace;font-weight:700;color:{sub_badge_col};white-space:nowrap;'>{s_aw:.1f} / {s_mx:.1f} M</span>"
+                    f"</div>"
+                )
+            q_cell_html = f"<div style='font-size:10px;font-weight:800;color:#4338ca;text-transform:uppercase;margin-bottom:2px;'>Objective / Sub-Questions ({len(sub_parts)} Items):</div>" + "".join(sub_rows)
+        else:
+            q_cell_html = html.escape(raw_q_text)
 
         status_label = "Full Marks" if (aw >= mx and is_att) else ("Partial" if (aw > 0 and is_att) else ("Incorrect" if is_att else "Not Attempted"))
         status_class = "st-full" if (aw >= mx and is_att) else ("st-part" if (aw > 0 and is_att) else "st-none")
@@ -673,7 +742,7 @@ def build_short_report_html(report_payload: dict[str, Any]) -> str:
         rows_html.append(
             f"<tr>"
             f"<td class='qid-cell'><b>{qid}</b></td>"
-            f"<td class='qprompt-cell'>{q_text}</td>"
+            f"<td class='qprompt-cell'>{q_cell_html}</td>"
             f"<td class='num'>{mx:.1f}</td>"
             f"<td class='num win'><b>{aw:.1f}</b></td>"
             f"<td class='num-status'><span class='{status_class}'>{status_label} ({q_pct:.0f}%)</span></td>"

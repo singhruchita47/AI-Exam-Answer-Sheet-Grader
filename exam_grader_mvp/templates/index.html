@@ -523,14 +523,14 @@
               <div class="h-1 w-full bg-gradient-to-r from-indigo-800 via-indigo-600 to-cyan-500"></div>
 
               <!-- Tinted Interior Header Band -->
-              <div class="px-4 py-3 bg-gradient-to-r from-indigo-50/90 via-sky-50/55 to-white border-b border-indigo-100/80 flex items-center justify-between gap-2">
+              <div class="px-4 py-2.5 bg-gradient-to-r from-indigo-50/90 via-sky-50/55 to-white border-b border-indigo-100/80 flex items-center justify-between gap-2 shrink-0">
                 <div class="flex items-center gap-2.5 min-w-0">
-                  <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-slate-900 to-indigo-700 text-white flex items-center justify-center text-base shadow-sm ring-2 ring-indigo-200/70 shrink-0">
+                  <div class="w-8 h-8 rounded-xl bg-gradient-to-br from-slate-900 to-indigo-700 text-white flex items-center justify-center text-sm shadow-sm ring-2 ring-indigo-200/70 shrink-0">
                     📄
                   </div>
                   <div class="min-w-0">
                     <span class="inline-block text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded bg-indigo-600 text-white">Step 01</span>
-                    <h3 class="text-base font-black text-slate-950 leading-tight heading-font whitespace-nowrap">Question Paper</h3>
+                    <h3 class="text-sm sm:text-base font-black text-slate-950 leading-tight heading-font whitespace-nowrap">Question Paper</h3>
                   </div>
                 </div>
                 <span class="text-[10px] font-extrabold px-2.5 py-0.5 rounded-full bg-rose-600 text-white shadow-2xs shrink-0">
@@ -538,15 +538,15 @@
                 </span>
               </div>
 
-              <div class="p-4 sm:p-5 flex-1 flex flex-col justify-between space-y-3">
+              <div class="p-3 sm:p-3.5 flex-1 flex flex-col justify-between space-y-2 overflow-y-auto custom-scrollbar">
                 <div class="space-y-2">
                   <!-- Saved Question Papers Dropdown -->
-                  <div class="p-2.5 rounded-2xl bg-indigo-50/80 border border-indigo-200/90 shadow-2xs">
-                    <div class="flex items-center justify-between mb-1.5">
+                  <div class="p-2 rounded-2xl bg-indigo-50/80 border border-indigo-200/90 shadow-2xs">
+                    <div class="flex items-center justify-between mb-1">
                       <label for="savedPapersSelect" class="text-[10px] font-black uppercase tracking-wider text-indigo-950 flex items-center gap-1">
                         <span>💾</span> Saved Question Papers
                       </label>
-                      <span id="savedPaperBadge" class="text-[9px] font-extrabold px-1.5 py-0.5 rounded-full bg-indigo-200/80 text-indigo-950">Available</span>
+                      <span id="savedPaperBadge" class="text-[9px] font-extrabold px-1.5 py-0.5 rounded-full bg-indigo-200/90 text-indigo-950 dark:bg-indigo-900/80 dark:text-indigo-200 border border-indigo-300 dark:border-indigo-700/80">Available</span>
                     </div>
                     <div class="flex items-center gap-1.5">
                       <select id="savedPapersSelect" onchange="handleSelectSavedPaper(this.value)"
@@ -554,42 +554,49 @@
                         <option value="">-- Choose a Saved Question Paper --</option>
                       </select>
                       <button type="button" onclick="deleteActiveSavedPaper()" id="deleteSavedPaperBtn" title="Delete this saved paper"
-                        class="hidden px-2.5 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-bold transition cursor-pointer">
+                        class="hidden px-2 py-1 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-bold transition cursor-pointer">
                         🗑️
                       </button>
                     </div>
 
                     <!-- Selected Paper Active Chip (Inline directly under select!) -->
-                    <div id="savedPaperActiveChip" class="hidden mt-2 p-2 rounded-xl bg-white border border-indigo-200 shadow-2xs flex items-center justify-between text-xs">
+                    <div id="savedPaperActiveChip" class="hidden mt-1.5 p-1.5 px-2 rounded-xl bg-white dark:bg-slate-900 border border-indigo-200 dark:border-indigo-700/80 shadow-2xs flex items-center justify-between text-xs">
                       <div class="flex items-center gap-2 min-w-0">
                         <span class="text-sm shrink-0">📄</span>
                         <div class="min-w-0">
-                          <span id="savedPaperChipTitle" class="font-black text-indigo-950 truncate block text-[11px]">Linux Exam</span>
-                          <span id="savedPaperChipSub" class="text-[10px] text-indigo-700 font-bold block">10 Qs • 60M Ready</span>
+                          <span id="savedPaperChipTitle" class="font-black text-indigo-950 dark:text-indigo-200 truncate block text-[11px]">Linux Exam</span>
+                          <span id="savedPaperChipSub" class="text-[10px] text-indigo-700 dark:text-cyan-400 font-bold block">10 Qs • 60M Ready</span>
                         </div>
                       </div>
-                      <button type="button" onclick="clearSelectedSavedPaper()" class="text-slate-400 hover:text-rose-600 font-bold px-1.5 py-0.5 rounded-md hover:bg-rose-50 transition text-xs" title="Deselect">✕</button>
+                      <button type="button" onclick="clearSelectedSavedPaper()" class="text-slate-400 hover:text-rose-600 font-bold px-1.5 py-0.5 rounded-md hover:bg-rose-50 dark:hover:bg-slate-800 transition text-xs cursor-pointer" title="Deselect">✕</button>
                     </div>
                   </div>
 
-                  <div class="flex items-center gap-2 my-1 text-[9px] font-black text-slate-400 uppercase tracking-wider">
+                  <!-- Toggle link when saved paper is active (keeps card ultra-compact!) -->
+                  <div id="qpUploadToggleBar" class="hidden text-center py-0.5">
+                    <button type="button" onclick="toggleQpUploadDropzone()" class="text-[10px] font-extrabold text-indigo-700 hover:text-indigo-950 hover:underline cursor-pointer">
+                      📁 Or click to upload a different question file ▾
+                    </button>
+                  </div>
+
+                  <div id="qpUploadDivider" class="flex items-center gap-2 my-0.5 text-[9px] font-black text-slate-400 uppercase tracking-wider">
                     <div class="flex-1 h-px bg-slate-200"></div>
                     <span>OR UPLOAD NEW</span>
                     <div class="flex-1 h-px bg-slate-200"></div>
                   </div>
 
-                  <div onclick="document.getElementById('questionImageFile').click()"
+                  <div id="qpDropzoneContainer" onclick="document.getElementById('questionImageFile').click()"
                     ondragover="handleCardDragOver(event, this)"
                     ondragleave="handleCardDragLeave(event, this)"
                     ondrop="handleCardDrop(event, this, 'questionImageFile', handleQuestionFileChange)"
-                    class="border-2 border-dashed border-indigo-300/80 hover:border-indigo-600 rounded-2xl py-2.5 sm:py-3 px-3 text-center bg-gradient-to-b from-indigo-50/50 via-sky-50/25 to-slate-50/80 hover:from-indigo-50 hover:to-sky-50/60 transition cursor-pointer group">
-                    <div class="w-8 h-8 rounded-xl bg-white border border-indigo-200 text-indigo-700 flex items-center justify-center text-lg mx-auto mb-1.5 shadow-xs ring-2 ring-indigo-100/70 group-hover:scale-105 transition">
+                    class="border-2 border-dashed border-indigo-300/80 hover:border-indigo-600 rounded-2xl py-2 px-3 text-center bg-gradient-to-b from-indigo-50/50 via-sky-50/25 to-slate-50/80 hover:from-indigo-50 hover:to-sky-50/60 transition cursor-pointer group">
+                    <div class="w-7 h-7 rounded-lg bg-white border border-indigo-200 text-indigo-700 flex items-center justify-center text-sm mx-auto mb-1 shadow-xs ring-2 ring-indigo-100/70 group-hover:scale-105 transition">
                       📄
                     </div>
                     <p class="text-xs font-extrabold text-slate-950">Upload Question Paper</p>
-                    <p class="text-[10px] font-semibold text-slate-600">Drop PDF, JPG, or PNG • Bilingual auto-filtered</p>
-                    <div class="mt-1.5">
-                      <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white border border-indigo-200 text-indigo-900 group-hover:bg-indigo-700 group-hover:text-white group-hover:border-indigo-700 text-[11px] font-extrabold shadow-2xs transition">
+                    <p class="text-[9.5px] font-semibold text-slate-600">Drop PDF, JPG, or PNG • Bilingual auto-filtered</p>
+                    <div class="mt-1">
+                      <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-white border border-indigo-200 text-indigo-900 group-hover:bg-indigo-700 group-hover:text-white group-hover:border-indigo-700 text-[10.5px] font-extrabold shadow-2xs transition">
                         + Choose Question File
                       </span>
                     </div>
@@ -608,32 +615,32 @@
                   </div>
                 </div>
 
-                <div class="space-y-1.5 pt-2 border-t border-slate-100">
-                  <div id="silentRubricStatus" class="text-[11px] font-bold text-slate-800 flex items-center gap-1.5">
-                    <span>⏳</span> <span>Upload Question Paper to detect &amp; prepare silently</span>
+                <div class="space-y-1 pt-1.5 border-t border-slate-100">
+                  <div id="silentRubricStatus" class="text-[10.5px] font-bold text-slate-800 flex items-center gap-1.5 truncate">
+                    <span>⏳</span> <span class="truncate">Upload Question Paper to detect &amp; prepare silently</span>
                   </div>
                   <details id="questionSettingsDetails" class="text-xs">
-                    <summary class="cursor-pointer font-bold text-indigo-800 hover:text-indigo-950 select-none text-[11px]">
+                    <summary class="cursor-pointer font-bold text-indigo-800 hover:text-indigo-950 select-none text-[10px]">
                       Edit subject / max marks / text ▾
                     </summary>
-                    <div class="mt-2 space-y-2 bg-slate-50 p-2.5 rounded-xl border border-slate-200">
+                    <div class="mt-1.5 space-y-1.5 bg-slate-50 p-2 rounded-xl border border-slate-200">
                       <div class="grid grid-cols-2 gap-2">
                         <div>
-                          <label for="teacherSubject" class="block text-[10px] font-extrabold uppercase text-slate-700 mb-0.5">Subject</label>
+                          <label for="teacherSubject" class="block text-[9px] font-extrabold uppercase text-slate-700 mb-0.5">Subject</label>
                           <input type="text" id="teacherSubject" value="Science"
                             oninput="this.dataset.userEdited='true'; syncDetectedPaperMetaUI(); scheduleSilentRubricPrep()"
-                            class="w-full text-xs p-1.5 border border-slate-200 rounded-lg bg-white font-bold text-slate-900" />
+                            class="w-full text-xs p-1 border border-slate-200 rounded-lg bg-white font-bold text-slate-900" />
                         </div>
                         <div>
-                          <label for="teacherMarks" class="block text-[10px] font-extrabold uppercase text-slate-700 mb-0.5">Max Marks</label>
+                          <label for="teacherMarks" class="block text-[9px] font-extrabold uppercase text-slate-700 mb-0.5">Max Marks</label>
                           <input type="number" id="teacherMarks" value="10" min="1" max="200" step="0.5"
                             oninput="this.dataset.userEdited='true'; syncDetectedPaperMetaUI(); scheduleSilentRubricPrep()"
-                            class="w-full text-xs p-1.5 border border-slate-200 rounded-lg bg-white font-extrabold text-slate-900" />
+                            class="w-full text-xs p-1 border border-slate-200 rounded-lg bg-white font-extrabold text-slate-900" />
                         </div>
                       </div>
                       <textarea id="questionText" rows="2" oninput="onQuestionTextInputChanged()"
                         placeholder="Paste exam questions text here..."
-                        class="w-full text-xs p-1.5 border border-slate-200 rounded-lg bg-white text-slate-900 font-medium leading-relaxed"></textarea>
+                        class="w-full text-xs p-1 border border-slate-200 rounded-lg bg-white text-slate-900 font-medium leading-relaxed"></textarea>
                     </div>
                   </details>
                 </div>
@@ -645,14 +652,14 @@
               <div class="h-1 w-full bg-gradient-to-r from-cyan-800 via-teal-600 to-emerald-500"></div>
 
               <!-- Tinted Interior Header Band -->
-              <div class="px-4 py-3 bg-gradient-to-r from-teal-50/95 via-cyan-50/60 to-white border-b border-teal-100/90 flex items-center justify-between gap-2">
+              <div class="px-4 py-2.5 bg-gradient-to-r from-teal-50/95 via-cyan-50/60 to-white border-b border-teal-100/90 flex items-center justify-between gap-2 shrink-0">
                 <div class="flex items-center gap-2.5 min-w-0">
-                  <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-slate-900 to-teal-700 text-white flex items-center justify-center text-base shadow-sm ring-2 ring-teal-200/70 shrink-0">
+                  <div class="w-8 h-8 rounded-xl bg-gradient-to-br from-slate-900 to-teal-700 text-white flex items-center justify-center text-sm shadow-sm ring-2 ring-teal-200/70 shrink-0">
                     ✍️
                   </div>
                   <div class="min-w-0">
                     <span class="inline-block text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded bg-teal-700 text-white">Step 02</span>
-                    <h3 class="text-base font-black text-slate-950 leading-tight heading-font whitespace-nowrap">Student Answer</h3>
+                    <h3 class="text-sm sm:text-base font-black text-slate-950 leading-tight heading-font whitespace-nowrap">Student Answer</h3>
                   </div>
                 </div>
                 <span id="studentModeBadge" class="text-[10px] font-extrabold px-2.5 py-0.5 rounded-full bg-slate-900 text-white shadow-2xs shrink-0">
@@ -660,15 +667,15 @@
                 </span>
               </div>
 
-              <div class="p-4 sm:p-5 flex-1 flex flex-col justify-between space-y-3">
+              <div class="p-3 sm:p-3.5 flex-1 flex flex-col justify-between space-y-2 overflow-y-auto custom-scrollbar">
                 <div class="space-y-2">
                   <!-- Saved Student Copies Dropdown -->
-                  <div class="p-2.5 rounded-2xl bg-teal-50/80 border border-teal-200/90 shadow-2xs">
-                    <div class="flex items-center justify-between mb-1.5">
+                  <div class="p-2 rounded-2xl bg-teal-50/80 border border-teal-200/90 shadow-2xs">
+                    <div class="flex items-center justify-between mb-1">
                       <label for="savedSheetsSelect" class="text-[10px] font-black uppercase tracking-wider text-teal-950 flex items-center gap-1">
                         <span>💾</span> Saved Student Copies
                       </label>
-                      <span id="savedSheetBadge" class="text-[9px] font-extrabold px-1.5 py-0.5 rounded-full bg-teal-200/80 text-teal-950">Available</span>
+                      <span id="savedSheetBadge" class="text-[9px] font-extrabold px-1.5 py-0.5 rounded-full bg-teal-200/90 text-teal-950 dark:bg-teal-900/80 dark:text-teal-200 border border-teal-300 dark:border-teal-700/80">Available</span>
                     </div>
                     <div class="flex items-center gap-1.5">
                       <select id="savedSheetsSelect" onchange="handleSelectSavedSheet(this.value)"
@@ -676,51 +683,58 @@
                         <option value="">-- Choose a Saved Student Copy --</option>
                       </select>
                       <button type="button" onclick="deleteActiveSavedSheet()" id="deleteSavedSheetBtn" title="Delete this saved student copy"
-                        class="hidden px-2.5 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-bold transition cursor-pointer">
+                        class="hidden px-2 py-1 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-bold transition cursor-pointer">
                         🗑️
                       </button>
                     </div>
 
                     <!-- Selected Sheet Active Chip (Inline directly under select!) -->
-                    <div id="savedSheetActiveChip" class="hidden mt-2 p-2 rounded-xl bg-white border border-teal-200 shadow-2xs flex items-center justify-between text-xs">
+                    <div id="savedSheetActiveChip" class="hidden mt-1.5 p-1.5 px-2 rounded-xl bg-white dark:bg-slate-900 border border-teal-200 dark:border-teal-700/80 shadow-2xs flex items-center justify-between text-xs">
                       <div class="flex items-center gap-2 min-w-0">
                         <span class="text-sm shrink-0">✍️</span>
                         <div class="min-w-0">
-                          <span id="savedSheetChipTitle" class="font-black text-teal-950 truncate block text-[11px]">Kanak Patel (SGSU250489)</span>
-                          <span id="savedSheetChipSub" class="text-[10px] text-teal-700 font-bold block">9 Handwritten Pages • Ready</span>
+                          <span id="savedSheetChipTitle" class="font-black text-teal-950 dark:text-teal-200 truncate block text-[11px]">Kanak Patel (SGSU250489)</span>
+                          <span id="savedSheetChipSub" class="text-[10px] text-teal-700 dark:text-teal-400 font-bold block">9 Handwritten Pages • Ready</span>
                         </div>
                       </div>
-                      <button type="button" onclick="clearSelectedSavedSheet()" class="text-slate-400 hover:text-rose-600 font-bold px-1.5 py-0.5 rounded-md hover:bg-rose-50 transition text-xs" title="Deselect">✕</button>
+                      <button type="button" onclick="clearSelectedSavedSheet()" class="text-slate-400 hover:text-rose-600 font-bold px-1.5 py-0.5 rounded-md hover:bg-rose-50 dark:hover:bg-slate-800 transition text-xs cursor-pointer" title="Deselect">✕</button>
                     </div>
                   </div>
 
-                  <div class="flex items-center gap-2 my-1 text-[9px] font-black text-slate-400 uppercase tracking-wider">
+                  <!-- Toggle link when saved copy is active (keeps card ultra-compact!) -->
+                  <div id="sheetUploadToggleBar" class="hidden text-center py-0.5">
+                    <button type="button" onclick="toggleSheetUploadDropzone()" class="text-[10px] font-extrabold text-teal-700 hover:text-teal-950 hover:underline cursor-pointer">
+                      ✍️ Or click to upload a different student copy ▾
+                    </button>
+                  </div>
+
+                  <div id="sheetUploadDivider" class="flex items-center gap-2 my-0.5 text-[9px] font-black text-slate-400 uppercase tracking-wider">
                     <div class="flex-1 h-px bg-slate-200"></div>
                     <span>OR UPLOAD NEW</span>
                     <div class="flex-1 h-px bg-slate-200"></div>
                   </div>
 
-                  <div onclick="document.getElementById('studentPageFiles').click()"
+                  <div id="sheetDropzoneContainer" onclick="document.getElementById('studentPageFiles').click()"
                     ondragover="handleCardDragOver(event, this)"
                     ondragleave="handleCardDragLeave(event, this)"
                     ondrop="handleStudentDropSmart(event, this)"
-                    class="border-2 border-dashed border-teal-300/80 hover:border-teal-600 rounded-2xl py-2.5 sm:py-3 px-3 text-center bg-gradient-to-b from-teal-50/50 via-cyan-50/25 to-slate-50/80 hover:from-teal-50 hover:to-emerald-50/50 transition cursor-pointer group">
-                    <div class="w-8 h-8 rounded-xl bg-white border border-teal-200 text-teal-700 flex items-center justify-center text-lg mx-auto mb-1.5 shadow-xs ring-2 ring-teal-100/70 group-hover:scale-105 transition">
+                    class="border-2 border-dashed border-teal-300/80 hover:border-teal-600 rounded-2xl py-2 px-3 text-center bg-gradient-to-b from-teal-50/50 via-cyan-50/25 to-slate-50/80 hover:from-teal-50 hover:to-emerald-50/50 transition cursor-pointer group">
+                    <div class="w-7 h-7 rounded-lg bg-white border border-teal-200 text-teal-700 flex items-center justify-center text-sm mx-auto mb-1 shadow-xs ring-2 ring-teal-100/70 group-hover:scale-105 transition">
                       ✍️
                     </div>
                     <p class="text-xs font-extrabold text-slate-950">Upload Handwritten Copy or Bulk Batch</p>
-                    <p class="text-[10px] font-semibold text-slate-600">Multi-page PDF/Images, or multiple student PDFs</p>
-                    <div class="mt-1.5 flex flex-wrap items-center justify-center gap-1.5">
-                      <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white border border-teal-200 text-teal-900 group-hover:bg-teal-700 group-hover:text-white group-hover:border-teal-700 text-[11px] font-extrabold shadow-2xs transition">
+                    <p class="text-[9.5px] font-semibold text-slate-600">Multi-page PDF/Images, or multiple student PDFs</p>
+                    <div class="mt-1 flex flex-wrap items-center justify-center gap-1.5">
+                      <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-white border border-teal-200 text-teal-900 group-hover:bg-teal-700 group-hover:text-white group-hover:border-teal-700 text-[10.5px] font-extrabold shadow-2xs transition">
                         + Single Copy
                       </span>
                       <button type="button" onclick="event.stopPropagation(); document.getElementById('studentBulkFiles').click();"
-                        class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-teal-950 hover:bg-teal-800 text-white text-[11px] font-extrabold shadow-2xs transition cursor-pointer"
+                        class="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-teal-950 hover:bg-teal-800 text-white text-[10.5px] font-extrabold shadow-2xs transition cursor-pointer"
                         title="Select multiple student PDFs or images in bulk">
                         📚 Bulk PDFs
                       </button>
                       <button type="button" onclick="event.stopPropagation(); document.getElementById('studentBulkFolder').click();"
-                        class="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-950 border border-indigo-200 text-[11px] font-extrabold shadow-2xs transition cursor-pointer"
+                        class="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-950 border border-indigo-200 text-[10.5px] font-extrabold shadow-2xs transition cursor-pointer"
                         title="Upload an entire folder containing student copies">
                         📁 Folder
                       </button>
@@ -732,14 +746,14 @@
                   <div id="studentThumbnails" class="hidden space-y-1 max-h-20 overflow-y-auto custom-scrollbar"></div>
 
                   <div class="flex flex-wrap items-center gap-1.5">
-                    <span class="text-[10px] font-bold px-2 py-0.5 rounded-md bg-teal-50 text-teal-900 border border-teal-200/70">📐 Handwriting + Diagrams</span>
-                    <span class="text-[10px] font-bold px-2 py-0.5 rounded-md bg-amber-50 text-amber-900 border border-amber-200/70">⚠️ Skipped Flagged</span>
+                    <span class="text-[9.5px] font-bold px-1.5 py-0.5 rounded-md bg-teal-50 text-teal-900 border border-teal-200/70">📐 Handwriting + Diagrams</span>
+                    <span class="text-[9.5px] font-bold px-1.5 py-0.5 rounded-md bg-amber-50 text-amber-900 border border-amber-200/70">⚠️ Skipped Flagged</span>
                   </div>
                 </div>
 
-                <div class="pt-2 border-t border-slate-100 flex items-center justify-between gap-2 text-[11px] font-semibold text-slate-700">
-                  <span id="studentHelperNote">Supports 1 copy or bulk batch of copies.</span>
-                  <button type="button" onclick="clearStudentFiles()" id="clearStudentBtn" class="hidden text-rose-700 hover:text-rose-900 font-extrabold cursor-pointer">
+                <div class="pt-1.5 border-t border-slate-100 flex items-center justify-between gap-2 text-[10.5px] font-semibold text-slate-700">
+                  <span id="studentHelperNote" class="truncate">Supports 1 copy or bulk batch of copies.</span>
+                  <button type="button" onclick="clearStudentFiles()" id="clearStudentBtn" class="hidden text-rose-700 hover:text-rose-900 font-extrabold cursor-pointer shrink-0">
                     Clear
                   </button>
                 </div>
@@ -751,14 +765,14 @@
               <div class="h-1 w-full bg-gradient-to-r from-slate-800 via-indigo-600 to-teal-600"></div>
 
               <!-- Tinted Interior Header Band -->
-              <div class="px-4 py-3 bg-gradient-to-r from-slate-100/90 via-indigo-50/45 to-white border-b border-slate-200/80 flex items-center justify-between gap-2">
+              <div class="px-4 py-2.5 bg-gradient-to-r from-slate-100/90 via-indigo-50/45 to-white border-b border-slate-200/80 flex items-center justify-between gap-2 shrink-0">
                 <div class="flex items-center gap-2.5 min-w-0">
-                  <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-900 to-slate-800 text-white flex items-center justify-center text-base shadow-sm ring-2 ring-slate-200/80 shrink-0">
+                  <div class="w-8 h-8 rounded-xl bg-gradient-to-br from-indigo-900 to-slate-800 text-white flex items-center justify-center text-sm shadow-sm ring-2 ring-slate-200/80 shrink-0">
                     🔑
                   </div>
                   <div class="min-w-0">
                     <span class="inline-block text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded bg-slate-800 text-white">Step 03</span>
-                    <h3 class="text-base font-black text-slate-950 leading-tight heading-font whitespace-nowrap">Official Answer Key</h3>
+                    <h3 class="text-sm sm:text-base font-black text-slate-950 leading-tight heading-font whitespace-nowrap">Official Answer Key</h3>
                   </div>
                 </div>
                 <span id="dualRefStatusPill" class="text-[10px] font-extrabold px-2.5 py-0.5 rounded-full bg-slate-200/80 text-slate-900 border border-slate-300 shrink-0">
@@ -766,20 +780,20 @@
                 </span>
               </div>
 
-              <div class="p-4 sm:p-5 flex-1 flex flex-col justify-between space-y-3">
+              <div class="p-3 sm:p-3.5 flex-1 flex flex-col justify-between space-y-2 overflow-y-auto custom-scrollbar">
                 <div class="space-y-2">
                   <div onclick="document.getElementById('answerKeyFile').click()"
                     ondragover="handleCardDragOver(event, this)"
                     ondragleave="handleCardDragLeave(event, this)"
                     ondrop="handleCardDrop(event, this, 'answerKeyFile', handleAnswerKeyFileChange)"
-                    class="border-2 border-dashed border-slate-300 hover:border-indigo-600 rounded-2xl py-2.5 sm:py-3 px-3 text-center bg-gradient-to-b from-slate-100/60 via-indigo-50/25 to-white hover:from-indigo-50/60 hover:to-teal-50/40 transition cursor-pointer group">
-                    <div class="w-8 h-8 rounded-xl bg-white border border-slate-200 text-indigo-800 flex items-center justify-center text-lg mx-auto mb-1.5 shadow-xs ring-2 ring-slate-200/60 group-hover:scale-105 transition">
+                    class="border-2 border-dashed border-slate-300 hover:border-indigo-600 rounded-2xl py-2 px-3 text-center bg-gradient-to-b from-slate-100/60 via-indigo-50/25 to-white hover:from-indigo-50/60 hover:to-teal-50/40 transition cursor-pointer group">
+                    <div class="w-7 h-7 rounded-lg bg-white border border-slate-200 text-indigo-800 flex items-center justify-center text-sm mx-auto mb-1 shadow-xs ring-2 ring-slate-200/60 group-hover:scale-105 transition">
                       🔑
                     </div>
                     <p class="text-xs font-extrabold text-slate-950">Optional: Upload Answer Key if available</p>
-                    <p class="text-[10px] font-semibold text-slate-600">Drop PDF or Photo • Leave blank to auto-infer</p>
-                    <div class="mt-1.5">
-                      <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white border border-slate-300 text-slate-900 group-hover:bg-slate-900 group-hover:text-white group-hover:border-slate-900 text-[11px] font-extrabold shadow-2xs transition">
+                    <p class="text-[9.5px] font-semibold text-slate-600">Drop PDF or Photo • Leave blank to auto-infer</p>
+                    <div class="mt-1">
+                      <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-white border border-slate-300 text-slate-900 group-hover:bg-slate-900 group-hover:text-white group-hover:border-slate-900 text-[10.5px] font-extrabold shadow-2xs transition">
                         + Choose Answer Key
                       </span>
                     </div>
@@ -787,17 +801,17 @@
                   <input type="file" id="answerKeyFile" accept="image/*,application/pdf,.pdf" class="hidden" onchange="handleAnswerKeyFileChange(this)" />
                   <div id="answerKeyThumbnail" class="hidden"></div>
 
-                  <div class="rounded-lg bg-indigo-50/75 border border-indigo-200/70 px-2.5 py-1 text-[10px] font-bold text-indigo-950 flex items-center gap-1.5">
+                  <div class="rounded-lg bg-indigo-50/75 border border-indigo-200/70 px-2 py-0.5 text-[9.5px] font-bold text-indigo-950 flex items-center gap-1.5">
                     <span>🤖</span> <span>Auto-Inference Ready: AI generates model answers if skipped</span>
                   </div>
                 </div>
 
-                <div class="space-y-1.5 pt-2 border-t border-slate-100">
-                  <p id="answerKeyHelperNote" class="text-[11px] font-semibold text-slate-700 leading-snug">
+                <div class="space-y-1 pt-1.5 border-t border-slate-100">
+                  <p id="answerKeyHelperNote" class="text-[10px] font-semibold text-slate-700 leading-snug">
                     If skipped, AI automatically generates expected model answers.
                   </p>
                   <details class="text-xs">
-                    <summary class="cursor-pointer font-bold text-slate-800 hover:text-indigo-800 select-none text-[11px]">
+                    <summary class="cursor-pointer font-bold text-slate-800 hover:text-indigo-800 select-none text-[10px]">
                       Paste answer key notes ▾
                     </summary>
                     <div class="mt-1.5 bg-slate-50 p-2 rounded-xl border border-slate-200">
@@ -1307,11 +1321,11 @@
                   <span>⚡</span> <span>Overall Short Report (Scorecard)</span>
                 </button>
                 <button type="button" id="reportModeBtn_detailed" onclick="setReportMode('detailed')"
-                  class="px-4 py-2 rounded-xl text-xs font-black transition flex items-center gap-1.5 cursor-pointer bg-white text-slate-700 border border-slate-200 hover:bg-slate-50">
+                  class="px-4 py-2 rounded-xl text-xs font-black transition flex items-center gap-1.5 cursor-pointer bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700">
                   <span>📋</span> <span>Detailed Analysis Report</span>
                 </button>
               </div>
-              <div class="text-[11px] font-bold text-teal-950 flex items-center gap-1.5 pr-2">
+              <div class="text-[11px] font-bold text-teal-950 dark:text-teal-200 flex items-center gap-1.5 pr-2">
                 <span id="reportModeHint">⚡ Short Scorecard: Candidate details + questions &amp; marks obtained in front</span>
               </div>
             </div>
@@ -1968,7 +1982,11 @@
         activeSavedPaperId = '';
         const pSel = document.getElementById('savedPapersSelect');
         if (pSel) pSel.value = '';
+        document.getElementById('savedPaperActiveChip')?.classList.add('hidden');
         document.getElementById('deleteSavedPaperBtn')?.classList.add('hidden');
+        document.getElementById('qpUploadToggleBar')?.classList.add('hidden');
+        document.getElementById('qpDropzoneContainer')?.classList.remove('hidden');
+        document.getElementById('qpUploadDivider')?.classList.remove('hidden');
 
         if (activePreset === 'photosynthesis') activePreset = 'custom';
         const subjEl = document.getElementById('teacherSubject');
@@ -2012,6 +2030,9 @@
       if (pSel) pSel.value = '';
       document.getElementById('savedPaperActiveChip')?.classList.add('hidden');
       document.getElementById('deleteSavedPaperBtn')?.classList.add('hidden');
+      document.getElementById('qpDropzoneContainer')?.classList.remove('hidden');
+      document.getElementById('qpUploadDivider')?.classList.remove('hidden');
+      document.getElementById('qpUploadToggleBar')?.classList.add('hidden');
 
       const container = document.getElementById('questionThumbnail');
       container.classList.add('hidden');
@@ -2245,7 +2266,11 @@
         activeSavedSheetId = '';
         const sSel = document.getElementById('savedSheetsSelect');
         if (sSel) sSel.value = '';
+        document.getElementById('savedSheetActiveChip')?.classList.add('hidden');
         document.getElementById('deleteSavedSheetBtn')?.classList.add('hidden');
+        document.getElementById('sheetUploadToggleBar')?.classList.add('hidden');
+        document.getElementById('sheetDropzoneContainer')?.classList.remove('hidden');
+        document.getElementById('sheetUploadDivider')?.classList.remove('hidden');
 
         const filesArr = Array.from(input.files);
         const pdfCount = filesArr.filter(f => f.name.toLowerCase().endsWith('.pdf') || f.type === 'application/pdf').length;
@@ -2307,6 +2332,9 @@
       if (sSel) sSel.value = '';
       document.getElementById('savedSheetActiveChip')?.classList.add('hidden');
       document.getElementById('deleteSavedSheetBtn')?.classList.add('hidden');
+      document.getElementById('sheetDropzoneContainer')?.classList.remove('hidden');
+      document.getElementById('sheetUploadDivider')?.classList.remove('hidden');
+      document.getElementById('sheetUploadToggleBar')?.classList.add('hidden');
       const modeBadge = document.getElementById('studentModeBadge');
       if (modeBadge) {
         modeBadge.textContent = 'Single / Bulk';
@@ -2399,16 +2427,50 @@
       }
     }
 
+    function toggleQpUploadDropzone() {
+      const dropzone = document.getElementById('qpDropzoneContainer');
+      const divider = document.getElementById('qpUploadDivider');
+      if (!dropzone) return;
+      const isHidden = dropzone.classList.contains('hidden');
+      if (isHidden) {
+        dropzone.classList.remove('hidden');
+        divider?.classList.remove('hidden');
+      } else {
+        dropzone.classList.add('hidden');
+        divider?.classList.add('hidden');
+      }
+    }
+
+    function toggleSheetUploadDropzone() {
+      const dropzone = document.getElementById('sheetDropzoneContainer');
+      const divider = document.getElementById('sheetUploadDivider');
+      if (!dropzone) return;
+      const isHidden = dropzone.classList.contains('hidden');
+      if (isHidden) {
+        dropzone.classList.remove('hidden');
+        divider?.classList.remove('hidden');
+      } else {
+        dropzone.classList.add('hidden');
+        divider?.classList.add('hidden');
+      }
+    }
+
     async function handleSelectSavedPaper(paperId) {
       if (!paperId) {
         activeSavedPaperId = '';
         document.getElementById('savedPaperActiveChip')?.classList.add('hidden');
         document.getElementById('deleteSavedPaperBtn')?.classList.add('hidden');
+        document.getElementById('qpDropzoneContainer')?.classList.remove('hidden');
+        document.getElementById('qpUploadDivider')?.classList.remove('hidden');
+        document.getElementById('qpUploadToggleBar')?.classList.add('hidden');
         syncUploadCardHighlights();
         return;
       }
       activeSavedPaperId = paperId;
       document.getElementById('deleteSavedPaperBtn')?.classList.remove('hidden');
+      document.getElementById('qpDropzoneContainer')?.classList.add('hidden');
+      document.getElementById('qpUploadDivider')?.classList.add('hidden');
+      document.getElementById('qpUploadToggleBar')?.classList.remove('hidden');
 
       const qFileInput = document.getElementById('questionImageFile');
       if (qFileInput) qFileInput.value = '';
@@ -2476,11 +2538,17 @@
         activeSavedSheetId = '';
         document.getElementById('savedSheetActiveChip')?.classList.add('hidden');
         document.getElementById('deleteSavedSheetBtn')?.classList.add('hidden');
+        document.getElementById('sheetDropzoneContainer')?.classList.remove('hidden');
+        document.getElementById('sheetUploadDivider')?.classList.remove('hidden');
+        document.getElementById('sheetUploadToggleBar')?.classList.add('hidden');
         syncUploadCardHighlights();
         return;
       }
       activeSavedSheetId = sheetId;
       document.getElementById('deleteSavedSheetBtn')?.classList.remove('hidden');
+      document.getElementById('sheetDropzoneContainer')?.classList.add('hidden');
+      document.getElementById('sheetUploadDivider')?.classList.add('hidden');
+      document.getElementById('sheetUploadToggleBar')?.classList.remove('hidden');
 
       const sFileInput = document.getElementById('studentPageFiles');
       if (sFileInput) sFileInput.value = '';
@@ -4870,16 +4938,88 @@
 
       if (mode === 'short') {
         if (btnShort) btnShort.className = 'px-4 py-2 rounded-xl text-xs font-black transition flex items-center gap-1.5 cursor-pointer shadow-sm bg-gradient-to-r from-emerald-600 to-teal-700 text-white ring-2 ring-emerald-400/40';
-        if (btnDet) btnDet.className = 'px-4 py-2 rounded-xl text-xs font-black transition flex items-center gap-1.5 cursor-pointer bg-white text-slate-700 border border-slate-200 hover:bg-slate-50';
+        if (btnDet) btnDet.className = 'px-4 py-2 rounded-xl text-xs font-black transition flex items-center gap-1.5 cursor-pointer bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700';
         if (hint) hint.innerHTML = '⚡ <b>Short Scorecard View:</b> Candidate details + question statements &amp; marks obtained in front';
         if (pdfBtnTxt) pdfBtnTxt.textContent = 'Download Short PDF';
       } else {
-        if (btnShort) btnShort.className = 'px-4 py-2 rounded-xl text-xs font-black transition flex items-center gap-1.5 cursor-pointer bg-white text-slate-700 border border-slate-200 hover:bg-slate-50';
+        if (btnShort) btnShort.className = 'px-4 py-2 rounded-xl text-xs font-black transition flex items-center gap-1.5 cursor-pointer bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700';
         if (btnDet) btnDet.className = 'px-4 py-2 rounded-xl text-xs font-black transition flex items-center gap-1.5 cursor-pointer shadow-sm bg-gradient-to-r from-indigo-700 to-indigo-900 text-white ring-2 ring-indigo-400/40';
         if (hint) hint.innerHTML = '📋 <b>Detailed Report View:</b> Full student handwriting transcription, rubric points hit/miss, &amp; feedback';
         if (pdfBtnTxt) pdfBtnTxt.textContent = 'Download Detailed PDF';
       }
       renderReportPreviewTable();
+    }
+
+    function splitSubQuestions(text) {
+      if (!text || typeof text !== 'string') return [];
+      const rawParts = text.split(/(?=\((?:[ivxIVX]+|\d+|[a-zA-Z])\)\s*|\b\d+\)\s*)/g);
+      const cleaned = rawParts.map(p => p.trim()).filter(p => p.length > 0);
+      return cleaned;
+    }
+
+    function renderQuestionStatementCell(rawQText, stepBreakdown, aw, mx) {
+      const qText = (rawQText || '').replace(/^Question\s*[:\-#]?\s*/i, '').trim();
+      const parts = splitSubQuestions(qText);
+
+      if (parts.length <= 1) {
+        return `<span class="text-slate-900 dark:text-slate-100 font-semibold leading-snug">${escapeHtmlSafe(qText)}</span>`;
+      }
+
+      let intro = '';
+      let subItems = [];
+      const isFirstItemSub = /^\((?:[ivxIVX]+|\d+|[a-zA-Z])\)\s*|^\d+\)\s*/.test(parts[0]);
+      if (!isFirstItemSub) {
+        intro = parts[0];
+        subItems = parts.slice(1);
+      } else {
+        subItems = parts;
+      }
+
+      if (subItems.length <= 1) {
+        return `<span class="text-slate-900 dark:text-slate-100 font-semibold leading-snug">${escapeHtmlSafe(qText)}</span>`;
+      }
+
+      const steps = Array.isArray(stepBreakdown) ? stepBreakdown : [];
+
+      const linesHtml = subItems.map((sub, sIdx) => {
+        let sAw = null;
+        let sMx = null;
+        if (steps && steps[sIdx]) {
+          sAw = Number(steps[sIdx].awarded_point_marks ?? 0);
+          sMx = Number(steps[sIdx].max_point_marks ?? (mx / subItems.length));
+        } else {
+          sMx = mx / subItems.length;
+          sAw = (aw / mx) * sMx;
+        }
+
+        const isFull = sAw >= sMx;
+        const isZero = sAw <= 0;
+        const badgeClass = isFull
+          ? 'bg-emerald-100 text-emerald-900 border-emerald-300 dark:bg-emerald-950 dark:text-emerald-200'
+          : (isZero
+            ? 'bg-rose-100 text-rose-900 border-rose-300 dark:bg-rose-950 dark:text-rose-200'
+            : 'bg-amber-100 text-amber-900 border-amber-300 dark:bg-amber-950 dark:text-amber-200');
+        const icon = isFull ? '✔' : (isZero ? '✕' : '●');
+
+        return `
+          <div class="flex items-start gap-2 text-xs py-1 px-2 rounded-lg bg-slate-50/80 dark:bg-slate-800/60 border border-slate-200/60 dark:border-slate-700/60">
+            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10.5px] font-black mono-font shrink-0 border ${badgeClass} shadow-2xs">
+              <span>${icon}</span>
+              <span>${sAw.toFixed(1)} / ${sMx.toFixed(1)} M</span>
+            </span>
+            <span class="leading-relaxed text-slate-800 dark:text-slate-200 font-semibold">${escapeHtmlSafe(sub)}</span>
+          </div>
+        `;
+      }).join('');
+
+      return `
+        <div class="space-y-1.5 py-1">
+          ${intro ? `<div class="text-[10.5px] font-black uppercase text-indigo-900 dark:text-indigo-300 tracking-wider mb-1 flex items-center gap-1.5"><span>⚡</span> <span>${escapeHtmlSafe(intro)}</span></div>` : ''}
+          <div class="space-y-1">
+            ${linesHtml}
+          </div>
+        </div>
+      `;
     }
 
     function renderReportPreviewTable() {
@@ -4991,11 +5131,11 @@
 
           return `
             <tr class="${rowBg} hover:bg-teal-50/40 dark:hover:bg-slate-800 transition border-b border-slate-200/80 dark:border-slate-800">
-              <td class="py-3 px-4 font-black text-indigo-950 dark:text-indigo-300 whitespace-nowrap text-xs">${escapeHtmlSafe(qid)}</td>
-              <td class="py-3 px-4 font-semibold text-slate-900 dark:text-slate-100 leading-snug">${escapeHtmlSafe(qText)}</td>
-              <td class="py-3 px-4 text-right mono-font font-bold text-slate-600 dark:text-slate-400 whitespace-nowrap">${mx.toFixed(1)}</td>
-              <td class="py-3 px-4 text-right mono-font font-black ${marksColor} text-sm whitespace-nowrap">${aw.toFixed(1)}</td>
-              <td class="py-3 px-4 text-center whitespace-nowrap">
+              <td class="py-3 px-4 font-black text-indigo-950 dark:text-indigo-300 whitespace-nowrap text-xs align-top">${escapeHtmlSafe(qid)}</td>
+              <td class="py-3 px-4 text-slate-900 dark:text-slate-100 leading-snug align-top">${renderQuestionStatementCell(rawQText, r.step_wise_breakdown, aw, mx)}</td>
+              <td class="py-3 px-4 text-right mono-font font-bold text-slate-600 dark:text-slate-400 whitespace-nowrap align-top">${mx.toFixed(1)}</td>
+              <td class="py-3 px-4 text-right mono-font font-black ${marksColor} text-sm whitespace-nowrap align-top">${aw.toFixed(1)}</td>
+              <td class="py-3 px-4 text-center whitespace-nowrap align-top">
                 <span class="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-black border ${statusClass}">
                   ${statusLabel}
                 </span>
@@ -5117,12 +5257,49 @@
           }
         }
 
-        // Sub-steps pills if available
+        // Multi-part Question & Answer line-by-line formatting (top to bottom)
+        const qSubParts = splitSubQuestions(qText);
+        let qBodyHtml = '';
+        if (qSubParts.length > 1) {
+          const isFirstSub = /^\((?:[ivxIVX]+|\d+|[a-zA-Z])\)\s*|^\d+\)\s*/.test(qSubParts[0]);
+          const intro = !isFirstSub ? qSubParts[0] : '';
+          const subItems = !isFirstSub ? qSubParts.slice(1) : qSubParts;
+          qBodyHtml = `
+            ${intro ? `<div class="text-xs font-black uppercase tracking-wider text-indigo-900 dark:text-indigo-300 mb-2 flex items-center gap-1.5"><span>⚡</span> <span>${escapeHtmlSafe(intro)}</span></div>` : ''}
+            <div class="space-y-1.5">
+              ${subItems.map((sp) => `
+                <div class="p-2.5 rounded-xl bg-white/90 dark:bg-slate-900/90 border-l-4 border-indigo-600 dark:border-indigo-400 text-xs sm:text-sm font-bold text-slate-900 dark:text-slate-100 shadow-2xs">
+                  ${escapeHtmlSafe(sp)}
+                </div>
+              `).join('')}
+            </div>
+          `;
+        } else {
+          qBodyHtml = `<p class="text-xs sm:text-sm font-bold text-slate-950 dark:text-slate-50 leading-relaxed whitespace-pre-wrap">${escapeHtmlSafe(qText)}</p>`;
+        }
+
+        const ansSubParts = splitSubQuestions(studentAns);
+        let ansBodyHtml = '';
+        if (ansSubParts.length > 1 && isAtt) {
+          ansBodyHtml = `
+            <div class="space-y-1.5">
+              ${ansSubParts.map((ap) => `
+                <div class="p-2.5 rounded-xl bg-white/80 dark:bg-slate-900/80 border-l-4 border-teal-600 dark:border-teal-400 font-mono text-xs text-slate-900 dark:text-slate-100 shadow-2xs">
+                  ${escapeHtmlSafe(ap)}
+                </div>
+              `).join('')}
+            </div>
+          `;
+        } else {
+          ansBodyHtml = `<p class="text-xs text-slate-900 dark:text-slate-100 font-mono leading-relaxed whitespace-pre-wrap">${escapeHtmlSafe(studentAns)}</p>`;
+        }
+
+        // Sub-steps breakdown line-by-line (top to bottom with marks in front)
         let stepsPillsHtml = '';
         if (r.step_wise_breakdown && r.step_wise_breakdown.length > 0) {
           stepsPillsHtml = `
-            <div class="flex flex-wrap items-center gap-1.5 mt-2.5 pt-2 border-t border-slate-200/60 dark:border-slate-700/60">
-              <span class="text-[9px] font-black uppercase tracking-wider text-slate-500">Evaluation Breakdown:</span>
+            <div class="mt-3 pt-2.5 border-t border-slate-200/60 dark:border-slate-700/60 space-y-1.5">
+              <span class="text-[9.5px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-400 block mb-1">Top-to-Bottom Evaluation Breakdown:</span>
               ${r.step_wise_breakdown.map((s, sIdx) => {
                 const sHit = s.status === 'Hit';
                 const sPart = s.status === 'Partial';
@@ -5130,11 +5307,16 @@
                   ? 'bg-emerald-100 text-emerald-900 border-emerald-300 dark:bg-emerald-950 dark:text-emerald-200'
                   : (sPart ? 'bg-amber-100 text-amber-900 border-amber-300 dark:bg-amber-950 dark:text-amber-200' : 'bg-rose-100 text-rose-900 border-rose-300 dark:bg-rose-950 dark:text-rose-200');
                 const icon = sHit ? '✔' : (sPart ? '●' : '✕');
-                const desc = (s.description || `Point ${sIdx + 1}`).slice(0, 32);
+                const desc = s.description || `Sub-point ${sIdx + 1}`;
+                const awPt = Number(s.awarded_point_marks || 0);
+                const mxPt = Number(s.max_point_marks || 1);
                 return `
-                  <span class="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md border ${sBadge}">
-                    <span>${icon}</span> <span>${escapeHtmlSafe(desc)}</span> <strong class="mono-font">(${Number(s.awarded_point_marks || 0).toFixed(1)}/${Number(s.max_point_marks || 1).toFixed(1)})</strong>
-                  </span>
+                  <div class="flex items-start gap-2 p-1.5 px-2.5 rounded-lg bg-white/70 dark:bg-slate-900/60 border border-slate-200/70 dark:border-slate-700/70 text-xs">
+                    <span class="inline-flex items-center gap-1 text-[10px] font-black px-2 py-0.5 rounded border ${sBadge} shrink-0 mono-font shadow-2xs">
+                      <span>${icon}</span> <span>${awPt.toFixed(1)} / ${mxPt.toFixed(1)} M</span>
+                    </span>
+                    <span class="leading-snug text-slate-800 dark:text-slate-200 font-semibold">${escapeHtmlSafe(desc)}</span>
+                  </div>
                 `;
               }).join('')}
             </div>
@@ -5172,7 +5354,7 @@
                 <div class="text-[10px] font-black uppercase tracking-wider text-indigo-900 dark:text-indigo-300 mb-1 flex items-center gap-1.5">
                   <span>📘</span> Question
                 </div>
-                <p class="text-xs sm:text-sm font-bold text-slate-950 dark:text-slate-50 leading-relaxed whitespace-pre-wrap">${escapeHtmlSafe(qText)}</p>
+                ${qBodyHtml}
               </div>
 
               <!-- Student Transcribed Answer -->
@@ -5180,7 +5362,7 @@
                 <div class="text-[10px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-400 mb-1 flex items-center gap-1.5">
                   <span>✍️</span> Student's Transcribed Answer
                 </div>
-                <p class="text-xs text-slate-900 dark:text-slate-100 font-mono leading-relaxed whitespace-pre-wrap">${escapeHtmlSafe(studentAns)}</p>
+                ${ansBodyHtml}
               </div>
 
               <!-- Concise Feedback -->
