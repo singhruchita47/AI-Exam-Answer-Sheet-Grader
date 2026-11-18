@@ -95,8 +95,8 @@ def parse_student_meta_from_filename(filename: str) -> tuple[str, str]:
     return student_name, roll
 
 
-def build_report_pdf_bytes(report_payload: dict[str, Any]) -> bytes:
-    """Render a crisp, multi-page A4 vector PDF scorecard from a verified grading report."""
+def build_report_pdf_bytes(report_payload: dict[str, Any], report_mode: str = "detailed") -> bytes:
+    """Render a crisp, vector PDF scorecard from a verified grading report (detailed or short 1-page)."""
     grading = report_payload.get("grading_report") or {}
     q_results: list[dict[str, Any]] = grading.get("question_results") or []
 
@@ -114,6 +114,7 @@ def build_report_pdf_bytes(report_payload: dict[str, Any]) -> bytes:
     total_max = float(grading.get("total_max_marks") or 0.0)
     pct, grade = _compute_grade_and_pct(total_awarded, total_max)
     strict_tier = "Lenient" if strictness_level <= 3 else ("Balanced" if strictness_level <= 7 else "Strict")
+    is_short = (report_mode == "short")
 
     # Save into in-memory buffer
     buf = io.BytesIO()
@@ -221,13 +222,20 @@ def build_report_pdf_bytes(report_payload: dict[str, Any]) -> bytes:
         # Table Header
         hdr_rect = patches.Rectangle((5, y - 4.2), 90, 4.2, facecolor="#1e293b", edgecolor="#1e293b")
         ax.add_patch(hdr_rect)
-        ax.text(7.0, y - 2.8, "Q. ID", fontsize=8.2, fontweight="bold", color="#ffffff")
-        ax.text(21.0, y - 2.8, "Question Type", fontsize=8.2, fontweight="bold", color="#ffffff")
-        ax.text(42.0, y - 2.8, "Page(s)", fontsize=8.2, fontweight="bold", color="#ffffff")
-        ax.text(56.0, y - 2.8, "Key Points Hit", fontsize=8.2, fontweight="bold", color="#ffffff")
-        ax.text(75.0, y - 2.8, "Awarded", fontsize=8.2, fontweight="bold", color="#ffffff", ha="right")
-        ax.text(85.0, y - 2.8, "Max", fontsize=8.2, fontweight="bold", color="#ffffff", ha="right")
-        ax.text(93.5, y - 2.8, "%", fontsize=8.2, fontweight="bold", color="#ffffff", ha="right")
+        if is_short:
+            ax.text(7.0, y - 2.8, "Q. ID", fontsize=8.2, fontweight="bold", color="#ffffff")
+            ax.text(18.0, y - 2.8, "Question Statement", fontsize=8.2, fontweight="bold", color="#ffffff")
+            ax.text(70.0, y - 2.8, "Max", fontsize=8.2, fontweight="bold", color="#ffffff", ha="right")
+            ax.text(82.0, y - 2.8, "Awarded", fontsize=8.2, fontweight="bold", color="#ffffff", ha="right")
+            ax.text(93.5, y - 2.8, "% Score", fontsize=8.2, fontweight="bold", color="#ffffff", ha="right")
+        else:
+            ax.text(7.0, y - 2.8, "Q. ID", fontsize=8.2, fontweight="bold", color="#ffffff")
+            ax.text(21.0, y - 2.8, "Question Type", fontsize=8.2, fontweight="bold", color="#ffffff")
+            ax.text(42.0, y - 2.8, "Page(s)", fontsize=8.2, fontweight="bold", color="#ffffff")
+            ax.text(56.0, y - 2.8, "Key Points Hit", fontsize=8.2, fontweight="bold", color="#ffffff")
+            ax.text(75.0, y - 2.8, "Awarded", fontsize=8.2, fontweight="bold", color="#ffffff", ha="right")
+            ax.text(85.0, y - 2.8, "Max", fontsize=8.2, fontweight="bold", color="#ffffff", ha="right")
+            ax.text(93.5, y - 2.8, "%", fontsize=8.2, fontweight="bold", color="#ffffff", ha="right")
         y -= 4.2
 
         for idx_q, q in enumerate(q_results):
@@ -256,23 +264,61 @@ def build_report_pdf_bytes(report_payload: dict[str, Any]) -> bytes:
             row_bg = "#ffffff" if idx_q % 2 == 0 else "#f8fafc"
             row_rect = patches.Rectangle((5, y - 3.9), 90, 3.9, facecolor=row_bg, edgecolor="#e2e8f0", linewidth=0.5)
             ax.add_patch(row_rect)
-            ax.text(7.0, y - 2.6, q_id, fontsize=8.2, fontweight="bold", color="#312e81")
-            ax.text(21.0, y - 2.6, q_type[:18], fontsize=8.0, color="#334155")
-            ax.text(42.0, y - 2.6, (f"P {p_nums}" if p_nums != "Not Attempted" else "-")[:12], fontsize=8.0, color="#475569")
-            ax.text(56.0, y - 2.6, kp_stat, fontsize=8.0, color="#475569")
-            ax.text(75.0, y - 2.6, f"{aw:.2f}", fontsize=8.2, fontweight="bold", color="#047857", ha="right")
-            ax.text(85.0, y - 2.6, f"{mx:.2f}", fontsize=8.0, color="#475569", ha="right")
-            ax.text(93.5, y - 2.6, f"{q_pct:.0f}%", fontsize=8.0, color="#334155", ha="right")
+
+            if is_short:
+                q_text = _sanitize_pdf_text(q.get("question_text") or f"Question {q_id}").replace("Question:", "").strip()
+                if len(q_text) > 52:
+                    q_text = q_text[:49] + "..."
+                ax.text(7.0, y - 2.6, q_id, fontsize=8.2, fontweight="bold", color="#312e81")
+                ax.text(18.0, y - 2.6, q_text, fontsize=7.8, color="#1e293b")
+                ax.text(70.0, y - 2.6, f"{mx:.2f}", fontsize=8.0, color="#475569", ha="right")
+                ax.text(82.0, y - 2.6, f"{aw:.2f}", fontsize=8.2, fontweight="bold", color="#047857", ha="right")
+                ax.text(93.5, y - 2.6, f"{q_pct:.0f}%", fontsize=8.0, color="#334155", ha="right")
+            else:
+                ax.text(7.0, y - 2.6, q_id, fontsize=8.2, fontweight="bold", color="#312e81")
+                ax.text(21.0, y - 2.6, q_type[:18], fontsize=8.0, color="#334155")
+                ax.text(42.0, y - 2.6, (f"P {p_nums}" if p_nums != "Not Attempted" else "-")[:12], fontsize=8.0, color="#475569")
+                ax.text(56.0, y - 2.6, kp_stat, fontsize=8.0, color="#475569")
+                ax.text(75.0, y - 2.6, f"{aw:.2f}", fontsize=8.2, fontweight="bold", color="#047857", ha="right")
+                ax.text(85.0, y - 2.6, f"{mx:.2f}", fontsize=8.0, color="#475569", ha="right")
+                ax.text(93.5, y - 2.6, f"{q_pct:.0f}%", fontsize=8.0, color="#334155", ha="right")
             y -= 3.9
 
         # Total Summary Row
         tot_rect = patches.Rectangle((5, y - 4.4), 90, 4.4, facecolor="#ecfdf5", edgecolor="#059669", linewidth=0.9)
         ax.add_patch(tot_rect)
         ax.text(7.0, y - 2.9, "TOTAL VERIFIED SCORE", fontsize=8.6, fontweight="bold", color="#065f46")
-        ax.text(75.0, y - 2.9, f"{total_awarded:.2f}", fontsize=8.8, fontweight="bold", color="#065f46", ha="right")
-        ax.text(85.0, y - 2.9, f"{total_max:.2f}", fontsize=8.6, fontweight="bold", color="#065f46", ha="right")
-        ax.text(93.5, y - 2.9, f"{pct:.1f}%", fontsize=8.6, fontweight="bold", color="#065f46", ha="right")
+        if is_short:
+            ax.text(70.0, y - 2.9, f"{total_max:.2f}", fontsize=8.6, fontweight="bold", color="#065f46", ha="right")
+            ax.text(82.0, y - 2.9, f"{total_awarded:.2f}", fontsize=8.8, fontweight="bold", color="#065f46", ha="right")
+            ax.text(93.5, y - 2.9, f"{pct:.1f}%", fontsize=8.6, fontweight="bold", color="#065f46", ha="right")
+        else:
+            ax.text(75.0, y - 2.9, f"{total_awarded:.2f}", fontsize=8.8, fontweight="bold", color="#065f46", ha="right")
+            ax.text(85.0, y - 2.9, f"{total_max:.2f}", fontsize=8.6, fontweight="bold", color="#065f46", ha="right")
+            ax.text(93.5, y - 2.9, f"{pct:.1f}%", fontsize=8.6, fontweight="bold", color="#065f46", ha="right")
         y -= 8.0
+
+        if is_short:
+            # Short format single-page completion with verification sign-off
+            y = max(y, 22.0)
+            cert_box = patches.FancyBboxPatch(
+                (5, y - 11.5), 90, 11.5,
+                boxstyle="round,pad=0.3,rounding_size=0.8",
+                facecolor="#f0fdf4",
+                edgecolor="#86efac",
+                linewidth=0.8,
+            )
+            ax.add_patch(cert_box)
+            ax.text(7.2, y - 3.0, "EXAMINER / EVALUATOR VERIFICATION CERTIFICATE", fontsize=8.2, fontweight="bold", color="#166534")
+            ax.text(7.2, y - 6.2, f"Candidate {student_name} ({roll_no}) scored {total_awarded:.2f} / {total_max:.2f} Marks ({pct:.1f}%, Grade {grade}).", fontsize=8.0, color="#14532d")
+            ax.text(7.2, y - 9.2, "Marks evaluated accurately with Multimodal Vision OCR and Rubric Grader.", fontsize=7.5, color="#15803d")
+            ax.plot([74, 93], [y - 6.2, y - 6.2], color="#94a3b8", linewidth=0.8)
+            ax.text(83.5, y - 8.5, "Authorized Signature", fontsize=7.2, color="#64748b", ha="center")
+
+            _add_footer(ax, 1)
+            pdf.savefig(fig)
+            plt.close(fig)
+            return buf.getvalue()
 
         # Detailed Question-by-Question Breakdown
         if y < 40.0:
@@ -597,6 +643,124 @@ def build_report_html(report_payload: dict[str, Any]) -> str:
 </html>"""
 
 
+def build_short_report_html(report_payload: dict[str, Any]) -> str:
+    """Generate an ultra-clean 1-page printable summary scorecard with candidate details, questions, and marks."""
+    grading = report_payload.get("grading_report") or {}
+    q_results = grading.get("question_results") or []
+    exam_title = html.escape(str(grading.get("exam_title") or "Exam Evaluation Report"))
+    student_name = html.escape(str(report_payload.get("student_name") or "Not Specified"))
+    roll_no = html.escape(str(report_payload.get("roll_no") or "-"))
+    remarks = html.escape(str(report_payload.get("overall_remarks") or ""))
+    saved_at = html.escape(str(report_payload.get("saved_at") or datetime.now().strftime("%Y-%m-%d %H:%M")))
+    strictness_level = int(grading.get("strictness_level") or report_payload.get("strictness_level") or 5)
+
+    total_awarded = float(grading.get("total_marks_awarded") or 0.0)
+    total_max = float(grading.get("total_max_marks") or 0.0)
+    pct, grade = _compute_grade_and_pct(total_awarded, total_max)
+
+    rows_html = []
+    for q in q_results:
+        qid = html.escape(str(q.get("question_id") or ""))
+        is_att = q.get("is_attempted", bool(str(q.get("student_answer") or "").strip()))
+        aw = float(q.get("marks_awarded") or 0.0)
+        mx = float(q.get("max_marks") or 0.0)
+        q_pct = (aw / mx * 100.0) if mx > 0 else 0.0
+        q_text = html.escape(str(q.get("question_text") or f"Question {qid}").replace("Question:", "").strip())
+
+        status_label = "Full Marks" if (aw >= mx and is_att) else ("Partial" if (aw > 0 and is_att) else ("Incorrect" if is_att else "Not Attempted"))
+        status_class = "st-full" if (aw >= mx and is_att) else ("st-part" if (aw > 0 and is_att) else "st-none")
+
+        rows_html.append(
+            f"<tr>"
+            f"<td class='qid-cell'><b>{qid}</b></td>"
+            f"<td class='qprompt-cell'>{q_text}</td>"
+            f"<td class='num'>{mx:.1f}</td>"
+            f"<td class='num win'><b>{aw:.1f}</b></td>"
+            f"<td class='num-status'><span class='{status_class}'>{status_label} ({q_pct:.0f}%)</span></td>"
+            f"</tr>"
+        )
+
+    remarks_html = f"<div class='remarks'><b>Examiner Remarks:</b> {remarks}</div>" if remarks else ""
+
+    return f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>{exam_title} - Short Scorecard - {student_name}</title>
+<style>
+  body {{ font-family: 'Segoe UI', Arial, sans-serif; background: #f8fafc; color: #0f172a; margin: 0; padding: 24px; }}
+  .sheet {{ max-width: 860px; margin: 0 auto; background: #fff; border: 1px solid #e2e8f0; border-radius: 14px; padding: 28px; box-shadow: 0 4px 16px rgba(15,23,42,.05); }}
+  .topbar {{ display: flex; justify-content: space-between; align-items: center; gap: 16px; border-bottom: 2px solid #e0e7ff; padding-bottom: 16px; margin-bottom: 16px; }}
+  .badge {{ font-size: 11px; font-weight: 700; color: #047857; letter-spacing: .06em; text-transform: uppercase; }}
+  h1 {{ margin: 4px 0; font-size: 20px; color: #0f172a; }}
+  .sub {{ font-size: 11.5px; color: #475569; }}
+  .scorecard {{ background: linear-gradient(135deg, #059669 0%, #047857 100%); color: #fff; border-radius: 12px; padding: 12px 20px; text-align: center; min-width: 175px; }}
+  .scorecard .big {{ font-size: 22px; font-weight: 800; }}
+  .meta {{ display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 12px 14px; font-size: 12.5px; margin-bottom: 16px; }}
+  .meta-item b {{ display: block; font-size: 10px; text-transform: uppercase; color: #64748b; margin-bottom: 2px; }}
+  .meta-item span {{ font-weight: 700; color: #0f172a; font-size: 13px; }}
+  .remarks {{ background: #fffbeb; border: 1px solid #fde68a; border-radius: 10px; padding: 10px 14px; font-size: 12.5px; color: #78350f; margin-bottom: 16px; }}
+  table {{ width: 100%; border-collapse: collapse; margin-bottom: 18px; font-size: 12.5px; }}
+  th {{ background: #0f172a; color: #fff; padding: 9px 10px; text-align: left; font-size: 11.5px; text-transform: uppercase; letter-spacing: .04em; }}
+  td {{ padding: 8px 10px; border-bottom: 1px solid #e2e8f0; }}
+  .qid-cell {{ width: 70px; color: #312e81; font-weight: 800; }}
+  .qprompt-cell {{ font-weight: 600; color: #1e293b; line-height: 1.4; }}
+  .num {{ text-align: right; width: 65px; font-family: monospace; }}
+  .win {{ color: #047857; font-weight: 800; font-size: 13.5px; }}
+  .num-status {{ text-align: right; width: 130px; }}
+  .st-full {{ background: #ecfdf5; color: #047857; padding: 2px 8px; border-radius: 6px; font-weight: 700; font-size: 11px; border: 1px solid #a7f3d0; }}
+  .st-part {{ background: #fefce8; color: #854d0e; padding: 2px 8px; border-radius: 6px; font-weight: 700; font-size: 11px; border: 1px solid #fde047; }}
+  .st-none {{ background: #fef2f2; color: #991b1b; padding: 2px 8px; border-radius: 6px; font-weight: 700; font-size: 11px; border: 1px solid #fecaca; }}
+  tr.tot td {{ background: #ecfdf5; font-weight: 800; color: #065f46; border-top: 2px solid #059669; font-size: 13px; }}
+  .cert {{ display: flex; justify-content: space-between; align-items: center; background: #f0fdf4; border: 1px solid #86efac; border-radius: 10px; padding: 12px 16px; font-size: 12px; color: #14532d; margin-top: 20px; }}
+  .cert-left b {{ display: block; font-size: 12.5px; color: #166534; margin-bottom: 2px; }}
+  .cert-sign {{ text-align: center; border-top: 1px solid #94a3b8; padding-top: 4px; min-width: 140px; font-size: 11px; color: #64748b; }}
+  .actions {{ display: flex; justify-content: flex-end; gap: 10px; margin-bottom: 14px; }}
+  .btn {{ background: #047857; color: #fff; border: none; padding: 9px 16px; border-radius: 8px; font-weight: 700; cursor: pointer; font-size: 13px; }}
+  @media print {{ .actions {{ display: none; }} body {{ background: #fff; padding: 0; }} .sheet {{ border: none; box-shadow: none; }} }}
+</style>
+</head>
+<body>
+<div class="sheet">
+  <div class="actions"><button class="btn" onclick="window.print()">Print / Save as PDF</button></div>
+  <div class="topbar">
+    <div>
+      <div class="badge">Official Overall Scorecard (Short Summary)</div>
+      <h1>{exam_title}</h1>
+      <div class="sub">Strictness Level: {strictness_level}/10 &bull; Evaluated: {saved_at}</div>
+    </div>
+    <div class="scorecard">
+      <div style="font-size:11px;opacity:.9;font-weight:700;">TOTAL OBTAINED</div>
+      <div class="big">{total_awarded:.1f} / {total_max:.1f}</div>
+      <div style="font-size:12px;font-weight:700;">{pct:.1f}% &bull; Grade {grade}</div>
+    </div>
+  </div>
+  <div class="meta">
+    <div class="meta-item"><b>Student Name</b><span>{student_name}</span></div>
+    <div class="meta-item"><b>Roll Number</b><span>{roll_no}</span></div>
+    <div class="meta-item"><b>Subject</b><span>{exam_title}</span></div>
+    <div class="meta-item"><b>Total Questions</b><span>{len(q_results)} Questions</span></div>
+  </div>
+  {remarks_html}
+  <table>
+    <thead><tr><th>Q.No</th><th>Question Statement</th><th class="num">Max Marks</th><th class="num">Marks Obtained</th><th class="num-status">Status</th></tr></thead>
+    <tbody>
+      {''.join(rows_html)}
+      <tr class="tot"><td colspan="2">GRAND TOTAL</td><td class="num">{total_max:.1f}</td><td class="num win"><b>{total_awarded:.1f}</b></td><td class="num-status">{pct:.1f}% &bull; Grade {grade}</td></tr>
+    </tbody>
+  </table>
+  <div class="cert">
+    <div class="cert-left">
+      <b>Certified Evaluation Result</b>
+      Verified by Automated Vision OCR &amp; Rubric Scoring Model.
+    </div>
+    <div class="cert-sign">Authorized Examiner Signature</div>
+  </div>
+</div>
+</body>
+</html>"""
+
+
 def save_report_bundle(saved_reports_dir: Path, payload: dict[str, Any]) -> dict[str, Any]:
     """Generate and persist PDF, HTML, CSV, and JSON reports into `saved_reports_dir/<report_id>/`."""
     saved_reports_dir.mkdir(parents=True, exist_ok=True)
@@ -638,13 +802,19 @@ def save_report_bundle(saved_reports_dir: Path, payload: dict[str, Any]) -> dict
         "grading_report": grading,
     }
 
-    pdf_bytes = build_report_pdf_bytes(full_record)
+    pdf_bytes = build_report_pdf_bytes(full_record, report_mode="detailed")
+    short_pdf_bytes = build_report_pdf_bytes(full_record, report_mode="short")
     csv_text = build_report_csv_text(full_record)
     html_text = build_report_html(full_record)
+    short_html_text = build_short_report_html(full_record)
 
     (report_dir / "report.pdf").write_bytes(pdf_bytes)
+    (report_dir / "report_detailed.pdf").write_bytes(pdf_bytes)
+    (report_dir / "report_short.pdf").write_bytes(short_pdf_bytes)
     (report_dir / "marks_summary.csv").write_text(csv_text, encoding="utf-8-sig")
     (report_dir / "report.html").write_text(html_text, encoding="utf-8")
+    (report_dir / "report_detailed.html").write_text(html_text, encoding="utf-8")
+    (report_dir / "report_short.html").write_text(short_html_text, encoding="utf-8")
     (report_dir / "report_data.json").write_text(
         json.dumps(full_record, indent=2, ensure_ascii=False), encoding="utf-8"
     )
@@ -666,7 +836,11 @@ def save_report_bundle(saved_reports_dir: Path, payload: dict[str, Any]) -> dict
         "saved_at": saved_at,
         "folder_path": str(report_dir),
         "pdf_url": f"/saved_reports/{report_id}/report.pdf",
+        "pdf_detailed_url": f"/saved_reports/{report_id}/report_detailed.pdf",
+        "pdf_short_url": f"/saved_reports/{report_id}/report_short.pdf",
         "html_url": f"/saved_reports/{report_id}/report.html",
+        "html_detailed_url": f"/saved_reports/{report_id}/report_detailed.html",
+        "html_short_url": f"/saved_reports/{report_id}/report_short.html",
         "csv_url": f"/saved_reports/{report_id}/marks_summary.csv",
         "json_url": f"/saved_reports/{report_id}/report_data.json",
     }
@@ -703,7 +877,11 @@ def list_saved_reports(saved_reports_dir: Path) -> list[dict[str, Any]]:
                     "strictness_level": rec.get("strictness_level", 5),
                     "saved_at": rec.get("saved_at") or "",
                     "pdf_url": f"/saved_reports/{rid}/report.pdf",
+                    "pdf_detailed_url": f"/saved_reports/{rid}/report_detailed.pdf" if (d / "report_detailed.pdf").exists() else f"/saved_reports/{rid}/report.pdf",
+                    "pdf_short_url": f"/saved_reports/{rid}/report_short.pdf" if (d / "report_short.pdf").exists() else f"/saved_reports/{rid}/report.pdf",
                     "html_url": f"/saved_reports/{rid}/report.html",
+                    "html_detailed_url": f"/saved_reports/{rid}/report_detailed.html" if (d / "report_detailed.html").exists() else f"/saved_reports/{rid}/report.html",
+                    "html_short_url": f"/saved_reports/{rid}/report_short.html" if (d / "report_short.html").exists() else f"/saved_reports/{rid}/report.html",
                     "csv_url": f"/saved_reports/{rid}/marks_summary.csv",
                     "json_url": f"/saved_reports/{rid}/report_data.json",
                 }

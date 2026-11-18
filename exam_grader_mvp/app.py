@@ -22,7 +22,9 @@ from grader import ExamGrader, ExamRubric, RubricQuestion, SemanticScorer
 from ocr_engine import OCREngine
 from report_exporter import (
     build_report_csv_text,
+    build_report_html,
     build_report_pdf_bytes,
+    build_short_report_html,
     list_saved_reports,
     save_report_bundle,
 )
@@ -865,23 +867,48 @@ async def api_save_report(payload: dict[str, Any] = Body(...)) -> dict[str, Any]
 
 @app.post("/api/export_report_pdf")
 async def api_export_report_pdf(payload: dict[str, Any] = Body(...)) -> Response:
-    """Generate and return a downloadable A4 PDF report for the verified grading result."""
+    """Generate and return a downloadable A4 PDF report (detailed or short 1-page scorecard)."""
     try:
-        pdf_bytes = build_report_pdf_bytes(payload)
+        report_mode = str(payload.get("report_mode") or "detailed").lower()
+        pdf_bytes = build_report_pdf_bytes(payload, report_mode=report_mode)
         raw_name = (
             payload.get("roll_no")
             or payload.get("student_name")
             or "Exam_Evaluation"
         )
         safe_name = "".join(c if c.isalnum() or c in ("-", "_") else "_" for c in str(raw_name)).strip("_") or "Exam_Evaluation"
+        suffix = "Scorecard" if report_mode == "short" else "Detailed_Report"
         return Response(
             content=pdf_bytes,
             media_type="application/pdf",
-            headers={"Content-Disposition": f'attachment; filename="{safe_name}_Report.pdf"'},
+            headers={"Content-Disposition": f'attachment; filename="{safe_name}_{suffix}.pdf"'},
         )
     except Exception as exc:
         logger.exception("Failed to export PDF report")
         raise HTTPException(status_code=500, detail=f"Failed to export PDF: {exc}")
+
+
+@app.post("/api/export_report_html")
+async def api_export_report_html(payload: dict[str, Any] = Body(...)) -> Response:
+    """Generate and return an HTML scorecard or detailed report."""
+    try:
+        report_mode = str(payload.get("report_mode") or "detailed").lower()
+        html_text = build_short_report_html(payload) if report_mode == "short" else build_report_html(payload)
+        raw_name = (
+            payload.get("roll_no")
+            or payload.get("student_name")
+            or "Exam_Evaluation"
+        )
+        safe_name = "".join(c if c.isalnum() or c in ("-", "_") else "_" for c in str(raw_name)).strip("_") or "Exam_Evaluation"
+        suffix = "Scorecard" if report_mode == "short" else "Detailed_Report"
+        return Response(
+            content=html_text.encode("utf-8"),
+            media_type="text/html; charset=utf-8",
+            headers={"Content-Disposition": f'inline; filename="{safe_name}_{suffix}.html"'},
+        )
+    except Exception as exc:
+        logger.exception("Failed to export HTML report")
+        raise HTTPException(status_code=500, detail=f"Failed to export HTML: {exc}")
 
 
 @app.post("/api/export_report_csv")
