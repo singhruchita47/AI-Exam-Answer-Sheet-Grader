@@ -246,6 +246,29 @@
     html.dark-mode [class*="bg-teal-100/"] {
       background-color: rgba(19, 35, 58, 0.88) !important;
     }
+    html.dark-mode .bg-violet-50,
+    html.dark-mode [class*="bg-violet-50/"],
+    html.dark-mode .bg-purple-50,
+    html.dark-mode [class*="bg-purple-50/"] {
+      background-color: rgba(59, 28, 99, 0.36) !important;
+      border-color: rgba(139, 92, 246, 0.45) !important;
+      color: #ddd6fe !important;
+    }
+    html.dark-mode [class*="border-violet-"],
+    html.dark-mode [class*="border-purple-"] {
+      border-color: rgba(139, 92, 246, 0.5) !important;
+    }
+    html.dark-mode .text-violet-950,
+    html.dark-mode .text-violet-900,
+    html.dark-mode .text-violet-800,
+    html.dark-mode .text-violet-700 {
+      color: #c4b5fd !important;
+    }
+    html.dark-mode .text-amber-950,
+    html.dark-mode .text-amber-900,
+    html.dark-mode .text-amber-800 {
+      color: #fde68a !important;
+    }
     html.dark-mode .bg-emerald-50,
     html.dark-mode [class*="bg-emerald-50/"],
     html.dark-mode .bg-emerald-100,
@@ -1099,55 +1122,81 @@
               <div class="w-1 h-12 rounded-full bg-teal-400 group-hover:bg-teal-700 transition"></div>
             </div>
 
-            <!-- RIGHT PANE: Clean Parts-First OCR & Question Review -->
+            <!-- RIGHT PANE: Clean Parts-First OCR & Question Review + Instant Overview / Detailed Report -->
             <div id="rightVerificationCol" class="flex-1 min-w-0 flex flex-col min-h-0 overflow-hidden studio-canvas">
 
-              <!-- Minimal Sticky Top Parts Bar (Shows Part I / Part II / Part III cleanly; Sub-Parts expand only when clicked!) -->
-              <div class="shrink-0 bg-white/95 border-b border-teal-200 px-3.5 py-2 space-y-1.5">
-                <div class="flex flex-wrap items-center justify-between gap-2">
-                  <!-- Top-Level Part Tabs: All | Part I | Part II | Part III -->
-                  <div id="partFilterBar" class="flex flex-wrap items-center gap-1.5 min-w-0"></div>
-                  <span id="rightPanelPageTitle" class="hidden">OCR &amp; Question Review</span>
-                  <span id="rightPanelQCountBadge" class="hidden">0 Questions</span>
+              <!-- Minimal Sticky Top Mode + Parts Bar -->
+              <div class="shrink-0 bg-white/95 border-b border-teal-200 px-3.5 py-2 space-y-2">
+                <!-- Row 1: Right Panel Mode Switcher (Question Cards | Overview | Detailed Report) + Split Ratio -->
+                <div class="flex flex-wrap items-center justify-between gap-2 pb-1.5 border-b border-teal-100">
+                  <div class="inline-flex flex-wrap items-center gap-1 p-0.5 rounded-xl bg-slate-100/90 border border-slate-200 text-[11px] font-black">
+                    <button type="button" id="rightModeBtn_cards" onclick="setRightPanelViewMode('cards')"
+                      class="px-2.5 py-1 rounded-lg bg-gradient-to-r from-indigo-700 to-teal-700 text-white shadow-2xs transition cursor-pointer flex items-center gap-1">
+                      <span>🎴</span> <span>Question Cards</span>
+                    </button>
+                    <button type="button" id="rightModeBtn_overview" onclick="setRightPanelViewMode('overview')"
+                      class="px-2.5 py-1 rounded-lg text-slate-800 hover:bg-white transition cursor-pointer flex items-center gap-1">
+                      <span>📊</span> <span>Overview</span>
+                    </button>
+                    <button type="button" id="rightModeBtn_detailed" onclick="setRightPanelViewMode('detailed')"
+                      class="px-2.5 py-1 rounded-lg text-slate-800 hover:bg-white transition cursor-pointer flex items-center gap-1">
+                      <span>📋</span> <span>Detailed Report</span>
+                    </button>
+                  </div>
 
-                  <div class="flex flex-wrap items-center gap-1.5 shrink-0">
+                  <div class="flex items-center gap-1.5 shrink-0">
                     <div class="hidden xl:flex items-center bg-teal-50 border border-teal-200/70 p-0.5 rounded-lg text-[10px] font-extrabold text-teal-950">
                       <button type="button" onclick="setSplitRatio(38)" class="px-1.5 py-0.5 rounded hover:bg-white cursor-pointer" title="38% Sheet / 62% Review">38/62</button>
                       <button type="button" onclick="setSplitRatio(43)" class="px-1.5 py-0.5 rounded hover:bg-white cursor-pointer" title="Default Ratio">43/57</button>
                       <button type="button" onclick="setSplitRatio(52)" class="px-1.5 py-0.5 rounded hover:bg-white cursor-pointer" title="Wider Sheet">52/48</button>
                     </div>
-
-                    <select id="statusFilterSelect" onchange="renderGradingBreakdownCards()"
-                      class="text-[11px] font-bold px-2 py-1 rounded-lg border border-teal-200 bg-white text-slate-950 cursor-pointer">
-                      <option value="all">All Status</option>
-                      <option value="attempted">Attempted</option>
-                      <option value="unattempted">Skipped</option>
-                    </select>
-
-                    <div class="flex items-center bg-teal-100/80 p-0.5 rounded-lg text-[10px] font-bold">
-                      <button type="button" id="filterAllQuestionsBtn" onclick="setRightPanelFilterMode(false)"
-                        class="px-2 py-0.5 rounded-md bg-teal-700 text-white shadow-2xs cursor-pointer transition">
-                        All
-                      </button>
-                      <button type="button" id="filterPageOnlyBtn" onclick="setRightPanelFilterMode(true)"
-                        class="px-2 py-0.5 rounded-md text-slate-800 hover:text-slate-950 cursor-pointer transition">
-                        Page
-                      </button>
-                    </div>
                   </div>
                 </div>
 
-                <!-- Dynamic Sub-Parts & Questions Drawer (Hidden until user clicks a Part tab!) -->
-                <div id="subPartContainer" class="hidden pt-1.5 border-t border-teal-100 flex flex-wrap items-center gap-1.5">
-                  <div id="subPartFilterBar" class="flex flex-wrap items-center gap-1.5"></div>
-                  <div id="questionJumpBar" class="flex items-center gap-1.5 overflow-x-auto custom-scrollbar"></div>
+                <!-- Row 2: Part / Status / Page Filter Controls (Active in Question Cards mode) -->
+                <div id="rightCardsFilterControls" class="space-y-1.5">
+                  <div class="flex flex-wrap items-center justify-between gap-2">
+                    <!-- Top-Level Part Tabs: All | Objectives | Descriptive Q&A -->
+                    <div id="partFilterBar" class="flex flex-wrap items-center gap-1.5 min-w-0"></div>
+                    <span id="rightPanelPageTitle" class="hidden">OCR &amp; Question Review</span>
+                    <span id="rightPanelQCountBadge" class="hidden">0 Questions</span>
+
+                    <div class="flex flex-wrap items-center gap-1.5 shrink-0">
+                      <select id="statusFilterSelect" onchange="renderGradingBreakdownCards()"
+                        class="text-[11px] font-bold px-2 py-1 rounded-lg border border-teal-200 bg-white text-slate-950 cursor-pointer">
+                        <option value="all">All Status</option>
+                        <option value="attempted">Attempted</option>
+                        <option value="unattempted">Skipped</option>
+                      </select>
+
+                      <div class="flex items-center bg-teal-100/80 p-0.5 rounded-lg text-[10px] font-bold">
+                        <button type="button" id="filterAllQuestionsBtn" onclick="setRightPanelFilterMode(false)"
+                          class="px-2 py-0.5 rounded-md bg-teal-700 text-white shadow-2xs cursor-pointer transition">
+                          All
+                        </button>
+                        <button type="button" id="filterPageOnlyBtn" onclick="setRightPanelFilterMode(true)"
+                          class="px-2 py-0.5 rounded-md text-slate-800 hover:text-slate-950 cursor-pointer transition">
+                          Page
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Dynamic Sub-Parts & Questions Drawer (Hidden until user clicks a Part tab!) -->
+                  <div id="subPartContainer" class="hidden pt-1.5 border-t border-teal-100 flex flex-wrap items-center gap-1.5">
+                    <div id="subPartFilterBar" class="flex flex-wrap items-center gap-1.5"></div>
+                    <div id="questionJumpBar" class="flex items-center gap-1.5 overflow-x-auto custom-scrollbar"></div>
+                  </div>
                 </div>
               </div>
 
-              <!-- Independently Scrollable Right Content: Clean OCR Cards FIRST, Detailed Evaluation Summary BELOW! -->
+              <!-- Independently Scrollable Right Content: Clean Highlighted Cards OR Inline Overview/Detailed Report -->
               <div id="rightReviewScrollArea" class="flex-1 min-h-0 overflow-y-auto p-3.5 sm:p-4 space-y-4 custom-scrollbar">
+                <!-- Inline Overview / Detailed Report Container (Visible when Overview or Detailed Report tab touched) -->
+                <div id="rightInlineReportContainer" class="hidden space-y-4"></div>
+
                 <!-- Clean Question Cards -->
-                <div id="resGradingBreakdown" class="space-y-3"></div>
+                <div id="resGradingBreakdown" class="space-y-4"></div>
 
                 <!-- Detailed Detected Student Sheet Details (College/Cover Noise Ignored) + Score & Save Controls (Below OCR Cards!) -->
                 <div id="reviewScrollSummaryCard" class="rounded-2xl bg-white border-[1.5px] border-teal-300/80 p-4 space-y-3 shadow-xs">
@@ -1461,6 +1510,7 @@
     let filterByCurrentPage = false;
     let activeTopPart = 'all';
     let activePartFilter = 'all';
+    let rightPanelViewMode = 'cards'; // 'cards' | 'overview' | 'detailed'
 
     function applyThemeMode(mode) {
       const isDark = mode === 'dark';
@@ -4177,6 +4227,7 @@
 
       activeTopPart = 'all';
       activePartFilter = 'all';
+      rightPanelViewMode = 'cards';
       filterByCurrentPage = false;
       recalculateGrandTotal(false);
       updateAttemptedSummaryBar();
@@ -4190,6 +4241,7 @@
       }
 
       setRightPanelFilterMode(false);
+      setRightPanelViewMode('cards');
       currentZoom = 1.0;
       applyZoom();
       selectViewerPage(0, false);
@@ -4239,6 +4291,286 @@
         }
         bar.appendChild(btn);
       });
+    }
+
+    function extractConceptsTested(res, rubricQ = null, stepIdx = -1, subQText = '', subModAns = '') {
+      const seen = new Set();
+      const concepts = [];
+      const addTag = (raw) => {
+        const clean = String(raw || '').replace(/[^\w\s\-\/\u0900-\u097F]/g, '').trim();
+        if (clean.length < 3) return;
+        const low = clean.toLowerCase();
+        if (['the', 'and', 'for', 'with', 'that', 'this', 'from', 'what', 'which', 'write', 'name', 'two', 'four', 'any', 'points', 'explain', 'answer', 'option', 'chosen', 'valid', 'first', 'second', 'third', 'fourth'].includes(low)) return;
+        if (!seen.has(low)) {
+          seen.add(low);
+          concepts.push(clean.length <= 24 && /^[a-z]/.test(clean) ? (clean.charAt(0).toUpperCase() + clean.slice(1)) : clean);
+        }
+      };
+
+      const kpSource = (rubricQ && Array.isArray(rubricQ.key_points) && rubricQ.key_points.length > 0)
+        ? rubricQ.key_points
+        : (Array.isArray(res?.rubric_key_points) ? res.rubric_key_points : []);
+
+      if (stepIdx >= 0) {
+        if (kpSource[stepIdx] && Array.isArray(kpSource[stepIdx].keywords)) {
+          kpSource[stepIdx].keywords.forEach(addTag);
+        }
+        if (concepts.length < 2 && subModAns) {
+          subModAns.replace(/^\([a-z0-9]+\)\s*/i, '').split(/[,\/;]+/).forEach(p => {
+            if (p.trim().split(/\s+/).length <= 4) addTag(p.trim());
+          });
+        }
+        if (concepts.length < 3 && subQText) {
+          subQText.split(/\s+/).forEach(w => {
+            const cw = w.replace(/[^A-Za-z0-9\-]/g, '');
+            if (cw.length >= 5) addTag(cw);
+          });
+        }
+      } else {
+        if (Array.isArray(res?.concepts_tested) && res.concepts_tested.length > 0) {
+          res.concepts_tested.forEach(addTag);
+        }
+        kpSource.forEach(kp => {
+          if (Array.isArray(kp.keywords)) kp.keywords.forEach(addTag);
+        });
+        if (concepts.length < 3 && kpSource.length > 0) {
+          kpSource.forEach(kp => {
+            const d = String(kp.description || '').split(/[:,(]/)[0].trim();
+            if (d && d.split(/\s+/).length <= 5) addTag(d);
+          });
+        }
+      }
+
+      if (concepts.length === 0) {
+        const subj = (document.getElementById('teacherSubject')?.value || currentRubric?.detected_subject || 'Core Concept').trim();
+        addTag(subj);
+        if (res?.question_type) addTag(String(res.question_type).replace('_', ' '));
+      }
+      return concepts.slice(0, 6);
+    }
+
+    function buildDefaultOcrReviewNote(isAttempted, pageNums, studentAns, isDiagram = false) {
+      if (!isAttempted) {
+        return 'No handwritten response detected for this question across scanned pages. Click Edit OCR if the student wrote it elsewhere.';
+      }
+      const pgTxt = (pageNums && pageNums.length > 0) ? `Page ${pageNums.join(', ')}` : 'scanned sheet';
+      const diagNote = isDiagram ? ' + Diagram/Map geometry scanned' : '';
+      const modeLabel = currentGradingReport?.mode === 'online_gemini' ? 'Vision OCR' : 'Local OCR';
+      const charCount = String(studentAns || '').trim().length;
+      return `Extracted via ${modeLabel} from ${pgTxt}${diagNote} (${charCount} chars captured cleanly; review or edit anytime).`;
+    }
+
+    function buildSixSectionCardSectionsHtml({
+      qIdx,
+      sIdx = -1,
+      subNum = -1,
+      romanTok = '',
+      questionHtml,
+      studentAnsPrettyHtml,
+      studentAnsRaw = '',
+      studentAnsPrettyId,
+      ocrEditorWrapId,
+      ocrInputId,
+      onOcrInputHandler,
+      expectedAnswerHtml,
+      expectedOrigin = 'AI-Inferred Key',
+      matchedList = [],
+      missedList = [],
+      diagramHtml = '',
+      conceptsList = [],
+      wrongWhyHtml = '',
+      feedbackDisplayId,
+      feedbackText = '',
+      ocrNoteDisplayId,
+      ocrNoteText = '',
+      commentWrapId,
+      isSub = false,
+      isAttempted = true,
+    }) {
+      const conceptPillsHtml = conceptsList.map(c =>
+        `<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-white/90 text-violet-950 border border-violet-300 shadow-2xs">${escapeHtmlSafe(c)}</span>`
+      ).join('');
+
+      const editorControl = isSub
+        ? `<input type="text" id="${ocrInputId}" value="${escapeHtmlSafe(studentAnsRaw)}"
+             oninput="${onOcrInputHandler}"
+             placeholder="Type student answer for (${escapeHtmlSafe(romanTok)})..."
+             class="w-full text-xs sm:text-sm px-3 py-2 rounded-lg border border-sky-300 bg-white focus:ring-2 focus:ring-sky-500/20 text-slate-950 font-medium" />`
+        : `<textarea id="${ocrInputId}" rows="3"
+             oninput="${onOcrInputHandler}"
+             placeholder="Edit transcribed answer text..."
+             class="w-full text-xs sm:text-sm p-2.5 bg-white rounded-lg border border-sky-300 focus:border-sky-600 text-slate-950 font-medium leading-relaxed">${escapeHtmlSafe(studentAnsRaw)}</textarea>`;
+
+      const feedbackInputHandler = isSub
+        ? `if (currentGradingReport?.question_results?.[${qIdx}]?.step_wise_breakdown?.[${sIdx}]) { currentGradingReport.question_results[${qIdx}].step_wise_breakdown[${sIdx}].notes = this.value; } document.getElementById('${feedbackDisplayId}').textContent = this.value; markReviewDirty();`
+        : `if (currentGradingReport?.question_results?.[${qIdx}]) { currentGradingReport.question_results[${qIdx}].student_feedback = this.value; } document.getElementById('${feedbackDisplayId}').textContent = this.value; markReviewDirty();`;
+
+      const ocrNoteInputHandler = isSub
+        ? `if (currentGradingReport?.question_results?.[${qIdx}]?.step_wise_breakdown?.[${sIdx}]) { currentGradingReport.question_results[${qIdx}].step_wise_breakdown[${sIdx}].ocr_review_note = this.value; } document.getElementById('${ocrNoteDisplayId}').textContent = this.value; markReviewDirty();`
+        : `if (currentGradingReport?.question_results?.[${qIdx}]) { currentGradingReport.question_results[${qIdx}].ocr_review_note = this.value; } document.getElementById('${ocrNoteDisplayId}').textContent = this.value; markReviewDirty();`;
+
+      return `
+        <!-- 1. QUESTION CARD -->
+        <div class="rounded-xl bg-indigo-50/75 border border-indigo-200 border-l-4 border-l-indigo-600 p-3 space-y-1 shadow-2xs">
+          <div class="text-[10px] font-black uppercase tracking-wider text-indigo-900 flex items-center gap-1.5">
+            <span>📘</span> <span>Question</span>
+          </div>
+          <div class="text-xs sm:text-sm font-semibold text-slate-950 leading-relaxed">
+            ${questionHtml}
+          </div>
+        </div>
+
+        <!-- 2. STUDENT ANSWER CARD -->
+        <div class="rounded-xl bg-sky-50/75 border border-sky-200 border-l-4 border-l-sky-600 p-3 space-y-1.5 shadow-2xs">
+          <div class="flex items-center justify-between gap-2">
+            <span class="text-[10px] font-black uppercase tracking-wider text-sky-950 flex items-center gap-1.5">
+              <span>✍️</span> <span>Student Answer (OCR Transcribed)</span>
+            </span>
+            <span class="text-[9.5px] font-bold px-2 py-0.5 rounded-full ${isAttempted ? 'bg-sky-100 text-sky-900 border border-sky-200' : 'bg-rose-100 text-rose-900 border border-rose-200'}">
+              ${isAttempted ? 'Captured' : 'Not Attempted'}
+            </span>
+          </div>
+          <div id="${studentAnsPrettyId}">
+            ${studentAnsPrettyHtml}
+          </div>
+          <div id="${ocrEditorWrapId}" class="hidden pt-1 space-y-1">
+            ${editorControl}
+          </div>
+        </div>
+
+        <!-- 3. EXPECTED ANSWER CARD (Always Visible for Instant Comparison) -->
+        <div class="rounded-xl bg-emerald-50/70 border border-emerald-200 border-l-4 border-l-emerald-600 p-3 space-y-1.5 shadow-2xs">
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <span class="text-[10px] font-black uppercase tracking-wider text-emerald-950 flex items-center gap-1.5">
+              <span>✅</span> <span>Expected Answer</span>
+            </span>
+            <span class="text-[9.5px] font-bold px-2 py-0.5 rounded-full bg-white text-emerald-900 border border-emerald-200">
+              ${escapeHtmlSafe(expectedOrigin)}
+            </span>
+          </div>
+          <div class="text-xs sm:text-sm text-slate-950 leading-relaxed">
+            ${expectedAnswerHtml}
+          </div>
+        </div>
+
+        <!-- 4. EXPECTED KEY POINTS (Matched / Missed Grid) -->
+        <div class="space-y-2">
+          <div class="text-[10px] font-black uppercase tracking-wider text-slate-700 flex items-center gap-1.5 px-0.5">
+            <span>🎯</span> <span>Expected Key Points</span>
+          </div>
+          ${renderMatchedMissedGrid(matchedList, missedList)}
+          ${diagramHtml}
+        </div>
+
+        <!-- 5. CONCEPTS TESTED CARD -->
+        <div class="rounded-xl bg-violet-50/75 border border-violet-200 border-l-4 border-l-violet-600 p-3 space-y-1.5 shadow-2xs">
+          <div class="text-[10px] font-black uppercase tracking-wider text-violet-950 flex items-center gap-1.5">
+            <span>🧠</span> <span>Concepts Tested</span>
+          </div>
+          <div class="flex flex-wrap gap-1.5">
+            ${conceptPillsHtml}
+          </div>
+        </div>
+
+        <!-- 6. AI FEEDBACK & OCR REVIEW NOTE CARD -->
+        <div class="rounded-xl bg-amber-50/65 border border-amber-200 border-l-4 border-l-amber-500 p-3 space-y-2 shadow-2xs">
+          ${wrongWhyHtml}
+          <div class="space-y-1">
+            <span class="text-[10px] font-black uppercase tracking-wider text-amber-950 flex items-center gap-1.5">
+              <span>✨</span> <span>AI Feedback</span>
+            </span>
+            <p id="${feedbackDisplayId}" class="text-xs text-slate-950 font-medium leading-relaxed">${escapeHtmlSafe(feedbackText)}</p>
+          </div>
+          <div class="pt-1.5 border-t border-amber-200/70 space-y-1">
+            <span class="text-[10px] font-black uppercase tracking-wider text-slate-800 flex items-center gap-1.5">
+              <span>📝</span> <span>OCR Review Note</span>
+            </span>
+            <p id="${ocrNoteDisplayId}" class="text-[11px] text-slate-800 font-medium leading-snug">${escapeHtmlSafe(ocrNoteText)}</p>
+          </div>
+          <div id="${commentWrapId}" class="hidden pt-1.5 border-t border-amber-200/70 space-y-2">
+            <div>
+              <label class="block text-[9.5px] font-extrabold uppercase text-amber-950 mb-0.5">Edit AI Feedback:</label>
+              <textarea rows="2" oninput="${feedbackInputHandler}" class="w-full text-xs p-2 bg-white rounded-lg border border-amber-300 text-slate-950">${escapeHtmlSafe(feedbackText)}</textarea>
+            </div>
+            <div>
+              <label class="block text-[9.5px] font-extrabold uppercase text-slate-800 mb-0.5">Edit OCR Review Note:</label>
+              <textarea rows="2" oninput="${ocrNoteInputHandler}" class="w-full text-xs p-2 bg-white rounded-lg border border-amber-300 text-slate-950">${escapeHtmlSafe(ocrNoteText)}</textarea>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function setRightPanelViewMode(mode) {
+      rightPanelViewMode = (mode === 'overview' || mode === 'detailed') ? mode : 'cards';
+
+      const modes = ['cards', 'overview', 'detailed'];
+      modes.forEach(m => {
+        const btn = document.getElementById(`rightModeBtn_${m}`);
+        if (!btn) return;
+        const active = (m === rightPanelViewMode);
+        btn.className = active
+          ? 'px-2.5 py-1 rounded-lg bg-gradient-to-r from-indigo-700 to-teal-700 text-white shadow-2xs transition cursor-pointer flex items-center gap-1'
+          : 'px-2.5 py-1 rounded-lg text-slate-800 hover:bg-white transition cursor-pointer flex items-center gap-1';
+      });
+
+      const isCards = rightPanelViewMode === 'cards';
+      document.getElementById('rightCardsFilterControls')?.classList.toggle('hidden', !isCards);
+      document.getElementById('resGradingBreakdown')?.classList.toggle('hidden', !isCards);
+      document.getElementById('rightInlineReportContainer')?.classList.toggle('hidden', isCards);
+
+      const scrollArea = document.getElementById('rightReviewScrollArea');
+      if (scrollArea) scrollArea.scrollTop = 0;
+
+      if (!isCards && currentGradingReport) {
+        renderRightPanelInlineReport();
+      }
+    }
+
+    function jumpFromOverviewToQuestion(cardKey, zeroBasedPageIdx) {
+      setRightPanelViewMode('cards');
+      if (typeof zeroBasedPageIdx === 'number' && zeroBasedPageIdx >= 0) {
+        selectViewerPage(zeroBasedPageIdx, false);
+      }
+      setTimeout(() => {
+        const cardEl = document.getElementById(`questionCard_${cardKey}`);
+        if (cardEl) cardEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 60);
+    }
+
+    function renderRightPanelInlineReport() {
+      const container = document.getElementById('rightInlineReportContainer');
+      if (!container || !currentGradingReport) return;
+
+      const mode = rightPanelViewMode === 'overview' ? 'short' : 'detailed';
+      const actionStrip = `
+        <div class="flex flex-wrap items-center justify-between gap-2 p-3 rounded-xl bg-white border border-teal-200 shadow-2xs">
+          <span class="text-xs font-black text-slate-900 flex items-center gap-1.5">
+            <span>${mode === 'short' ? '📊 Overview Scorecard' : '📋 Detailed Analysis Report'}</span>
+            <span class="text-[10px] font-bold text-teal-800 bg-teal-50 px-2 py-0.5 rounded-full border border-teal-200">${mode === 'short' ? 'Click any Q. No. to jump to card' : 'Full Transcription & Breakdown'}</span>
+          </span>
+          <div class="flex flex-wrap items-center gap-1.5">
+            <button type="button" onclick="downloadReportPdf('${mode}')"
+              class="px-2.5 py-1 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-[11px] font-bold cursor-pointer">
+              📕 ${mode === 'short' ? 'Short PDF' : 'Detailed PDF'}
+            </button>
+            <button type="button" onclick="activeReportMode='${mode}'; viewPrintableReportHtml()"
+              class="px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-[11px] font-bold cursor-pointer">
+              🖨️ Printable
+            </button>
+            <button type="button" onclick="downloadReportCsv()"
+              class="px-2.5 py-1 rounded-lg bg-teal-600 hover:bg-teal-700 text-white text-[11px] font-bold cursor-pointer">
+              📊 CSV
+            </button>
+            <button type="button" onclick="saveAndGenerateReport()"
+              class="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold cursor-pointer">
+              💾 Save
+            </button>
+          </div>
+        </div>
+      `;
+
+      container.innerHTML = actionStrip + buildReportHtmlByMode(mode, true);
     }
 
     function renderMatchedMissedGrid(matchedList, missedList) {
@@ -4455,11 +4787,44 @@
               ? `<span class="text-[10px] font-extrabold px-2.5 py-0.5 rounded-full bg-emerald-600 text-white shadow-2xs">✓ Attempted</span>`
               : `<span class="text-[10px] font-extrabold px-2.5 py-0.5 rounded-full bg-rose-600 text-white shadow-2xs">Not Attempted</span>`;
             const subWrongWhyHtml = buildShortWrongReasonHtml(subAttempted, stepAwarded, stepMax, subStudentAns, subModelAns, step.notes, missedArr);
+            const subConceptsList = extractConceptsTested(res, item.rubricQ, sIdx, subQuestion, subModelAns);
+            const subFeedbackText = step.notes || (stepAwarded > 0 ? 'Matched expected key concept.' : `Expected: ${subModelAns}`);
+            const subOcrNoteText = step.ocr_review_note || buildDefaultOcrReviewNote(subAttempted, pageNums, subStudentAns, false);
+            const subStudentPrettyHtml = `<div class="text-xs sm:text-sm font-semibold ${subAttempted ? 'text-slate-950' : 'text-rose-700 italic'}">${escapeHtmlSafe(subAttempted ? subStudentAns : 'Not Attempted (No answer written by student)')}</div>`;
+            const subExpectedHtml = `<div class="text-xs sm:text-sm font-semibold text-emerald-950">${escapeHtmlSafe(subModelAns || 'Refer to rubric key point')}</div>`;
+
+            const subBodySections = buildSixSectionCardSectionsHtml({
+              qIdx,
+              sIdx,
+              subNum,
+              romanTok,
+              questionHtml: escapeHtmlSafe(subQuestion),
+              studentAnsPrettyHtml: subStudentPrettyHtml,
+              studentAnsRaw: subStudentAns,
+              studentAnsPrettyId: `subPrettyAns_${qIdx}_${sIdx}`,
+              ocrEditorWrapId: `subEditorWrap_${qIdx}_${sIdx}`,
+              ocrInputId: `subOcrInput_${qIdx}_${sIdx}`,
+              onOcrInputHandler: `onSubItemOcrTextChanged(${qIdx}, ${subNum}, this.value, '${escapeHtmlSafe(romanTok)}', ${sIdx})`,
+              expectedAnswerHtml: subExpectedHtml,
+              expectedOrigin: expectedAnswerOrigin,
+              matchedList: matchedArr,
+              missedList: missedArr,
+              diagramHtml: '',
+              conceptsList: subConceptsList,
+              wrongWhyHtml: subWrongWhyHtml,
+              feedbackDisplayId: `subFeedbackDisplay_${qIdx}_${sIdx}`,
+              feedbackText: subFeedbackText,
+              ocrNoteDisplayId: `subOcrNoteDisplay_${qIdx}_${sIdx}`,
+              ocrNoteText: subOcrNoteText,
+              commentWrapId: `subCommentWrap_${qIdx}_${sIdx}`,
+              isSub: true,
+              isAttempted: subAttempted,
+            });
 
             subCard.innerHTML = `
-              <div class="flex flex-wrap items-center justify-between gap-2">
+              <div class="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-teal-100">
                 <div class="flex flex-wrap items-center gap-2">
-                  <span class="font-black text-sm text-slate-950 heading-font">${escapeHtmlSafe(subTitle)}</span>
+                  <span class="px-2.5 py-0.5 rounded-lg bg-slate-900 text-white font-black text-xs heading-font">${escapeHtmlSafe(subTitle)}</span>
                   <span class="text-[11px] font-bold text-slate-600">[Max: ${Number(stepMax).toFixed(stepMax % 1 === 0 ? 0 : 2)} mark${stepMax === 1 ? '' : 's'}]</span>
                   ${pagePill}
                   ${subStatusBadge}
@@ -4469,33 +4834,7 @@
                 </span>
               </div>
 
-              <div class="rounded-xl bg-white border border-teal-200/80 px-3.5 py-2 text-xs text-slate-900 font-medium leading-relaxed shadow-2xs">
-                <span class="font-black text-slate-950">Question:</span> ${escapeHtmlSafe(subQuestion)}
-              </div>
-
-              <div class="space-y-1">
-                <span class="text-[11px] font-extrabold text-slate-950 block">Student's Transcribed Answer:</span>
-                <div id="subPrettyAns_${qIdx}_${sIdx}" class="rounded-xl bg-white border border-teal-200/80 px-3.5 py-2.5 text-xs sm:text-sm font-semibold ${subAttempted ? 'text-slate-950' : 'text-rose-700 italic'} shadow-2xs">
-                  ${escapeHtmlSafe(subAttempted ? subStudentAns : 'Not Attempted (No answer written by student)')}
-                </div>
-                <div id="subEditorWrap_${qIdx}_${sIdx}" class="hidden pt-1">
-                  <input type="text" id="subOcrInput_${qIdx}_${sIdx}" value="${escapeHtmlSafe(subStudentAns)}"
-                    oninput="onSubItemOcrTextChanged(${qIdx}, ${subNum}, this.value, '${escapeHtmlSafe(romanTok)}', ${sIdx})"
-                    placeholder="Type student answer for (${escapeHtmlSafe(romanTok)})..."
-                    class="w-full text-xs sm:text-sm px-3 py-2 rounded-lg border border-teal-300 bg-white focus:ring-2 focus:ring-teal-500/20 text-slate-950 font-medium" />
-                </div>
-              </div>
-
-              ${subWrongWhyHtml}
-              ${renderMatchedMissedGrid(matchedArr, missedArr)}
-
-              <div class="rounded-xl bg-teal-50/50 border border-teal-200/80 px-3.5 py-2.5 text-xs space-y-1">
-                <div class="flex flex-wrap items-center justify-between gap-2">
-                  <span class="font-extrabold text-slate-950 flex items-center gap-1"><span>✨</span> <span>AI Feedback:</span></span>
-                  ${subModelAns ? `<span class="text-[10px] font-bold text-slate-950 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">Expected: ${escapeHtmlSafe(subModelAns)}</span>` : ''}
-                </div>
-                <p class="text-slate-950 font-medium leading-relaxed">${escapeHtmlSafe(step.notes || (stepAwarded > 0 ? 'Matched expected key concept.' : `Expected: ${subModelAns}`))}</p>
-              </div>
+              ${subBodySections}
 
               <div class="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-teal-100">
                 <div class="flex items-center gap-2">
@@ -4519,6 +4858,10 @@
                     class="px-2.5 py-1 rounded-lg border border-teal-200 bg-white hover:bg-teal-50 text-slate-950 text-[11px] font-bold transition cursor-pointer">
                     ✏️ Edit
                   </button>
+                  <button type="button" onclick="toggleSubCommentEditor(${qIdx}, ${sIdx})"
+                    class="px-2.5 py-1 rounded-lg border border-teal-200 bg-white hover:bg-teal-50 text-slate-950 text-[11px] font-bold transition cursor-pointer">
+                    📝 Note
+                  </button>
                   <button type="button" id="regradeBtn_${qIdx}_sub_${sIdx}" onclick="regradeSingleQuestion(${qIdx})"
                     class="px-2.5 py-1 rounded-lg border border-teal-300 bg-teal-50 hover:bg-teal-100 text-slate-950 text-[11px] font-bold transition cursor-pointer">
                     🔄 Re-evaluate
@@ -4533,7 +4876,7 @@
           return;
         }
 
-        // Standard / Long Question Single Clean Card
+        // Standard / Long Question Single Clean Highlighted 6-Section Card
         const card = document.createElement('div');
         card.id = `questionCard_${cardKey}`;
         const qVerdict = getVerdictMeta(isAttempted, res.marks_awarded, res.max_marks);
@@ -4567,7 +4910,7 @@
         const headerHtml = `
           <div class="flex flex-wrap items-center justify-between gap-2 border-b border-teal-100 pb-2.5">
             <div class="flex flex-wrap items-center gap-2">
-              <span class="font-black text-sm text-slate-950 heading-font">${escapeHtmlSafe(niceQid)}</span>
+              <span class="px-2.5 py-0.5 rounded-lg bg-slate-900 text-white font-black text-xs heading-font">${escapeHtmlSafe(niceQid)}</span>
               <span class="text-[11px] font-bold text-slate-600">[Max: ${Number(res.max_marks).toFixed(res.max_marks % 1 === 0 ? 0 : 2)} marks]</span>
               ${getQuestionTypeBadge(res.question_type)}
               ${pagePill}
@@ -4582,55 +4925,16 @@
         const displayQPrompt = (rawQPrompt && !/^Question\b.*\bfrom Question Paper$/i.test(rawQPrompt))
           ? rawQPrompt
           : `${niceQid} — Answer from Question Paper`;
-        const questionAskedHtml = `
-          <div class="rounded-xl bg-white border border-teal-200/80 px-3.5 py-2 text-xs sm:text-sm text-slate-950 font-medium leading-relaxed shadow-2xs">
-            <span class="font-extrabold text-slate-950">Question:</span> ${escapeHtmlSafe(displayQPrompt)}
-          </div>
-        `;
-
-        if (!isAttempted) {
-          const modelBox = res.model_answer ? `
-            <details class="text-xs rounded-lg bg-emerald-50/40 border border-emerald-200 px-3 py-2">
-              <summary class="cursor-pointer font-bold text-emerald-800 select-none">✅ Expected / Correct Answer (${expectedAnswerOrigin}) ▾</summary>
-              <div class="mt-2">${renderAnswerContentHtml(res.model_answer, res.question_type, [], false)}</div>
-            </details>
-          ` : '';
-
-          const manualOverrideHtml = qIdx >= 0 ? `
-            <details class="text-xs">
-              <summary class="cursor-pointer font-bold text-slate-500 hover:text-indigo-700 select-none">
-                ✏️ Add manual answer text if student wrote this elsewhere ▾
-              </summary>
-              <div class="mt-2 space-y-2 p-2.5 rounded-lg bg-slate-50 border border-slate-200">
-                <textarea id="qOcrInput_${qIdx}" rows="3" oninput="onQuestionOcrTextChanged(${qIdx}, this.value)"
-                  placeholder="Type student's answer text here..."
-                  class="w-full text-xs sm:text-sm p-2.5 bg-white rounded-lg border border-slate-200 text-slate-800"></textarea>
-                <button type="button" id="regradeBtn_${qIdx}" onclick="regradeSingleQuestion(${qIdx})"
-                  class="text-xs font-bold px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white cursor-pointer">
-                  🔄 Re-evaluate Entered Text
-                </button>
-              </div>
-            </details>
-          ` : '';
-
-          card.innerHTML = `
-            ${headerHtml}
-            ${questionAskedHtml}
-            <div class="rounded-lg bg-rose-50/80 border border-rose-200 p-3">
-              <p class="text-xs sm:text-sm font-extrabold text-rose-900">Student did not attempt this question.</p>
-              <p class="text-[11px] text-rose-700 mt-0.5">Awarded 0 / ${Number(res.max_marks).toFixed(2)} Marks.${isOptionalOmitted ? ' (Skipped optional section question)' : ''}</p>
-            </div>
-            ${modelBox}
-            ${manualOverrideHtml}
-          `;
-          breakdownList.appendChild(card);
-          return;
-        }
+        const questionHtmlFormatted = `<div class="whitespace-pre-line">${escapeHtmlSafe(displayQPrompt)}</div>`;
 
         const steps = res.step_wise_breakdown || [];
-        const matchedArr = steps.filter(s => s.status === 'Hit' || s.status === 'Partial')
-          .map(s => `${s.description}${s.status === 'Partial' ? ` (Partial +${Number(s.awarded_point_marks).toFixed(1)})` : ''}`);
-        const missedArr = steps.filter(s => s.status === 'Missed').map(s => s.description);
+        const matchedArr = isAttempted
+          ? steps.filter(s => s.status === 'Hit' || s.status === 'Partial')
+              .map(s => `${s.description}${s.status === 'Partial' ? ` (Partial +${Number(s.awarded_point_marks).toFixed(1)})` : ''}`)
+          : [];
+        const missedArr = isAttempted
+          ? steps.filter(s => s.status === 'Missed').map(s => s.description)
+          : (steps.length > 0 ? steps.map(s => s.description) : (res.missing_key_points || []));
 
         let diagramHtml = '';
         if (res.diagram_path || res.diagram_evaluation) {
@@ -4638,8 +4942,8 @@
           const dScore = res.diagram_evaluation ? (res.diagram_evaluation.structure_score * 100).toFixed(0) : '100';
           const dCritique = res.diagram_evaluation ? res.diagram_evaluation.critique : 'Hand-drawn diagram verified.';
           diagramHtml = `
-            <div class="p-3 bg-amber-50/60 border border-amber-200 rounded-lg space-y-2">
-              <span class="text-[11px] font-bold text-amber-900 block">🎨 Diagram Verification (${dScore}%)</span>
+            <div class="p-3 bg-amber-50/60 border border-amber-200 rounded-xl space-y-2">
+              <span class="text-[11px] font-bold text-amber-900 block">🎨 Diagram / Map Verification (${dScore}%)</span>
               <div class="flex flex-wrap sm:flex-nowrap gap-3 items-center">
                 ${cropUrl ? `<img src="${escapeHtmlSafe(cropUrl)}" class="max-h-28 rounded border border-amber-200 bg-white p-1" />` : ''}
                 <p class="text-xs text-slate-700 leading-relaxed">${escapeHtmlSafe(dCritique)}</p>
@@ -4649,50 +4953,47 @@
         }
 
         const formattedOcrValue = formatDisplayStudentAnswer(res.student_answer || '', res.question_type);
-        const studentAnswerViewHtml = renderAnswerContentHtml(formattedOcrValue, res.question_type, steps, false);
+        const studentAnswerViewHtml = isAttempted
+          ? renderAnswerContentHtml(formattedOcrValue, res.question_type, steps, false)
+          : `<p class="text-xs sm:text-sm font-bold text-rose-700 italic">Student did not attempt this question. (Awarded 0 / ${Number(res.max_marks).toFixed(2)} Marks${isOptionalOmitted ? ' — Optional section' : ''})</p>`;
+        const expectedAnswerViewHtml = res.model_answer
+          ? renderAnswerContentHtml(res.model_answer, res.question_type, [], false)
+          : `<p class="text-xs text-slate-500 italic">Refer to rubric key points below.</p>`;
         const qWrongWhyHtml = buildShortWrongReasonHtml(isAttempted, res.marks_awarded, res.max_marks, formattedOcrValue, res.model_answer, res.student_feedback, res.missing_key_points || missedArr);
+        const conceptsList = extractConceptsTested(res, item.rubricQ);
+        const qFeedbackText = isAttempted
+          ? (res.student_feedback || 'Evaluated against rubric key points.')
+          : (res.student_feedback || 'Student did not attempt this question.');
+        const qOcrNoteText = res.ocr_review_note || buildDefaultOcrReviewNote(isAttempted, pageNums, formattedOcrValue, Boolean(res.diagram_path || res.requires_diagram));
+
+        const cardSectionsHtml = buildSixSectionCardSectionsHtml({
+          qIdx,
+          questionHtml: questionHtmlFormatted,
+          studentAnsPrettyHtml: studentAnswerViewHtml,
+          studentAnsRaw: formattedOcrValue,
+          studentAnsPrettyId: `qStudentPrettyView_${qIdx}`,
+          ocrEditorWrapId: `qOcrEditorWrap_${qIdx}`,
+          ocrInputId: `qOcrInput_${qIdx}`,
+          onOcrInputHandler: `onQuestionOcrTextChanged(${qIdx}, this.value)`,
+          expectedAnswerHtml: expectedAnswerViewHtml,
+          expectedOrigin: expectedAnswerOrigin,
+          matchedList: matchedArr,
+          missedList: missedArr,
+          diagramHtml,
+          conceptsList,
+          wrongWhyHtml: qWrongWhyHtml,
+          feedbackDisplayId: `qFeedbackDisplay_${qIdx}`,
+          feedbackText: qFeedbackText,
+          ocrNoteDisplayId: `qOcrNoteDisplay_${qIdx}`,
+          ocrNoteText: qOcrNoteText,
+          commentWrapId: `qCommentWrap_${qIdx}`,
+          isSub: false,
+          isAttempted,
+        });
 
         card.innerHTML = `
           ${headerHtml}
-          ${questionAskedHtml}
-
-          <div class="space-y-1.5">
-            <span class="text-[11px] font-extrabold text-slate-900 block">Student's Transcribed Answer:</span>
-            <div id="qStudentPrettyView_${qIdx}">
-              ${studentAnswerViewHtml}
-            </div>
-            <div id="qOcrEditorWrap_${qIdx}" class="hidden pt-1 space-y-1">
-              <textarea id="qOcrInput_${qIdx}" rows="4"
-                oninput="onQuestionOcrTextChanged(${qIdx}, this.value)"
-                placeholder="Edit transcribed answer text..."
-                class="w-full text-xs sm:text-sm p-3 bg-white rounded-xl border border-teal-300 focus:border-teal-600 text-slate-950 font-medium leading-relaxed">${escapeHtmlSafe(formattedOcrValue)}</textarea>
-            </div>
-          </div>
-
-          ${qWrongWhyHtml}
-          ${steps.length > 0 ? renderMatchedMissedGrid(matchedArr, missedArr) : ''}
-          ${diagramHtml}
-
-          ${res.model_answer ? `
-            <details class="text-xs rounded-xl bg-teal-50/70 border border-teal-200 px-3.5 py-2.5">
-              <summary class="cursor-pointer font-extrabold text-teal-950 select-none flex items-center justify-between">
-                <span>✅ Expected / Model Answer (${expectedAnswerOrigin})</span>
-                <span class="text-[10px] font-bold text-teal-700">Click to compare ▾</span>
-              </summary>
-              <div class="mt-2 pt-2 border-t border-teal-200">${renderAnswerContentHtml(res.model_answer, res.question_type, [], false)}</div>
-            </details>
-          ` : ''}
-
-          <div class="rounded-xl bg-teal-50/50 border border-teal-200/80 px-3.5 py-2.5 text-xs space-y-1">
-            <span class="font-extrabold text-slate-950 flex items-center gap-1"><span>✨</span> <span>AI Feedback:</span></span>
-            <p id="qFeedbackDisplay_${qIdx}" class="text-slate-950 font-medium leading-relaxed">${escapeHtmlSafe(res.student_feedback || '')}</p>
-            <div id="qCommentWrap_${qIdx}" class="hidden pt-1">
-              <textarea rows="2"
-                oninput="currentGradingReport.question_results[${qIdx}].student_feedback = this.value; document.getElementById('qFeedbackDisplay_${qIdx}').textContent = this.value; markReviewDirty();"
-                class="w-full text-xs p-2 bg-white rounded-lg border border-teal-300 text-slate-950">${escapeHtmlSafe(res.student_feedback || '')}</textarea>
-            </div>
-          </div>
-
+          ${cardSectionsHtml}
           <div class="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-teal-100">
             <div class="flex items-center gap-2">
               <span class="text-xs font-extrabold text-slate-950">Marks:</span>
@@ -4717,7 +5018,7 @@
               </button>
               <button type="button" onclick="toggleCommentEditor(${qIdx})"
                 class="px-2.5 py-1 rounded-lg border border-teal-200 bg-white hover:bg-teal-50 text-slate-950 text-[11px] font-bold transition cursor-pointer">
-                💬 Comment
+                📝 Note / Comment
               </button>
               <button type="button" id="regradeBtn_${qIdx}" onclick="regradeSingleQuestion(${qIdx})"
                 class="px-2.5 py-1 rounded-lg border border-teal-300 bg-teal-50 hover:bg-teal-100 text-slate-950 text-[11px] font-bold transition cursor-pointer">
@@ -4744,6 +5045,11 @@
 
     function toggleCommentEditor(qIdx) {
       const wrap = document.getElementById(`qCommentWrap_${qIdx}`);
+      if (wrap) wrap.classList.toggle('hidden');
+    }
+
+    function toggleSubCommentEditor(qIdx, sIdx) {
+      const wrap = document.getElementById(`subCommentWrap_${qIdx}_${sIdx}`);
       if (wrap) wrap.classList.toggle('hidden');
     }
 
@@ -4791,8 +5097,7 @@
 
       const pretty = document.getElementById(`subPrettyAns_${qIdx}_${sIdx}`);
       if (pretty) {
-        pretty.textContent = val || 'Not Attempted (No answer written by student)';
-        pretty.className = `rounded-xl bg-white border border-teal-200/80 px-3.5 py-2.5 text-xs sm:text-sm font-semibold ${val ? 'text-slate-950' : 'text-rose-700 italic'} shadow-2xs`;
+        pretty.innerHTML = `<div class="text-xs sm:text-sm font-semibold ${val ? 'text-slate-950' : 'text-rose-700 italic'}">${escapeHtmlSafe(val || 'Not Attempted (No answer written by student)')}</div>`;
       }
       markReviewDirty();
       updateAttemptedSummaryBar();
@@ -5204,6 +5509,12 @@
     function renderReportPreviewTable() {
       const wrap = document.getElementById('reportScorePreviewTableWrap');
       if (!wrap || !currentGradingReport) return;
+      wrap.innerHTML = buildReportHtmlByMode(activeReportMode, false);
+    }
+
+    function buildReportHtmlByMode(mode = 'short', interactiveJump = false) {
+      if (!currentGradingReport) return '';
+      const useShort = (mode === 'short');
 
       const items = getOrderedReviewItems();
       const studentName = (document.getElementById('reportStudentName')?.value || '').trim() ||
@@ -5229,22 +5540,22 @@
 
       // 1. Candidate & Exam Profile Banner (Upar Details) - Co-exists on both Short & Detailed views
       const headerHtml = `
-        <div class="p-5 sm:p-6 bg-gradient-to-br from-slate-900 via-indigo-950 to-teal-950 text-white rounded-2xl shadow-md border border-indigo-900/50 mb-6">
-          <div class="flex flex-wrap items-start justify-between gap-4 pb-4 border-b border-white/10">
+        <div class="p-4 sm:p-5 bg-gradient-to-br from-slate-900 via-indigo-950 to-teal-950 text-white rounded-2xl shadow-md border border-indigo-900/50 mb-4">
+          <div class="flex flex-wrap items-start justify-between gap-4 pb-3 border-b border-white/10">
             <div>
               <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-teal-500/20 text-teal-300 border border-teal-400/30 text-[10px] font-black uppercase tracking-wider">
-                <span>🎓</span> <span>${activeReportMode === 'short' ? 'Overall Exam Scorecard (Summary)' : 'Official Exam Evaluation Report'}</span>
+                <span>🎓</span> <span>${useShort ? 'Overall Exam Scorecard (Summary)' : 'Official Exam Evaluation Report'}</span>
               </span>
-              <h2 class="text-xl sm:text-2xl font-black mt-2 tracking-tight text-white heading-font">
+              <h2 class="text-lg sm:text-xl font-black mt-2 tracking-tight text-white heading-font">
                 ${escapeHtmlSafe(examTitle)}
               </h2>
               <p class="text-xs text-indigo-200/80 mt-0.5">Automated Vision OCR &amp; Rubric Key Verification</p>
             </div>
             <!-- Grand Total Score Badge -->
-            <div class="flex items-center gap-3 bg-white/10 backdrop-blur-md px-4 py-2.5 rounded-2xl border border-white/15">
+            <div class="flex items-center gap-3 bg-white/10 backdrop-blur-md px-3.5 py-2 rounded-2xl border border-white/15">
               <div class="text-right">
                 <span class="block text-[10px] font-bold uppercase tracking-wider text-teal-300">Total Marks</span>
-                <span class="text-2xl sm:text-3xl font-black text-white mono-font">${totalAw.toFixed(1)} <span class="text-base text-indigo-200 font-semibold">/ ${totalMx.toFixed(1)}</span></span>
+                <span class="text-xl sm:text-2xl font-black text-white mono-font">${totalAw.toFixed(1)} <span class="text-sm text-indigo-200 font-semibold">/ ${totalMx.toFixed(1)}</span></span>
               </div>
               <div class="pl-3 border-l border-white/15 text-center">
                 <span class="inline-block px-2.5 py-1 rounded-lg bg-emerald-500 text-slate-950 font-black text-xs shadow-2xs">${grandPct.toFixed(1)}%</span>
@@ -5254,39 +5565,38 @@
           </div>
 
           <!-- Student Meta Grid -->
-          <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-4 text-xs">
-            <div class="p-2.5 rounded-xl bg-white/5 border border-white/10">
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-3 text-xs">
+            <div class="p-2 rounded-xl bg-white/5 border border-white/10">
               <span class="block text-[9px] font-black uppercase tracking-wider text-teal-300">Student Name</span>
-              <span class="font-extrabold text-white text-sm truncate block mt-0.5">${escapeHtmlSafe(studentName)}</span>
+              <span class="font-extrabold text-white text-xs sm:text-sm truncate block mt-0.5">${escapeHtmlSafe(studentName)}</span>
             </div>
-            <div class="p-2.5 rounded-xl bg-white/5 border border-white/10">
+            <div class="p-2 rounded-xl bg-white/5 border border-white/10">
               <span class="block text-[9px] font-black uppercase tracking-wider text-teal-300">Roll No.</span>
-              <span class="font-extrabold text-white text-sm truncate block mt-0.5">${escapeHtmlSafe(rollNo)}</span>
+              <span class="font-extrabold text-white text-xs sm:text-sm truncate block mt-0.5">${escapeHtmlSafe(rollNo)}</span>
             </div>
-            <div class="p-2.5 rounded-xl bg-white/5 border border-white/10">
+            <div class="p-2 rounded-xl bg-white/5 border border-white/10">
               <span class="block text-[9px] font-black uppercase tracking-wider text-teal-300">Subject / Course</span>
-              <span class="font-extrabold text-white text-sm truncate block mt-0.5">${escapeHtmlSafe(subject)}</span>
+              <span class="font-extrabold text-white text-xs sm:text-sm truncate block mt-0.5">${escapeHtmlSafe(subject)}</span>
             </div>
-            <div class="p-2.5 rounded-xl bg-white/5 border border-white/10">
+            <div class="p-2 rounded-xl bg-white/5 border border-white/10">
               <span class="block text-[9px] font-black uppercase tracking-wider text-teal-300">Evaluation Status</span>
-              <span class="font-extrabold text-emerald-400 text-sm truncate block mt-0.5">${attemptedCount} / ${items.length} Attempted</span>
+              <span class="font-extrabold text-emerald-400 text-xs sm:text-sm truncate block mt-0.5">${attemptedCount} / ${items.length} Attempted</span>
             </div>
           </div>
         </div>
       `;
 
       // 2. REPORT 2: OVERALL SHORT REPORT (SCORECARD)
-      // "ek or banao overall vala short me report jisme details ho or sirf questions ho or uske aage kitne no. mile vo ho"
-      if (activeReportMode === 'short') {
+      if (useShort) {
         const tableRowsHtml = items.map((it, idx) => {
           const r = it.res;
           const qid = formatDisplayQuestionId(r.question_id);
           const rawQText = it.rubricQ?.question_text || r.question_text || `${qid} — Question from Exam Paper`;
-          const qText = rawQText.replace(/^Question\s*[:\-#]?\s*/i, '').trim();
           const aw = Number(r.marks_awarded) || 0;
           const mx = Number(r.max_marks) || 1;
           const qPct = mx > 0 ? (aw / mx) * 100 : 0;
           const isAtt = Boolean(r.is_attempted && (aw > 0 || (r.student_answer || '').trim().length > 0 || r.diagram_path));
+          const pIdxZero = (isAtt && r.page_numbers && r.page_numbers.length > 0) ? (r.page_numbers[0] - 1) : -1;
 
           let statusClass = 'bg-emerald-100 text-emerald-900 border-emerald-300';
           let statusLabel = 'Full Marks';
@@ -5307,14 +5617,20 @@
           }
 
           const rowBg = idx % 2 === 0 ? 'bg-white dark:bg-slate-900' : 'bg-slate-50/70 dark:bg-slate-800/40';
+          const rowClickAttr = interactiveJump
+            ? `onclick="jumpFromOverviewToQuestion('${escapeHtmlSafe(it.cardKey)}', ${pIdxZero})" title="Click to open ${escapeHtmlSafe(qid)} card & page"`
+            : '';
+          const rowCursor = interactiveJump ? 'cursor-pointer' : '';
 
           return `
-            <tr class="${rowBg} hover:bg-teal-50/40 dark:hover:bg-slate-800 transition border-b border-slate-200/80 dark:border-slate-800">
-              <td class="py-3 px-4 font-black text-indigo-950 dark:text-indigo-300 whitespace-nowrap text-xs align-top">${escapeHtmlSafe(qid)}</td>
-              <td class="py-3 px-4 text-slate-900 dark:text-slate-100 leading-snug align-top">${renderQuestionStatementCell(rawQText, r.step_wise_breakdown, aw, mx, r.question_type, Boolean(r.requires_diagram || it.rubricQ?.requires_diagram))}</td>
-              <td class="py-3 px-4 text-right mono-font font-bold text-slate-600 dark:text-slate-400 whitespace-nowrap align-top">${mx.toFixed(1)}</td>
-              <td class="py-3 px-4 text-right mono-font font-black ${marksColor} text-sm whitespace-nowrap align-top">${aw.toFixed(1)}</td>
-              <td class="py-3 px-4 text-center whitespace-nowrap align-top">
+            <tr ${rowClickAttr} class="${rowBg} ${rowCursor} hover:bg-teal-50/60 dark:hover:bg-slate-800 transition border-b border-slate-200/80 dark:border-slate-800">
+              <td class="py-3 px-3 sm:px-4 font-black text-indigo-950 dark:text-indigo-300 whitespace-nowrap text-xs align-top">
+                <span class="inline-flex items-center gap-1">${escapeHtmlSafe(qid)}${interactiveJump ? '<span class="text-[10px] opacity-60">↗</span>' : ''}</span>
+              </td>
+              <td class="py-3 px-3 sm:px-4 text-slate-900 dark:text-slate-100 leading-snug align-top">${renderQuestionStatementCell(rawQText, r.step_wise_breakdown, aw, mx, r.question_type, Boolean(r.requires_diagram || it.rubricQ?.requires_diagram))}</td>
+              <td class="py-3 px-3 sm:px-4 text-right mono-font font-bold text-slate-600 dark:text-slate-400 whitespace-nowrap align-top">${mx.toFixed(1)}</td>
+              <td class="py-3 px-3 sm:px-4 text-right mono-font font-black ${marksColor} text-sm whitespace-nowrap align-top">${aw.toFixed(1)}</td>
+              <td class="py-3 px-3 sm:px-4 text-center whitespace-nowrap align-top">
                 <span class="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-black border ${statusClass}">
                   ${statusLabel}
                 </span>
@@ -5323,14 +5639,14 @@
           `;
         }).join('');
 
-        wrap.innerHTML = `
+        return `
           <div class="space-y-4">
             ${headerHtml}
             <div class="rounded-2xl border-2 border-teal-200/90 bg-white dark:bg-slate-900 shadow-sm overflow-hidden mb-4">
-              <div class="px-5 py-3.5 bg-gradient-to-r from-slate-900 via-indigo-950 to-teal-950 text-white flex flex-wrap items-center justify-between gap-2">
+              <div class="px-4 py-3 bg-gradient-to-r from-slate-900 via-indigo-950 to-teal-950 text-white flex flex-wrap items-center justify-between gap-2">
                 <div class="flex items-center gap-2">
                   <span class="text-base">⚡</span>
-                  <h3 class="text-sm font-black uppercase tracking-wider">Overall Question Marks Scorecard</h3>
+                  <h3 class="text-xs sm:text-sm font-black uppercase tracking-wider">Overall Question Marks Scorecard</h3>
                 </div>
                 <span class="text-xs font-bold text-teal-300">${items.length} Questions Graded</span>
               </div>
@@ -5338,27 +5654,27 @@
                 <table class="w-full text-left border-collapse text-xs">
                   <thead>
                     <tr class="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-b border-slate-200 dark:border-slate-700 text-[11px] uppercase tracking-wider font-extrabold">
-                      <th class="py-3 px-4 w-20">Q. No.</th>
-                      <th class="py-3 px-4">Question Statement</th>
-                      <th class="py-3 px-4 text-right w-24">Max Marks</th>
-                      <th class="py-3 px-4 text-right w-32">Marks Obtained</th>
-                      <th class="py-3 px-4 text-center w-36">Status</th>
+                      <th class="py-2.5 px-3 sm:px-4 w-20">Q. No.</th>
+                      <th class="py-2.5 px-3 sm:px-4">Question Statement</th>
+                      <th class="py-2.5 px-3 sm:px-4 text-right w-20">Max</th>
+                      <th class="py-2.5 px-3 sm:px-4 text-right w-28">Obtained</th>
+                      <th class="py-2.5 px-3 sm:px-4 text-center w-32">Status</th>
                     </tr>
                   </thead>
                   <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
                     ${tableRowsHtml}
                     <tr class="bg-emerald-50/90 dark:bg-emerald-950/50 font-black text-slate-900 dark:text-white border-t-2 border-emerald-500">
-                      <td colspan="2" class="py-3.5 px-4 text-sm font-black text-emerald-950 dark:text-emerald-200 uppercase">Grand Total Marks Obtained</td>
-                      <td class="py-3.5 px-4 text-right mono-font text-sm font-black">${totalMx.toFixed(1)}</td>
-                      <td class="py-3.5 px-4 text-right mono-font text-base font-black text-emerald-700 dark:text-emerald-400">${totalAw.toFixed(1)}</td>
-                      <td class="py-3.5 px-4 text-center">
-                        <span class="px-3 py-1 rounded-full text-xs font-black bg-emerald-600 text-white shadow-2xs">${grandPct.toFixed(1)}% • Grade ${grandGrade}</span>
+                      <td colspan="2" class="py-3 px-4 text-xs sm:text-sm font-black text-emerald-950 dark:text-emerald-200 uppercase">Grand Total Marks Obtained</td>
+                      <td class="py-3 px-4 text-right mono-font text-sm font-black">${totalMx.toFixed(1)}</td>
+                      <td class="py-3 px-4 text-right mono-font text-base font-black text-emerald-700 dark:text-emerald-400">${totalAw.toFixed(1)}</td>
+                      <td class="py-3 px-4 text-center">
+                        <span class="px-2.5 py-1 rounded-full text-xs font-black bg-emerald-600 text-white shadow-2xs">${grandPct.toFixed(1)}% • Grade ${grandGrade}</span>
                       </td>
                     </tr>
                   </tbody>
                 </table>
               </div>
-              <div class="p-3.5 bg-slate-50 dark:bg-slate-800/60 border-t border-slate-200 dark:border-slate-700 flex flex-wrap items-center justify-between text-xs text-slate-600 dark:text-slate-400">
+              <div class="p-3 bg-slate-50 dark:bg-slate-800/60 border-t border-slate-200 dark:border-slate-700 flex flex-wrap items-center justify-between text-xs text-slate-600 dark:text-slate-400">
                 <div class="flex items-center gap-1.5 font-semibold">
                   <span class="text-emerald-600 font-bold">✔ Certified Scorecard</span>
                   <span>• Verified by Automated Vision OCR &amp; Rubric Scoring Model</span>
@@ -5368,12 +5684,10 @@
             </div>
           </div>
         `;
-        return;
       }
 
       // 3. REPORT 1: DETAILED ANALYSIS REPORT
-      // "jaise ye hai ise rehne do" - Full question cards, student handwriting, steps & feedback
-      const questionCardsHtml = items.map((it, idx) => {
+      const questionCardsHtml = items.map((it) => {
         const r = it.res;
         const qid = formatDisplayQuestionId(r.question_id);
         const qType = (r.question_type || '').replace('_', ' ').toUpperCase();
@@ -5384,13 +5698,14 @@
         const mx = Number(r.max_marks) || 1;
         const qPct = mx > 0 ? (aw / mx) * 100 : 0;
         const isAtt = Boolean(r.is_attempted && (studentAns.length > 0 || r.diagram_path || aw > 0));
-        const pNums = (r.page_numbers && r.page_numbers.length) ? `Page ${r.page_numbers.join(', ')}` : (isAtt ? 'Page 1' : 'Not Attempted');
+        const pNumsList = Array.isArray(r.page_numbers) ? r.page_numbers : [];
+        const pNums = (pNumsList.length) ? `Page ${pNumsList.join(', ')}` : (isAtt ? 'Page 1' : 'Not Attempted');
+        const pIdxZero = (isAtt && pNumsList.length > 0) ? (pNumsList[0] - 1) : -1;
 
-        // Card Border & Marks Color
         let cardBorderClass = 'border-emerald-300 dark:border-emerald-800';
         let marksBadgeClass = 'bg-emerald-600 text-white';
-        let feedbackBoxClass = 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800/70 text-emerald-950 dark:text-emerald-100';
-        let feedbackTitleClass = 'text-emerald-800 dark:text-emerald-300';
+        let feedbackBoxClass = 'bg-amber-50/70 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800/70 text-slate-900 dark:text-amber-100';
+        let feedbackTitleClass = 'text-amber-950 dark:text-amber-300';
         let statusBadge = `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-900 border border-emerald-200">Full Marks</span>`;
 
         if (!isAtt) {
@@ -5408,35 +5723,25 @@
         } else if (qPct < 90) {
           cardBorderClass = 'border-amber-300 dark:border-amber-800';
           marksBadgeClass = 'bg-amber-600 text-white';
-          feedbackBoxClass = 'bg-amber-50 dark:bg-amber-950/40 border-amber-200 dark:border-amber-800/70 text-amber-950 dark:text-amber-100';
-          feedbackTitleClass = 'text-amber-800 dark:text-amber-300';
           statusBadge = `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-200">Partial (${qPct.toFixed(0)}%)</span>`;
         }
 
-        // Concise Feedback Generator
         let fb = (r.student_feedback || '').trim();
         if (!isAtt) {
           fb = 'Student did not attempt this question. Awarded 0 Marks.';
         } else if (aw >= mx) {
           if (!fb || fb.toLowerCase().includes('good') || fb.length < 15) {
-            fb = 'Full marks awarded! Comprehensive, accurate answer addressing all required technical concepts, commands, and conventions.';
+            fb = 'Full marks awarded! Comprehensive, accurate answer addressing all required concepts.';
           }
         } else if (aw > 0) {
           if (!fb || fb.length < 15) {
-            const missing = (r.missing_key_points && r.missing_key_points.length > 0)
-              ? r.missing_key_points.slice(0, 2).join('; ')
-              : '';
-            fb = missing
-              ? `Partial credit awarded (${aw.toFixed(1)} / ${mx.toFixed(1)}). Core concepts covered; missing: ${missing}.`
-              : `Partial credit awarded (${aw.toFixed(1)} / ${mx.toFixed(1)}). Found matching key concepts; minor points or elaboration incomplete.`;
+            const missing = (r.missing_key_points && r.missing_key_points.length > 0) ? r.missing_key_points.slice(0, 2).join('; ') : '';
+            fb = missing ? `Partial credit awarded (${aw.toFixed(1)} / ${mx.toFixed(1)}). Missing: ${missing}.` : `Partial credit awarded (${aw.toFixed(1)} / ${mx.toFixed(1)}).`;
           }
-        } else {
-          if (!fb || fb.length < 15) {
-            fb = 'Answer does not match key concepts or answer key criteria.';
-          }
+        } else if (!fb || fb.length < 15) {
+          fb = 'Answer does not match key concepts or answer key criteria.';
         }
 
-        // Multi-part Question & Answer line-by-line formatting (top to bottom)
         const qSubParts = splitSubQuestions(qText);
         let qBodyHtml = '';
         if (qSubParts.length > 1) {
@@ -5447,7 +5752,7 @@
             ${intro ? `<div class="text-xs font-black uppercase tracking-wider text-indigo-900 dark:text-indigo-300 mb-2 flex items-center gap-1.5"><span>⚡</span> <span>${escapeHtmlSafe(intro)}</span></div>` : ''}
             <div class="space-y-1.5">
               ${subItems.map((sp) => `
-                <div class="p-2.5 rounded-xl bg-white/90 dark:bg-slate-900/90 border-l-4 border-indigo-600 dark:border-indigo-400 text-xs sm:text-sm font-bold text-slate-900 dark:text-slate-100 shadow-2xs">
+                <div class="p-2 rounded-xl bg-white/90 dark:bg-slate-900/90 border-l-4 border-indigo-600 dark:border-indigo-400 text-xs font-bold text-slate-900 dark:text-slate-100 shadow-2xs">
                   ${escapeHtmlSafe(sp)}
                 </div>
               `).join('')}
@@ -5463,7 +5768,7 @@
           ansBodyHtml = `
             <div class="space-y-1.5">
               ${ansSubParts.map((ap) => `
-                <div class="p-2.5 rounded-xl bg-white/80 dark:bg-slate-900/80 border-l-4 border-teal-600 dark:border-teal-400 font-mono text-xs text-slate-900 dark:text-slate-100 shadow-2xs">
+                <div class="p-2 rounded-xl bg-white/80 dark:bg-slate-900/80 border-l-4 border-sky-600 dark:border-sky-400 font-mono text-xs text-slate-900 dark:text-slate-100 shadow-2xs">
                   ${escapeHtmlSafe(ap)}
                 </div>
               `).join('')}
@@ -5473,12 +5778,23 @@
           ansBodyHtml = `<p class="text-xs text-slate-900 dark:text-slate-100 font-mono leading-relaxed whitespace-pre-wrap">${escapeHtmlSafe(studentAns)}</p>`;
         }
 
-        // Sub-steps breakdown line-by-line (top to bottom with marks in front)
+        const expectedAnsHtml = r.model_answer
+          ? `<div class="p-3 rounded-xl bg-emerald-50/75 border border-emerald-200 border-l-4 border-l-emerald-600 shadow-2xs"><div class="text-[10px] font-black uppercase tracking-wider text-emerald-950 mb-1 flex items-center gap-1.5"><span>✅</span> Expected Answer</div><p class="text-xs font-medium text-slate-900 leading-relaxed whitespace-pre-line">${escapeHtmlSafe(r.model_answer)}</p></div>`
+          : '';
+        const conceptTags = extractConceptsTested(r, it.rubricQ);
+        const conceptsBoxHtml = `
+          <div class="p-3 rounded-xl bg-violet-50/75 border border-violet-200 border-l-4 border-l-violet-600 shadow-2xs">
+            <div class="text-[10px] font-black uppercase tracking-wider text-violet-950 mb-1.5 flex items-center gap-1.5"><span>🧠</span> Concepts Tested</div>
+            <div class="flex flex-wrap gap-1.5">${conceptTags.map(c => `<span class="px-2 py-0.5 rounded-full text-[10.5px] font-bold bg-white/90 text-violet-950 border border-violet-300">${escapeHtmlSafe(c)}</span>`).join('')}</div>
+          </div>
+        `;
+        const ocrNote = r.ocr_review_note || buildDefaultOcrReviewNote(isAtt, pNumsList, studentAns, Boolean(r.diagram_path));
+
         let stepsPillsHtml = '';
         if (r.step_wise_breakdown && r.step_wise_breakdown.length > 0) {
           stepsPillsHtml = `
-            <div class="mt-3 pt-2.5 border-t border-slate-200/60 dark:border-slate-700/60 space-y-1.5">
-              <span class="text-[9.5px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-400 block mb-1">Top-to-Bottom Evaluation Breakdown:</span>
+            <div class="mt-2.5 pt-2 border-t border-slate-200/60 dark:border-slate-700/60 space-y-1">
+              <span class="text-[9.5px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-400 block mb-1">Key Points Breakdown:</span>
               ${r.step_wise_breakdown.map((s, sIdx) => {
                 const sHit = s.status === 'Hit';
                 const sPart = s.status === 'Partial';
@@ -5490,7 +5806,7 @@
                 const awPt = Number(s.awarded_point_marks || 0);
                 const mxPt = Number(s.max_point_marks || 1);
                 return `
-                  <div class="flex items-start gap-2 p-1.5 px-2.5 rounded-lg bg-white/70 dark:bg-slate-900/60 border border-slate-200/70 dark:border-slate-700/70 text-xs">
+                  <div class="flex items-start gap-2 p-1.5 px-2 rounded-lg bg-white/70 dark:bg-slate-900/60 border border-slate-200/70 dark:border-slate-700/70 text-xs">
                     <span class="inline-flex items-center gap-1 text-[10px] font-black px-2 py-0.5 rounded border ${sBadge} shrink-0 mono-font shadow-2xs">
                       <span>${icon}</span> <span>${awPt.toFixed(1)} / ${mxPt.toFixed(1)} M</span>
                     </span>
@@ -5502,56 +5818,46 @@
           `;
         }
 
+        const headerJumpBtn = interactiveJump
+          ? `<button type="button" onclick="jumpFromOverviewToQuestion('${escapeHtmlSafe(it.cardKey)}', ${pIdxZero})" class="px-2 py-0.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-900 border border-indigo-200 text-[10px] font-bold cursor-pointer">Open Card ↗</button>`
+          : '';
+
         return `
-          <div class="rounded-2xl border-2 ${cardBorderClass} bg-white dark:bg-slate-900 shadow-sm overflow-hidden mb-4">
-            <!-- Card Header with Side Marks Badge -->
-            <div class="px-4 py-3 bg-slate-50 dark:bg-slate-800/90 border-b border-slate-200 dark:border-slate-700 flex flex-wrap items-center justify-between gap-3">
+          <div class="rounded-2xl border-2 ${cardBorderClass} bg-white dark:bg-slate-900 shadow-sm overflow-hidden mb-3.5">
+            <div class="px-4 py-2.5 bg-slate-50 dark:bg-slate-800/90 border-b border-slate-200 dark:border-slate-700 flex flex-wrap items-center justify-between gap-2">
               <div class="flex flex-wrap items-center gap-2">
-                <span class="text-xs font-black px-3 py-1 rounded-lg bg-indigo-950 text-white shadow-2xs">
-                  ${escapeHtmlSafe(qid)}
-                </span>
-                <span class="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-slate-200">
-                  ${escapeHtmlSafe(qType)}
-                </span>
-                <span class="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
-                  📄 ${escapeHtmlSafe(pNums)}
-                </span>
+                <span class="text-xs font-black px-2.5 py-1 rounded-lg bg-indigo-950 text-white shadow-2xs">${escapeHtmlSafe(qid)}</span>
+                <span class="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-slate-200">${escapeHtmlSafe(qType)}</span>
+                <span class="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">📄 ${escapeHtmlSafe(pNums)}</span>
                 ${statusBadge}
+                ${headerJumpBtn}
               </div>
 
-              <!-- Marks on the Side (Prominent!) -->
-              <div class="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl ${marksBadgeClass} font-black text-sm shadow-2xs">
+              <div class="flex items-center gap-1.5 px-3 py-1 rounded-xl ${marksBadgeClass} font-black text-xs sm:text-sm shadow-2xs">
                 <span>Marks:</span>
-                <span class="text-base font-black mono-font">${aw.toFixed(1)} / ${mx.toFixed(1)}</span>
-                <span class="text-[10px] font-bold px-1.5 py-0.2 rounded bg-black/25">(${qPct.toFixed(0)}%)</span>
+                <span class="font-black mono-font">${aw.toFixed(1)} / ${mx.toFixed(1)}</span>
+                <span class="text-[10px] font-bold px-1.5 rounded bg-black/25">(${qPct.toFixed(0)}%)</span>
               </div>
             </div>
 
-            <div class="p-4 sm:p-5 space-y-3.5">
-              <!-- Full Question Statement -->
-              <div class="p-3.5 rounded-xl bg-indigo-50/70 dark:bg-indigo-950/40 border border-indigo-200/80 dark:border-indigo-900/60 shadow-2xs">
-                <div class="text-[10px] font-black uppercase tracking-wider text-indigo-900 dark:text-indigo-300 mb-1 flex items-center gap-1.5">
-                  <span>📘</span> Question
-                </div>
+            <div class="p-3.5 sm:p-4 space-y-3">
+              <div class="p-3 rounded-xl bg-indigo-50/75 dark:bg-indigo-950/40 border border-indigo-200 border-l-4 border-l-indigo-600 shadow-2xs">
+                <div class="text-[10px] font-black uppercase tracking-wider text-indigo-900 dark:text-indigo-300 mb-1 flex items-center gap-1.5"><span>📘</span> Question</div>
                 ${qBodyHtml}
               </div>
 
-              <!-- Student Transcribed Answer -->
-              <div class="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 shadow-2xs">
-                <div class="text-[10px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-400 mb-1 flex items-center gap-1.5">
-                  <span>✍️</span> Student's Transcribed Answer
-                </div>
+              <div class="p-3 rounded-xl bg-sky-50/75 dark:bg-slate-800/50 border border-sky-200 border-l-4 border-l-sky-600 shadow-2xs">
+                <div class="text-[10px] font-black uppercase tracking-wider text-sky-950 dark:text-slate-400 mb-1 flex items-center gap-1.5"><span>✍️</span> Student's Transcribed Answer</div>
                 ${ansBodyHtml}
               </div>
 
-              <!-- Concise Feedback -->
-              <div class="p-3.5 rounded-xl border ${feedbackBoxClass} shadow-2xs">
-                <div class="text-[10px] font-black uppercase tracking-wider ${feedbackTitleClass} mb-1 flex items-center gap-1.5">
-                  <span>💡</span> Examiner AI Feedback
-                </div>
-                <p class="text-xs font-semibold leading-relaxed">
-                  ${escapeHtmlSafe(fb)}
-                </p>
+              ${expectedAnsHtml}
+              ${conceptsBoxHtml}
+
+              <div class="p-3 rounded-xl border border-l-4 border-l-amber-500 ${feedbackBoxClass} shadow-2xs space-y-1.5">
+                <div class="text-[10px] font-black uppercase tracking-wider ${feedbackTitleClass} flex items-center gap-1.5"><span>✨</span> AI Feedback &amp; OCR Review Note</div>
+                <p class="text-xs font-semibold leading-relaxed">${escapeHtmlSafe(fb)}</p>
+                <p class="text-[11px] font-medium text-slate-700 dark:text-slate-300 border-t border-amber-200/70 pt-1"><b>📝 OCR Review Note:</b> ${escapeHtmlSafe(ocrNote)}</p>
                 ${stepsPillsHtml}
               </div>
             </div>
@@ -5559,10 +5865,10 @@
         `;
       }).join('');
 
-      wrap.innerHTML = `
+      return `
         <div class="space-y-4">
           ${headerHtml}
-          <div class="flex items-center justify-between pb-2">
+          <div class="flex items-center justify-between pb-1">
             <h3 class="text-sm font-black uppercase tracking-wider text-slate-900 dark:text-white flex items-center gap-1.5">
               <span>📋</span> Detailed Question-by-Question Evaluation &amp; Feedback
             </h3>

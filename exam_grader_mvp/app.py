@@ -537,11 +537,23 @@ def _build_final_payload(
             q_res["model_answer"] = rq_meta.get("model_answer", "")
             q_res["requires_diagram"] = bool(rq_meta.get("requires_diagram", False))
             q_res["diagram_criteria"] = rq_meta.get("diagram_criteria", "")
+            q_res["rubric_key_points"] = rq_meta.get("key_points", [])
+            concepts: list[str] = []
+            seen_c: set[str] = set()
+            for kp in rq_meta.get("key_points", []):
+                for kw in (kp.get("keywords") or []):
+                    clean_kw = str(kw).strip(" ,.;:()[]{}").strip()
+                    if len(clean_kw) >= 3 and clean_kw.lower() not in seen_c:
+                        seen_c.add(clean_kw.lower())
+                        concepts.append(clean_kw.title() if clean_kw.islower() else clean_kw)
+            q_res["concepts_tested"] = concepts[:10]
         else:
             q_res.setdefault("question_text", "")
             q_res.setdefault("model_answer", "")
             q_res.setdefault("requires_diagram", False)
             q_res.setdefault("diagram_criteria", "")
+            q_res.setdefault("rubric_key_points", [])
+            q_res.setdefault("concepts_tested", [])
 
         has_text = bool(str(q_res.get("student_answer") or "").strip())
         has_diagram = bool(q_res.get("diagram_path"))
